@@ -1,56 +1,132 @@
 <div align="center">
-<img src="assets/icon_256.ico" width="120" />
-<h1>TunesBack</h1>
-<p>
-<p> <a href="https://github.com/mooesy/TunesBack/actions"> <img src="https://www.google.com/search?q=https://img.shields.io/github/actions/workflow/status/{username}/{repo}/main.yml?style=flat-square" alt="Build Status" /> </a> </p>
-</a>
-</p>
+  <img src="./assets/icon_256.ico" alt="TunesBack Logo" width="128" height="128">
+  
+# 🎵 TunesBack
+
+**Your music story, beautifully analyzed.**
+
+*The "Apple Music Replay" experience for iTunes and iPod users.*
+
+  [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 </div>
 
-**TunesBack** is a modern, cross-platform desktop application that visualizes your iTunes Library & Apple Music Library history. It analyzes your library XML "snapshots" to show you your top artists, albums, and songs, and calculates your listening growth over specific time periods.
+## Why TunesBack?
 
-<p>TunesBack is powered by <a href="https://github.com/liamks/libpytunes">libpytunes</a> for robust parsing of iTunes XML library files.</p>
+Spotify has Wrapped. Apple Music has Replay. But what about iTunes and iPod users?
 
-![Screenshot](assets/screenshot.png)
+**TunesBack fills that gap.** If you own your music library instead of streaming, you've been left out of the year-end analytics revolution. TunesBack brings that experience to your local library—track listening habits, discover top artists and songs, and see how your taste evolves over time.
+
+Works with both iTunes and Apple Music libraries. Cross-platform support for Windows, macOS, and Linux. (WIP)
+
+Powered by [libpytunes](https://github.com/liamks/libpytunes) for robust iTunes XML parsing.
 
 ## ✨ Features
 
-* **📂 Snapshot Analysis:** Automatically parses dates from your iTunes Library XML filenames (e.g., `2023-12-01.xml`, `01.12.23.xml`).
-* **📊 Single Snapshot Analysis:** View your total play time and top rankings for a single XML snapshot.
-* **📈 Compare Mode:** Calculate the **growth** between two snapshots. See exactly how many hours you listened and which artists grew the most during that period.
-* **🎨 Modern UI:** A frameless, clean interface built with **Flet** (Flutter for Python), featuring dark/light mode toggles and smooth animations.
-* **🔒 Privacy First:** All processing happens locally on your machine. No data is ever uploaded.
+- **Compare periods**  (Must be dated. See guide below.) or analyze single snapshots
+- **Top Artists, Albums & Songs** with customizable rankings (5-100 items)
+- **Flexible display**: Hours/minutes, sort by time/plays
+- **Beautiful dashboard** with dark/light mode
+- **100% private**: All processing happens locally on your machine
 
-## 🚀 How to Use
+## 🚀 Quick Start
 
-1.  **Select Folder:** Click the "Select Folder" button and choose the directory where you keep your iTunes `.xml` backups.
-2.  **Select Mode:**
-      * **Single Library:** Select a "Start Date" to see stats for that specific day.
-      * **Compare:** Check the "Compare" box and select an "End Date" to see the difference between the two dates.
-3.  **Customize:** Adjust the sliders to show Top 10, 20, or 50 items. Toggle between "Hours" or "Minutes".
-4.  **Generate:** Click **Generate Recap** to view your statistics.
+### 1. Install
 
-## 📦 Building Executables
+**Pre-built app** (recommended): Download from [Releases](https://github.com/mooseses/TunesBack/releases)
 
-To build a standalone executable (`.exe` for Windows, `.app` for macOS, or binary for Linux) that requires no Python installation to run:
-
-1.  Ensure you have the dependencies installed.
-2.  Run the packaging command:
-
-**Windows:**
-
+**From source**:
 ```bash
-flet pack main.py --name TunesBack --icon assets/icon.ico
+git clone https://github.com/mooseses/TunesBack.git
+cd TunesBack
+
+pip install -r requirements.txt
+
+python tunesback.py
 ```
 
-**macOS:**
-
+Alternatively, install dependencies manually:
 ```bash
-flet pack main.py --name TunesBack --icon assets/icon.icns
+pip install flet libpytunes pandas python-dateutil
+python tunesback.py
 ```
 
-The executable will appear in the `dist/` folder.
+### 2. Export Your Library
 
-## 📝 License
+1. Open iTunes/Music → **File** → **Library** → **Export Library**
+2. Save as `.xml` with a date in filename (e.g., `2025-12-01.xml`)
+3. Export again later to compare!
 
-Distributed under the GPL-3.0 license. See `LICENSE` for more information.
+### 3. Analyze
+
+1. Click **Select Folder** and choose your XML files location
+2. Pick date range or single snapshot
+3. Click **Generate Recap**
+
+### 📁 File Naming Guide
+
+**How TunesBack Parses Dates**
+
+TunesBack uses **fuzzy date parsing** to automatically extract dates from your XML filenames. The parser looks for date-like patterns anywhere in the filename and standardizes them to `YYYY-MM-DD` format in the app.
+
+**✅ Recommended Formats (Unambiguous):**
+- `2025-12-01.xml` or `2025-12-01 iTunes Library.xml`
+- `2025_12_01.xml`
+- `December 01 2025.xml` or `Dec 01 2025.xml`
+- `01 December 2025.xml`
+- `2025-December-01.xml`
+
+**⚠️ Date Format Ambiguity Warning**
+
+Be careful with numeric-only dates! The parser may interpret them differently based on your system:
+
+- `01-12-2025.xml` could be:
+  - **January 12, 2025** (MM-DD-YYYY format)
+  - **December 1, 2025** (DD-MM-YYYY format)
+
+- `12-01-2025.xml` could be:
+  - **December 1, 2025** (MM-DD-YYYY format)
+  - **January 12, 2025** (DD-MM-YYYY format)
+
+**Best Practice:** Use ISO format `YYYY-MM-DD.xml` or include month names like `December-01-2025.xml` to avoid confusion.
+
+**Examples that work:**
+- ✅ `2025-12-01.xml`
+- ✅ `iTunes Export December 2025.xml`
+- ✅ `Library_2025_12_01_backup.xml`
+
+**Examples that might fail:**
+- ❌ `library.xml` (no date)
+- ❌ `v2.1.3-export.xml` (version numbers confused with dates)
+
+
+## 💡 Tips
+
+- 📅 Export monthly for meaningful trends
+- 🎧 Sort by "Plays" for guilty pleasures; "Time" for what really stuck
+- 📈 Use top 50-100 for comprehensive year-end recaps
+- 🔄 Compare consecutive months to see immediate vs. long-term shifts
+
+## ❓ Troubleshooting
+
+**"No dated XML files found"**
+- Filenames need recognizable dates (see File Naming Guide above)
+- When in doubt, use `YYYY-MM-DD.xml` format—it's universally recognized
+
+**No data showing?**
+- Podcasts, movies, and videos are filtered out—only songs count
+- Verify your library has play count history
+
+**Slow loading?**
+- Large libraries (10,000+ songs) take 5-15 seconds—this is normal
+
+## 🛠️ Built With
+
+- [Flet](https://flet.dev/) - Python UI framework
+- [libpytunes](https://github.com/liamks/libpytunes) - iTunes XML parser
+- [pandas](https://pandas.pydata.org/) - Data analysis
+- [python-dateutil](https://dateutil.readthedocs.io/) - Date parsing
+
+## 📜 License
+
+Distributed under the GPL-3.0 License. See `LICENSE` for details.
