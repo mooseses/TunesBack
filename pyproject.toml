@@ -1,0 +1,13 @@
+[project]
+name = "TunesBack"
+version = "1.0.0"
+description = "iTunes listening history analyzer"
+dependencies = [
+    "flet",
+    "pandas",
+    "python-dateutil",
+    "libpytunes"
+]
+
+[tool.flet.macos]
+entitlement."com.apple.security.files.user-selected.read-write" = true
