@@ -1,0 +1,4 @@
+flet
+pandas
+python-dateutil
+git+https://github.com/liamks/libpytunes.git#egg=libpytunes
