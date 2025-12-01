@@ -63,7 +63,7 @@ python tunesback.py
 2. Pick date range or single snapshot
 3. Click **Generate Recap**
 
-### 📁 File Naming Guide
+## 📁 File Naming Guide
 
 **How TunesBack Parses Dates**
 
