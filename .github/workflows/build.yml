@@ -24,17 +24,14 @@ jobs:
           - os: macos-latest
             platform: macos
             name: macOS
-            binary-path: build/macos/TunesBack.app
             
           - os: windows-latest
             platform: windows
             name: Windows
-            binary-path: build/windows
             
           - os: ubuntu-latest
             platform: linux
             name: Linux
-            binary-path: build/linux
     
     runs-on: ${{ matrix.os }}
     
@@ -48,15 +45,73 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
       
+      # Install Linux dependencies
+      - name: Install Linux dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libblkid-dev \
+            liblzma-dev
+      
       - name: Install Flet
         run: pip install flet==${{ env.FLET_VERSION }}
       
       - name: Build ${{ matrix.name }}
         run: flet build ${{ matrix.platform }} --verbose
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: 1
       
-      - name: Upload artifact
+      # Package macOS
+      - name: Package macOS app
+        if: matrix.platform == 'macos'
+        run: |
+          cd build/macos
+          zip -r TunesBack-macOS.zip TunesBack.app
+          
+      # Package Windows
+      - name: Package Windows app
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build/windows/* -DestinationPath TunesBack-Windows.zip
+      
+      # Package Linux
+      - name: Package Linux app
+        if: matrix.platform == 'linux'
+        run: |
+          cd build/linux
+          tar -czf TunesBack-Linux.tar.gz *
+      
+      # Upload packaged artifacts
+      - name: Upload macOS artifact
+        if: matrix.platform == 'macos'
         uses: actions/upload-artifact@v4
         with:
           name: TunesBack-${{ matrix.name }}-${{ github.sha }}
-          path: ${{ matrix.binary-path }}
+          path: build/macos/TunesBack-macOS.zip
+          retention-days: 0
+      
+      - name: Upload Windows artifact
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TunesBack-${{ matrix.name }}-${{ github.sha }}
+          path: TunesBack-Windows.zip
+          retention-days: 0
+      
+      - name: Upload Linux artifact
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TunesBack-${{ matrix.name }}-${{ github.sha }}
+          path: build/linux/TunesBack-Linux.tar.gz
           retention-days: 0
