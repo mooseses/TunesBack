@@ -1,6 +1,6 @@
 [project]
 name = "tunesback"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
   "flet>=0.28.3",
   "pandas",
@@ -12,7 +12,6 @@ product = "TunesBack"
 copyright = "Copyright © 2025 Peter Jin"
 
 [tool.flet.app]
-module = "app.py"
 assets_dir = "assets"
 
 [tool.flet.macos]

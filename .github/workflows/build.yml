@@ -1,0 +1,62 @@
+name: Build TunesBack
+
+on:
+  push:
+    branches:
+      - main
+      - pjin-dev
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+  FLET_VERSION: "0.28.3"
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+            name: macOS
+            binary-path: build/macos/TunesBack.app
+            
+          - os: windows-latest
+            platform: windows
+            name: Windows
+            binary-path: build/windows
+            
+          - os: ubuntu-latest
+            platform: linux
+            name: Linux
+            binary-path: build/linux
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install Flet
+        run: pip install flet==${{ env.FLET_VERSION }}
+      
+      - name: Build ${{ matrix.name }}
+        run: flet build ${{ matrix.platform }} --verbose
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TunesBack-${{ matrix.name }}-${{ github.sha }}
+          path: ${{ matrix.binary-path }}
+          retention-days: 0
