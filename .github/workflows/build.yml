@@ -103,17 +103,16 @@ jobs:
               "TunesBack-macOS-v${{ env.APP_VERSION }}.dmg"
           fi
       
-      # ========== Windows: Create Installer ==========
+        # ========== Windows: Create Installer ==========
       - name: Create Windows Installer
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          # Download Inno Setup
-          $innoUrl = "https://jrsoftware.org/download.php/is.exe"
-          Invoke-WebRequest -Uri $innoUrl -OutFile "innosetup.exe"
+          # Install Inno Setup via Chocolatey
+          choco install innosetup -y
           
-          # Install Inno Setup silently
-          Start-Process -FilePath "innosetup.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -Wait
+          # Wait for installation to complete
+          Start-Sleep -Seconds 5
           
           # Create installer script
           $issContent = @"
@@ -149,8 +148,11 @@ jobs:
           
           $issContent | Out-File -FilePath "installer.iss" -Encoding ASCII
           
+          # Find ISCC.exe (Chocolatey install path)
+          $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          
           # Compile installer
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"
+          & $isccPath "installer.iss"
       
       # ========== Linux: Create Tarball ==========
       - name: Package Linux app
