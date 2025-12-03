@@ -8,6 +8,7 @@
 *The "Apple Music Replay" experience for iTunes and iPod users.*
 
   [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+  ![Build Status](https://github.com/mooseses/TunesBack/actions/workflows/build.yml/badge.svg?branch=main)
 
 </div>
 
@@ -46,13 +47,16 @@ Powered by [libpytunes](https://github.com/liamks/libpytunes) for robust iTunes 
 
 ## 🚀 Quick Start
 
-### 1. Install
+### 1. Run TunesBack
 
-**Pre-built app** (recommended): Download from [Releases](https://github.com/mooseses/TunesBack/releases)
+**Download from** [Releases](https://github.com/mooseses/TunesBack/releases)
+
+> **Note**: On first launch, macOS may show a security warning. Go to **System Settings → Privacy & Security** and click "Open Anyway"
 
 **From source**:
 ```bash
 git clone https://github.com/mooseses/TunesBack.git
+
 cd TunesBack
 
 pip install -r requirements.txt
@@ -60,11 +64,6 @@ pip install -r requirements.txt
 python tunesback.py
 ```
 
-Alternatively, install dependencies manually:
-```bash
-pip install flet libpytunes pandas python-dateutil
-python tunesback.py
-```
 
 ### 2. Export Your Library
 
@@ -82,49 +81,59 @@ python tunesback.py
 
 **How TunesBack Parses Dates**
 
-TunesBack uses **fuzzy date parsing** to automatically extract dates from your XML filenames. The parser looks for date-like patterns anywhere in the filename and standardizes them to `YYYY-MM-DD` format in the app.
+TunesBack uses **fuzzy date parsing** to automatically extract dates from your XML filenames and displays them as `YYYY-MM-DD` in the app.
 
-**Recommended Formats (Unambiguous):**
-- `2025-12-01.xml` or `2025-12-01 iTunes Library.xml`
-- `2025_12_01.xml`
-- `December 01 2025.xml` or `Dec 01 2025.xml`
-- `01 December 2025.xml`
-- `2025-December-01.xml`
+### ✅ Recommended Formats (Unambiguous)
 
-**Date Format Ambiguity Warning**
+```
+2025-12-01.xml
+2025_12_01.xml
+December-01-2025.xml
+Dec-01-2025.xml
+01 December 2025.xml
+2025-12-01 iTunes Library.xml
+Library_2025_12_01_backup.xml
+```
 
-Be careful with numeric-only dates! The parser may interpret them differently based on your system:
+### ⚠️ Ambiguous Formats (Not Recommended)
 
-- `01-12-2025.xml` could be:
-  - **January 12, 2025** (MM-DD-YYYY format)
-  - **December 1, 2025** (DD-MM-YYYY format)
+Numeric-only dates can be interpreted differently:
 
-- `12-01-2025.xml` could be:
-  - **December 1, 2025** (MM-DD-YYYY format)
-  - **January 12, 2025** (DD-MM-YYYY format)
+- `01-12-2025.xml` → Could be Jan 12 or Dec 1
+- `12-01-2025.xml` → Could be Dec 1 or Jan 12
 
-**Best Practice:** Use ISO format `YYYY-MM-DD.xml` or include month names like `December-01-2025.xml` to avoid confusion.
+**Best Practice**: Use ISO format `YYYY-MM-DD.xml` or include month names to avoid confusion.
 
-**Examples that work:**
-- `2025-12-01.xml`
-- `iTunes Export December 2025.xml`
-- `Library_2025_12_01_backup.xml`
+### ❌ Won't Work
 
-**Examples that might fail:**
 - `library.xml` (no date)
 - `v2.1.3-export.xml` (version numbers confused with dates)
+- `backup.xml` (no date information)
 
-### Pro Tip: Automate Your Exports!
+### 💡 Pro Tip: Automate Your Exports
 
-Instead of manually exporting, set up a scheduled task to automatically copy and rename `iTunes Library.xml` to a dedicated snapshots folder each month/week/day. You can do this entirely on the cloud if you're already using iTunes Library XML parsers like [this one](https://gist.github.com/ddelange/46d5a4c8c9897abb0d3d407938d3702a) to sync your playlists to services like Plex.
+Set up a scheduled task (cron/Task Scheduler) to automatically copy and rename your iTunes Library XML to a snapshots folder weekly/monthly:
 
+**macOS/Linux:**
+```bash
+# Add to crontab: Run monthly on the 1st at midnight
+0 0 1 * * cp ~/Music/iTunes/iTunes\ Library.xml ~/Music/Snapshots/$(date +\%Y-\%m-\%d).xml
+```
 
-## 🛠️ Built With
+**Windows PowerShell (Task Scheduler):**
+```powershell
+$date = Get-Date -Format "yyyy-MM-dd"
+Copy-Item "$env:USERPROFILE\Music\iTunes\iTunes Library.xml" "$env:USERPROFILE\Music\Snapshots\$date.xml"
+```
 
-- [Flet](https://flet.dev/) - Python UI framework
-- [libpytunes](https://github.com/liamks/libpytunes) - iTunes XML parser
-- [pandas](https://pandas.pydata.org/) - Data analysis
-- [python-dateutil](https://dateutil.readthedocs.io/) - Date parsing
+You can also integrate this with cloud-based iTunes Library XML parsers like [this one](https://gist.github.com/ddelange/46d5a4c8c9897abb0d3d407938d3702a) to sync playlists to Plex while backing up snapshots.
+
+## 🛠️ Tech Stack
+
+- **[Flet](https://flet.dev/)** - Modern Python UI framework
+- **[libpytunes](https://github.com/liamks/libpytunes)** - iTunes XML parser (vendored)
+- **[pandas](https://pandas.pydata.org/)** - Data analysis and aggregation
+- **[python-dateutil](https://dateutil.readthedocs.io/)** - Fuzzy date parsing
 
 ## License
 

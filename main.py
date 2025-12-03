@@ -1,10 +1,16 @@
+import sys
+from pathlib import Path
+# Add libpytunes submodule to Python path
+sys.path.insert(0, str(Path(__file__).parent / "libpytunes"))
+from libpytunes import Library
+
 import flet as ft
 import os
 import traceback
 import pandas as pd
 from collections import defaultdict
 from dateutil import parser
-from libpytunes import Library
+
 
 
 # =============================================================================
