@@ -225,6 +225,13 @@ def draw_list_item(rank: int, label: str, sub_label: str, value: float, count: i
 class TunesBackApp:
     def __init__(self, page: ft.Page):
         self.page = page
+
+        # Platform detection
+        import platform as plat
+        system = plat.system().lower()
+        flet_platform = str(page.platform).lower() if page.platform else ""
+        self.is_macos = system == "darwin" or "darwin" in flet_platform or "macos" in flet_platform
+
         self.files = []
         self.full_labels = []
         self.data_frames = {"art": pd.DataFrame(), "alb": pd.DataFrame(), "song": pd.DataFrame()}
@@ -273,6 +280,9 @@ class TunesBackApp:
                                            expand=True, visible=False, on_click=self.cancel_analysis_handler)
         self.btn_reset = ft.IconButton(icon="refresh", tooltip="Reset View", disabled=True, on_click=self.reset_view)
         self.btn_theme = ft.IconButton(icon="light_mode", icon_size=18, tooltip="Toggle Theme", on_click=self.toggle_theme)
+
+        self.btn_minimize = ft.IconButton(icon="remove", icon_size=14, on_click=self.minimize_app)
+        self.btn_close = ft.IconButton(icon="close", icon_size=14, on_click=self.close_app)
 
         self.file_picker = ft.FilePicker(on_result=self.on_folder_picked)
         self.page.overlay.append(self.file_picker)
@@ -360,7 +370,12 @@ class TunesBackApp:
             ft.Container(padding=ft.padding.only(left=Theme.PAD_LEFT, right=20, bottom=20), content=results_box, expand=True)
         ], expand=True, visible=False, spacing=0)
 
-        sidebar_inner = ft.Container(padding=20, content=ft.Column([
+        # Sidebar - minimal 10px spacer for macOS traffic lights
+        sidebar_content = []
+        if self.is_macos:
+            sidebar_content.append(ft.Container(height=10))
+
+        sidebar_content.extend([
             ft.Row([ft.Text("SETTINGS", size=12, weight="bold", color=Theme.SUBTEXT), self.btn_theme], alignment="spaceBetween"),
             ft.Divider(), 
             ft.Text("Source", size=12, weight="bold"), 
@@ -379,19 +394,18 @@ class TunesBackApp:
             ], spacing=5),
             ft.Container(height=20), 
             ft.Stack([ft.Row([self.btn_run, self.btn_reset], spacing=10), self.btn_cancel])
-        ], spacing=10))
+        ])
 
+        sidebar_inner = ft.Container(padding=20, content=ft.Column(sidebar_content, spacing=10))
         sidebar = ft.Container(width=Theme.SIDEBAR_WIDTH, bgcolor=Theme.SIDEBAR_BG, padding=0, content=ft.Column([sidebar_inner], scroll="auto"))
 
+        # Window header - 10px top padding on macOS to align with sidebar
+        custom_controls = ft.Row([self.btn_minimize, self.btn_close], spacing=0) if not self.is_macos else ft.Container()
+        header_top_padding = 10 if self.is_macos else 20
+
         window_header = ft.WindowDragArea(content=ft.Container(
-            content=ft.Row([
-                self.txt_app_title, 
-                ft.Row([
-                    ft.IconButton(icon="remove", icon_size=14, on_click=self.minimize_app),
-                    ft.IconButton(icon="close", icon_size=14, on_click=self.close_app)
-                ], spacing=0)
-            ], alignment="spaceBetween"),
-            padding=ft.padding.only(left=Theme.PAD_LEFT, right=20, top=20, bottom=10), bgcolor=Theme.CONTENT_BG
+            content=ft.Row([self.txt_app_title, custom_controls], alignment="spaceBetween"),
+            padding=ft.padding.only(left=Theme.PAD_LEFT, right=20, top=header_top_padding, bottom=10), bgcolor=Theme.CONTENT_BG
         ))
 
         content_area = ft.Container(

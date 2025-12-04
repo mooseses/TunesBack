@@ -83,7 +83,7 @@ python tunesback.py
 
 TunesBack uses **fuzzy date parsing** to automatically extract dates from your XML filenames and displays them as `YYYY-MM-DD` in the app.
 
-### Recommended Formats (Unambiguous)
+### Recommended Formats
 
 ```
 2025-12-01.xml
@@ -97,7 +97,7 @@ Library_2025_12_01_backup.xml
 
 **Best Practice**: Use ISO format `YYYY-MM-DD.xml` or include month names to avoid confusion.
 
-### The following are too ambiguous or won't work:
+### These examples are too ambiguous or won't work:
 
 - `library.xml` (no date)
 - `v2.1.3-export.xml` (version numbers confused with dates)
