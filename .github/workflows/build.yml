@@ -126,7 +126,7 @@ jobs:
           Compression=lzma2
           SolidCompression=yes
           OutputDir=.
-          OutputBaseFilename=TunesBack-Windows-v${{ env.APP_VERSION }}-Setup
+          OutputBaseFilename=TunesBack-Windows-v${{ env.APP_VERSION }}
           ArchitecturesAllowed=x64compatible
           ArchitecturesInstallIn64BitMode=x64compatible
           WizardStyle=modern
@@ -174,8 +174,8 @@ jobs:
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: TunesBack-Windows-v${{ env.APP_VERSION }}-Setup
-          path: TunesBack-Windows-v${{ env.APP_VERSION }}-Setup.exe
+          name: TunesBack-Windows-v${{ env.APP_VERSION }}
+          path: TunesBack-Windows-v${{ env.APP_VERSION }}.exe
           retention-days: 0
       
       - name: Upload Linux artifact

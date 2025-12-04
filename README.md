@@ -33,7 +33,7 @@ Spotify has Wrapped. Apple Music has Replay. But what about iTunes and iPod user
 
 **TunesBack fills that gap.** Streaming services provide year-end analytics, but local music libraries don't... until now. TunesBack brings that experience to your local library: track listening habits, discover top artists, albums and songs, and see how your taste evolves over time.
 
-Works with both iTunes and Apple Music libraries. Cross-platform support for Windows, macOS, and Linux. (WIP)
+Works with both iTunes and Apple Music libraries. Cross-platform support for **Windows, macOS, and Linux**.
 
 Powered by [libpytunes](https://github.com/liamks/libpytunes) for robust iTunes XML parsing.
 
@@ -83,7 +83,7 @@ python tunesback.py
 
 TunesBack uses **fuzzy date parsing** to automatically extract dates from your XML filenames and displays them as `YYYY-MM-DD` in the app.
 
-### ✅ Recommended Formats (Unambiguous)
+### Recommended Formats (Unambiguous)
 
 ```
 2025-12-01.xml
@@ -95,20 +95,15 @@ Dec-01-2025.xml
 Library_2025_12_01_backup.xml
 ```
 
-### ⚠️ Ambiguous Formats (Not Recommended)
-
-Numeric-only dates can be interpreted differently:
-
-- `01-12-2025.xml` → Could be Jan 12 or Dec 1
-- `12-01-2025.xml` → Could be Dec 1 or Jan 12
-
 **Best Practice**: Use ISO format `YYYY-MM-DD.xml` or include month names to avoid confusion.
 
-### ❌ Won't Work
+### The following are too ambiguous or won't work:
 
 - `library.xml` (no date)
 - `v2.1.3-export.xml` (version numbers confused with dates)
 - `backup.xml` (no date information)
+- `01-12-2025.xml` → Could be Jan 12 or Dec 1
+- `12-01-2025.xml` → Could be Dec 1 or Jan 12
 
 ### 💡 Pro Tip: Automate Your Exports
 
@@ -131,7 +126,7 @@ You can also integrate this with cloud-based iTunes Library XML parsers like [th
 ## 🛠️ Tech Stack
 
 - **[Flet](https://flet.dev/)** - Modern Python UI framework
-- **[libpytunes](https://github.com/liamks/libpytunes)** - iTunes XML parser (vendored)
+- **[libpytunes](https://github.com/liamks/libpytunes)** - iTunes XML parser
 - **[pandas](https://pandas.pydata.org/)** - Data analysis and aggregation
 - **[python-dateutil](https://dateutil.readthedocs.io/)** - Fuzzy date parsing
 
