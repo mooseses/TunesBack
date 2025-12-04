@@ -399,13 +399,12 @@ class TunesBackApp:
         sidebar_inner = ft.Container(padding=20, content=ft.Column(sidebar_content, spacing=10))
         sidebar = ft.Container(width=Theme.SIDEBAR_WIDTH, bgcolor=Theme.SIDEBAR_BG, padding=0, content=ft.Column([sidebar_inner], scroll="auto"))
 
-        # Window header - 10px top padding on macOS to align with sidebar
+        # Window header - same padding for all platforms
         custom_controls = ft.Row([self.btn_minimize, self.btn_close], spacing=0) if not self.is_macos else ft.Container()
-        header_top_padding = 10 if self.is_macos else 20
 
         window_header = ft.WindowDragArea(content=ft.Container(
             content=ft.Row([self.txt_app_title, custom_controls], alignment="spaceBetween"),
-            padding=ft.padding.only(left=Theme.PAD_LEFT, right=20, top=header_top_padding, bottom=10), bgcolor=Theme.CONTENT_BG
+            padding=ft.padding.only(left=Theme.PAD_LEFT, right=20, top=20, bottom=10), bgcolor=Theme.CONTENT_BG
         ))
 
         content_area = ft.Container(
