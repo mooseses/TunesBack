@@ -1,0 +1,187 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - pjin-dev
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+  FLET_VERSION: "0.28.3"
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+            name: macOS
+            
+          - os: windows-latest
+            platform: windows
+            name: Windows
+            
+          - os: ubuntu-latest
+            platform: linux
+            name: Linux
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Extract version from pyproject.toml
+        id: get_version
+        shell: bash
+        run: |
+          VERSION=$(grep -m 1 'version = ' pyproject.toml | cut -d'"' -f2)
+          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Building version: $VERSION"
+      
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install Linux dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libblkid-dev \
+            liblzma-dev
+      
+      - name: Install Flet
+        run: pip install flet==${{ env.FLET_VERSION }}
+      
+      - name: Build ${{ matrix.name }}
+        run: flet build ${{ matrix.platform }}
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: 1
+      
+      # ========== macOS: Create DMG ==========
+      - name: Create macOS DMG
+        if: matrix.platform == 'macos'
+        run: |
+          brew install create-dmg
+          
+          create-dmg \
+            --volname "TunesBack" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "TunesBack.app" 200 190 \
+            --hide-extension "TunesBack.app" \
+            --app-drop-link 600 185 \
+            "TunesBack-macOS-v${{ env.APP_VERSION }}.dmg" \
+            "build/macos/TunesBack.app" || true
+          
+          # Fallback if create-dmg fails
+          if [ ! -f "TunesBack-macOS-v${{ env.APP_VERSION }}.dmg" ]; then
+            echo "create-dmg failed, using hdiutil..."
+            hdiutil create -volname "TunesBack" \
+              -srcfolder "build/macos/TunesBack.app" \
+              -ov -format UDZO \
+              "TunesBack-macOS-v${{ env.APP_VERSION }}.dmg"
+          fi
+      
+        # ========== Windows: Create Installer ==========
+      - name: Create Windows Installer
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          # Install Inno Setup via Chocolatey
+          choco install innosetup -y
+          
+          # Wait for installation to complete
+          Start-Sleep -Seconds 5
+          
+          # Create installer script
+          $issContent = @"
+          [Setup]
+          AppName=TunesBack
+          AppVersion=${{ env.APP_VERSION }}
+          AppPublisher=Your Name
+          DefaultDirName={autopf}\TunesBack
+          DefaultGroupName=TunesBack
+          UninstallDisplayIcon={app}\tunesback.exe
+          Compression=lzma2
+          SolidCompression=yes
+          OutputDir=.
+          OutputBaseFilename=TunesBack-Windows-v${{ env.APP_VERSION }}
+          ArchitecturesAllowed=x64compatible
+          ArchitecturesInstallIn64BitMode=x64compatible
+          WizardStyle=modern
+          
+          [Files]
+          Source: "build\windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+          
+          [Icons]
+          Name: "{group}\TunesBack"; Filename: "{app}\tunesback.exe"
+          Name: "{autodesktop}\TunesBack"; Filename: "{app}\tunesback.exe"; Tasks: desktopicon
+          Name: "{group}\Uninstall TunesBack"; Filename: "{uninstallexe}"
+          
+          [Tasks]
+          Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"
+          
+          [Run]
+          Filename: "{app}\tunesback.exe"; Description: "Launch TunesBack"; Flags: nowait postinstall skipifsilent
+          "@
+          
+          $issContent | Out-File -FilePath "installer.iss" -Encoding ASCII
+          
+          # Find ISCC.exe (Chocolatey install path)
+          $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          
+          # Compile installer
+          & $isccPath "installer.iss"
+      
+      # ========== Linux: Create Tarball ==========
+      - name: Package Linux app
+        if: matrix.platform == 'linux'
+        run: |
+          cd build/linux
+          tar -czf ../../TunesBack-Linux-v${{ env.APP_VERSION }}.tar.gz *
+      
+      # ========== Upload Artifacts ==========
+      - name: Upload macOS artifact
+        if: matrix.platform == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TunesBack-macOS-v${{ env.APP_VERSION }}
+          path: TunesBack-macOS-v${{ env.APP_VERSION }}.dmg
+          retention-days: 0
+      
+      - name: Upload Windows artifact
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TunesBack-Windows-v${{ env.APP_VERSION }}
+          path: TunesBack-Windows-v${{ env.APP_VERSION }}.exe
+          retention-days: 0
+      
+      - name: Upload Linux artifact
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TunesBack-Linux-v${{ env.APP_VERSION }}
+          path: TunesBack-Linux-v${{ env.APP_VERSION }}.tar.gz
+          retention-days: 0

@@ -1,0 +1,21 @@
+[project]
+name = "tunesback"
+version = "1.1.0"
+description = "Analyze your iTunes listening history"
+authors = [{name = "Peter Jin"}]
+requires-python = ">=3.11"
+dependencies = [
+  "flet>=0.28.3",
+  "pandas",
+  "python-dateutil"
+]
+
+[tool.flet]
+product = "TunesBack"
+copyright = "Copyright © 2025 Peter Jin"
+
+[tool.flet.app]
+assets_dir = "assets"
+
+[tool.flet.macos]
+entitlement."com.apple.security.files.user-selected.read-only" = true
