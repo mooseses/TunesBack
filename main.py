@@ -14,10 +14,6 @@ from typing import Optional, Tuple, Dict, List
 from xml.etree.ElementTree import ParseError
 
 
-# =============================================================================
-# CONFIGURATION
-# =============================================================================
-
 class Theme:
     SIDEBAR_BG = "surfaceVariant"
     CONTENT_BG = "background"
@@ -30,15 +26,12 @@ class Theme:
     BUTTON_HEIGHT = 50
     TOGGLE_WIDTH = 260
 
+
 MS_TO_HOURS = 3.6e6
 MS_TO_MINS = 60000
 UNIT_HOURS = "Hours"
 UNIT_MINUTES = "Minutes"
 
-
-# =============================================================================
-# BACKEND LOGIC
-# =============================================================================
 
 def get_files_in_folder(folder_path: str) -> List[Dict]:
     """Scans folder for XML files and parses dates from filenames."""
@@ -180,10 +173,6 @@ def calculate_single_stats(res: Tuple, unit: str = UNIT_HOURS) -> Tuple:
     return total_val, total_plays, pd.DataFrame(artist_list), pd.DataFrame(album_list), pd.DataFrame(song_list)
 
 
-# =============================================================================
-# UI COMPONENTS
-# =============================================================================
-
 def create_slider_row(label: str, slider: ft.Slider) -> ft.Row:
     return ft.Row([
         ft.Text(label, size=12, weight="bold", width=50),
@@ -218,15 +207,10 @@ def draw_list_item(rank: int, label: str, sub_label: str, value: float, count: i
     )
 
 
-# =============================================================================
-# MAIN APPLICATION
-# =============================================================================
-
 class TunesBackApp:
     def __init__(self, page: ft.Page):
         self.page = page
 
-        # Platform detection
         import platform as plat
         system = plat.system().lower()
         flet_platform = str(page.platform).lower() if page.platform else ""
@@ -370,7 +354,6 @@ class TunesBackApp:
             ft.Container(padding=ft.padding.only(left=Theme.PAD_LEFT, right=20, bottom=20), content=results_box, expand=True)
         ], expand=True, visible=False, spacing=0)
 
-        # Sidebar - minimal 10px spacer for macOS traffic lights
         sidebar_content = []
         if self.is_macos:
             sidebar_content.append(ft.Container(height=10))
@@ -396,15 +379,20 @@ class TunesBackApp:
             ft.Stack([ft.Row([self.btn_run, self.btn_reset], spacing=10), self.btn_cancel])
         ])
 
-        sidebar_inner = ft.Container(padding=20, content=ft.Column(sidebar_content, spacing=10))
-        sidebar = ft.Container(width=Theme.SIDEBAR_WIDTH, bgcolor=Theme.SIDEBAR_BG, padding=0, content=ft.Column([sidebar_inner], scroll="auto"))
+        sidebar = ft.Container(
+            width=Theme.SIDEBAR_WIDTH, 
+            bgcolor=Theme.SIDEBAR_BG, 
+            padding=0, 
+            content=ft.Column([ft.Container(padding=20, content=ft.Column(sidebar_content, spacing=10))], scroll="auto")
+        )
 
-        # Window header - same padding for all platforms
         custom_controls = ft.Row([self.btn_minimize, self.btn_close], spacing=0) if not self.is_macos else ft.Container()
+        header_top_padding = 30 if self.is_macos else 20
 
         window_header = ft.WindowDragArea(content=ft.Container(
             content=ft.Row([self.txt_app_title, custom_controls], alignment="spaceBetween"),
-            padding=ft.padding.only(left=Theme.PAD_LEFT, right=20, top=20, bottom=10), bgcolor=Theme.CONTENT_BG
+            padding=ft.padding.only(left=Theme.PAD_LEFT, right=20, top=header_top_padding, bottom=10), 
+            bgcolor=Theme.CONTENT_BG
         ))
 
         content_area = ft.Container(
@@ -715,10 +703,6 @@ class TunesBackApp:
         self.btn_theme.icon = 'dark_mode' if self.page.theme_mode == 'light' else 'light_mode'
         self.page.update()
 
-
-# =============================================================================
-# ENTRY POINT
-# =============================================================================
 
 def main(page: ft.Page):
     page.title = "TunesBack"

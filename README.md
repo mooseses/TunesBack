@@ -1,11 +1,11 @@
 <div align="center">
   <img src="./assets/icon_256.ico" alt="TunesBack Logo" width="128" height="128">
   
-# 🎵 TunesBack
+# **TunesBack**
 
-**Your music story, beautifully analyzed.**
+**The replay statistics for the rest of us.**
 
-*The "Apple Music Replay" experience for iTunes and iPod users.*
+*The "Year-In-Review" experience for iTunes and iPod users.*
 
   [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
   ![Build Status](https://github.com/mooseses/TunesBack/actions/workflows/build.yml/badge.svg?branch=main)
@@ -16,18 +16,18 @@
   <table>
     <tr>
       <td width="33%" align="center">
-        <img src="./assets/screenshots/screenshot1.png" alt="Welcome Screen" width="100%" />
+        <img src="./assets/screenshots/mainUI.png" alt="Welcome Screen" width="100%" />
         <br/><sub><b>Welcome Screen</b></sub>
       </td>
       <td width="33%" align="center">
-        <img src="./assets/screenshots/screenshot2.png" alt="Main Dashboard" width="100%" />
+        <img src="./assets/screenshots/dashboard.png" alt="Main Dashboard" width="100%" />
         <br/><sub><b>Main Dashboard</b></sub>
       </td>
     </tr>
   </table>
 </div>
 
-## Why TunesBack?
+## 🎵 Why TunesBack?
 
 Spotify has Wrapped. Apple Music has Replay. But what about iTunes and iPod users?
 
