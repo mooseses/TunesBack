@@ -61,7 +61,7 @@ cd TunesBack
 
 pip install -r requirements.txt
 
-python tunesback.py
+python main.py
 ```
 
 
