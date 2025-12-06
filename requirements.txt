@@ -1,4 +1,6 @@
 flet
 pandas
 python-dateutil
+mutagen
+Pillow
 git+https://github.com/liamks/libpytunes.git#egg=libpytunes

@@ -1,13 +1,15 @@
 [project]
 name = "tunesback"
-version = "1.1.0"
+version = "1.2.0"
 description = "Analyze your iTunes listening history"
 authors = [{name = "Peter Jin"}]
 requires-python = ">=3.11"
 dependencies = [
   "flet>=0.28.3",
   "pandas",
-  "python-dateutil"
+  "python-dateutil",
+  "mutagen",
+  "Pillow"
 ]
 
 [tool.flet]
