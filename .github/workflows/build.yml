@@ -1,10 +1,9 @@
 name: Build
-
 on:
   push:
     branches:
       - main
-      - pjin-dev
+      - v1.2.0_dev
   pull_request:
     branches:
       - main
@@ -24,17 +23,14 @@ jobs:
           - os: macos-latest
             platform: macos
             name: macOS
-            suffix: .dmg
             
           - os: windows-latest
             platform: windows
             name: Windows
-            suffix: .exe
             
           - os: ubuntu-latest
             platform: linux
             name: Linux
-            suffix: .tar.gz
     
     runs-on: ${{ matrix.os }}
     
@@ -42,29 +38,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Extract version and Set Filenames
-        id: metadata
+      - name: Extract version from pyproject.toml
+        id: get_version
         shell: bash
         run: |
-          # 1. Extract Version
           VERSION=$(grep -m 1 'version = ' pyproject.toml | cut -d'"' -f2)
           echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
-          
-          # 2. Detect Architecture
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            ARCH="x64"
-          elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            ARCH="Universal" # Flet builds are universal on macOS usually, or we assume defaults
-          else
-            ARCH=$(uname -m) # x86_64 usually
-          fi
-          
-          # 3. Construct Filename
-          # Scheme: TunesBack-[Platform]-[Version]-[Architecture].[Suffix]
-          FILENAME="TunesBack-${{ matrix.name }}-v${VERSION}-${ARCH}${{ matrix.suffix }}"
-          
-          echo "ARTIFACT_NAME=$FILENAME" >> $GITHUB_ENV
-          echo "Building: $FILENAME"
+          echo "Building version: $VERSION"
       
       - name: Setup Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -110,38 +90,42 @@ jobs:
             --icon "TunesBack.app" 200 190 \
             --hide-extension "TunesBack.app" \
             --app-drop-link 600 185 \
-            "${{ env.ARTIFACT_NAME }}" \
+            "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" \
             "build/macos/TunesBack.app" || true
           
-          # Fallback
-          if [ ! -f "${{ env.ARTIFACT_NAME }}" ]; then
+          # Fallback if create-dmg fails
+          if [ ! -f "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" ]; then
             echo "create-dmg failed, using hdiutil..."
             hdiutil create -volname "TunesBack" \
               -srcfolder "build/macos/TunesBack.app" \
               -ov -format UDZO \
-              "${{ env.ARTIFACT_NAME }}"
+              "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg"
           fi
       
-      # ========== Windows: Create Installer ==========
+        # ========== Windows: Create Installer ==========
       - name: Create Windows Installer
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
+          # Install Inno Setup via Chocolatey
           choco install innosetup -y
+          
+          # Wait for installation to complete
           Start-Sleep -Seconds 5
           
+          # Create installer script
           $issContent = @"
           [Setup]
           AppName=TunesBack
           AppVersion=${{ env.APP_VERSION }}
-          AppPublisher=Peter Jin
+          AppPublisher=Your Name
           DefaultDirName={autopf}\TunesBack
           DefaultGroupName=TunesBack
           UninstallDisplayIcon={app}\tunesback.exe
           Compression=lzma2
           SolidCompression=yes
           OutputDir=.
-          OutputBaseFilename=${{ env.ARTIFACT_NAME }}
+          OutputBaseFilename=TunesBack-Windows-v${{ env.APP_VERSION }}-x64
           ArchitecturesAllowed=x64compatible
           ArchitecturesInstallIn64BitMode=x64compatible
           WizardStyle=modern
@@ -161,13 +145,12 @@ jobs:
           Filename: "{app}\tunesback.exe"; Description: "Launch TunesBack"; Flags: nowait postinstall skipifsilent
           "@
           
-          # IMPORTANT: We strip the extension from OutputBaseFilename because InnoSetup adds .exe automatically
-          $baseName = "${{ env.ARTIFACT_NAME }}".Replace(".exe", "")
-          $issContent = $issContent.Replace("OutputBaseFilename=${{ env.ARTIFACT_NAME }}", "OutputBaseFilename=$baseName")
-          
           $issContent | Out-File -FilePath "installer.iss" -Encoding ASCII
           
+          # Find ISCC.exe (Chocolatey install path)
           $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          
+          # Compile installer
           & $isccPath "installer.iss"
       
       # ========== Linux: Create Tarball ==========
@@ -175,13 +158,29 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           cd build/linux
-          # tar directly to the filename env var
-          tar -czf ../../"${{ env.ARTIFACT_NAME }}" *
+          tar -czf ../../TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64.tar.gz *
       
       # ========== Upload Artifacts ==========
-      - name: Upload Artifact
+      - name: Upload macOS artifact
+        if: matrix.platform == 'macos'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: ${{ env.ARTIFACT_NAME }}
+          name: TunesBack-macOS-v${{ env.APP_VERSION }}-Universal
+          path: TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg
+          retention-days: 0
+      
+      - name: Upload Windows artifact
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TunesBack-Windows-v${{ env.APP_VERSION }}-x64
+          path: TunesBack-Windows-v${{ env.APP_VERSION }}-x64.exe
+          retention-days: 0
+      
+      - name: Upload Linux artifact
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64
+          path: TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64.tar.gz
           retention-days: 0
