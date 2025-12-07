@@ -473,7 +473,7 @@ class TunesBackApp:
         self.sl_song = ft.Slider(min=5, max=100, value=25, divisions=19, label="{value}", disabled=True)
         self.sl_gen = ft.Slider(min=5, max=50, value=10, divisions=9, label="{value}", disabled=True) 
         self.sl_year = ft.Slider(min=5, max=50, value=10, divisions=9, label="{value}", disabled=True) 
-        self.cb_album_art = ft.Checkbox(label="Show Album Art", value=False, disabled=True)
+        self.cb_album_art = ft.Checkbox(label="Show Album Art (Slow)", value=False, disabled=True)
 
         self.seg_unit = ft.SegmentedButton(
             selected={Theme.UNIT_HOURS},
