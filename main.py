@@ -6,6 +6,8 @@ import datetime
 import base64
 import platform
 import urllib.parse
+import urllib.request
+import re
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List, Set, Any
 from dataclasses import dataclass, field
@@ -327,13 +329,53 @@ def get_xml_files_in_folder(folder_path: str) -> List[Dict]:
             item['label'] = f"{item['label']} ({seen[item['label']]})"
     return valid_files
 
-def extract_art_from_file(file_uri: str) -> Optional[Image.Image]:
+def resolve_path(file_uri: str) -> Optional[str]:
+    """
+    Robustly converts iTunes file:// URIs to local paths across OSs.
+    Handles 'localhost', encoded characters, drive letters, and UNC paths.
+    """
     if not file_uri:
         return None
-    path = file_uri.replace("file://localhost", "").replace("file://", "")
-    path = urllib.parse.unquote(path)
+        
+    try:
+        # 1. Parse the URI
+        parsed = urllib.parse.urlparse(file_uri)
+        path = urllib.parse.unquote(parsed.path)
+        
+        # 2. Windows Specific Logic
+        if platform.system() == "Windows":
+            # iTunes often outputs /C:/Music/Song.mp3. Windows needs C:\Music\Song.mp3
+            # We strip the leading slash if it looks like a drive letter path
+            if re.match(r'^/[a-zA-Z]:/', path):
+                path = path[1:] 
+            
+            path = path.replace('/', '\\')
+            
+            # Handle Network Shares (UNC paths)
+            # If netloc exists (e.g. file://MYNAS/Music) and isn't localhost, it's a server
+            if parsed.netloc and parsed.netloc.lower() != 'localhost':
+                path = f"\\\\{parsed.netloc}{path}"
+        
+        # 3. macOS/Linux Logic
+        else:
+            # On macOS, localhost implies local file, netloc might imply /Volumes mount
+            # Usually standard path is fine, but sometimes URI includes localhost
+            pass 
+
+        # 4. Verification
+        if os.path.exists(path):
+            return path
+            
+        return None
+    except Exception as e:
+        print(f"Path resolution error for {file_uri}: {e}")
+        return None
+
+def extract_art_from_file(file_uri: str) -> Optional[Image.Image]:
+    path = resolve_path(file_uri)
     
-    if not os.path.exists(path):
+    if not path or not os.path.exists(path):
+        # Fail silently if file is genuinely missing (unmounted drive, deleted file)
         return None
         
     try:
@@ -342,7 +384,7 @@ def extract_art_from_file(file_uri: str) -> Optional[Image.Image]:
             return None
         
         art_data = None
-        if hasattr(f, 'tags'):
+        if hasattr(f, 'tags') and f.tags:
              for key in f.tags.keys():
                  if key.startswith('APIC:'): 
                      art_data = f.tags[key].data
