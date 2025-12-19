@@ -82,24 +82,30 @@ jobs:
         run: |
           brew install create-dmg
           
-          create-dmg \
-            --volname "TunesBack" \
-            --window-pos 200 120 \
-            --window-size 800 400 \
-            --icon-size 100 \
-            --icon "TunesBack.app" 200 190 \
-            --hide-extension "TunesBack.app" \
-            --app-drop-link 600 185 \
-            "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" \
-            "build/macos/TunesBack.app" || true
-          
-          # Fallback if create-dmg fails
-          if [ ! -f "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" ]; then
-            echo "create-dmg failed, using hdiutil..."
-            hdiutil create -volname "TunesBack" \
-              -srcfolder "build/macos/TunesBack.app" \
-              -ov -format UDZO \
-              "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg"
+          # Check if build succeeded
+          if [ -d "build/macos/TunesBack.app" ]; then
+            create-dmg \
+              --volname "TunesBack" \
+              --window-pos 200 120 \
+              --window-size 800 400 \
+              --icon-size 100 \
+              --icon "TunesBack.app" 200 190 \
+              --hide-extension "TunesBack.app" \
+              --app-drop-link 600 185 \
+              "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" \
+              "build/macos/TunesBack.app" || true
+            
+            # Fallback if create-dmg fails
+            if [ ! -f "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" ]; then
+              echo "create-dmg failed, using hdiutil..."
+              hdiutil create -volname "TunesBack" \
+                -srcfolder "build/macos/TunesBack.app" \
+                -ov -format UDZO \
+                "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg"
+            fi
+          else
+            echo "Error: TunesBack.app not found in build/macos/"
+            exit 1
           fi
       
         # ========== Windows: Create Installer ==========
@@ -118,7 +124,7 @@ jobs:
           [Setup]
           AppName=TunesBack
           AppVersion=${{ env.APP_VERSION }}
-          AppPublisher=Your Name
+          AppPublisher=Mooseses
           DefaultDirName={autopf}\TunesBack
           DefaultGroupName=TunesBack
           UninstallDisplayIcon={app}\tunesback.exe
@@ -131,7 +137,8 @@ jobs:
           WizardStyle=modern
           
           [Files]
-          Source: "build\windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+          ; Copy build files recursively including assets folder structure
+          Source: "build\windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
           
           [Icons]
           Name: "{group}\TunesBack"; Filename: "{app}\tunesback.exe"
