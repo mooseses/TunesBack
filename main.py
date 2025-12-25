@@ -807,7 +807,8 @@ class TunesBackApp:
             ft.Container(height=20), ft.Stack([ft.Row([self.btn_run, self.btn_reset], spacing=10), self.btn_cancel]),
         ], spacing=10)
 
-        sidebar = ft.Container(width=Theme.SIDEBAR_WIDTH, bgcolor=Theme.SIDEBAR_BG, content=ft.Column([ft.Container(padding=20, content=sidebar_content)], scroll="auto"))
+        sidebar_padding = ft.padding.only(left=20, right=20, top=30 if IS_MACOS else 20, bottom=20)
+        sidebar = ft.Container(width=Theme.SIDEBAR_WIDTH, bgcolor=Theme.SIDEBAR_BG, content=ft.Column([ft.Container(padding=sidebar_padding, content=sidebar_content)], scroll="auto"))
 
         window_header = ft.WindowDragArea(content=ft.Container(
             content=ft.Row([self.txt_app_title, ft.Row([self.btn_minimize, self.btn_close], spacing=0) if not IS_MACOS else ft.Container()], alignment="spaceBetween"),
