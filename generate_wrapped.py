@@ -391,9 +391,9 @@ class CardRenderer:
         
         if bg_box:
             dummy = ImageDraw.Draw(Image.new("L", (1,1)))
-            box_w = int(DrawUtils._safe_textlength(dummy, text, font) * 1.3 + 60)
+            box_w = DrawUtils._safe_textlength(dummy, text, font) * 1.3 + 60
             box_h = 90
-            bx = int((WIDTH - box_w) // 2)
+            bx = (WIDTH - box_w) // 2
             self.draw.rectangle((bx, y_pos, bx + box_w, y_pos + box_h), fill=bg_box)
             y_pos += (box_h // 2) + 12
             DrawUtils.draw_flat_text(self.img, (CENTER_X, y_pos), text, font, col, 1.3, "mm", kerning=-2)
@@ -668,13 +668,9 @@ def draw_summary_card(data: Dict[str, Any]) -> Image.Image:
     final_yr.paste(c_txt, (0,0), outline)
     for c, cx, _ in chars: df.text((cx, 10), c, font=f_yr, fill=fill_col)
     
-    try:
-        bbox = final_yr.getbbox()
-        if bbox:
-            final_yr = final_yr.crop(bbox)
-    except Exception as e:
-        logging.warning(f"Could not crop year image: {e}")
-    
+    bbox = final_yr.getbbox()
+    if bbox:
+        final_yr = final_yr.crop(bbox)
     final_yr = final_yr.resize((max(1, int(final_yr.width * 1.6)), max(1, final_yr.height)), Image.BICUBIC)
     rotated = final_yr.rotate(90, expand=True)
     card.img.paste(rotated, (10, 0), rotated)
