@@ -18,7 +18,7 @@ copyright = "Copyright © 2025 Peter Jin"
 
 [tool.flet.app]
 assets_dir = "assets"
-icon = "assets/icon_256.ico"
+icon = "icon.png"
 
 [tool.flet.macos]
 entitlement."com.apple.security.files.user-selected.read-only" = true

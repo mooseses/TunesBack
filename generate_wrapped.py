@@ -391,9 +391,9 @@ class CardRenderer:
         
         if bg_box:
             dummy = ImageDraw.Draw(Image.new("L", (1,1)))
-            box_w = DrawUtils._safe_textlength(dummy, text, font) * 1.3 + 60
+            box_w = int(DrawUtils._safe_textlength(dummy, text, font) * 1.3 + 60)
             box_h = 90
-            bx = (WIDTH - box_w) // 2
+            bx = int((WIDTH - box_w) // 2)
             self.draw.rectangle((bx, y_pos, bx + box_w, y_pos + box_h), fill=bg_box)
             y_pos += (box_h // 2) + 12
             DrawUtils.draw_flat_text(self.img, (CENTER_X, y_pos), text, font, col, 1.3, "mm", kerning=-2)
