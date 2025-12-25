@@ -105,7 +105,15 @@ The calculation is based on the "reminiscence bump" — the idea that people for
 
 **Download from** [Releases](https://github.com/mooseses/TunesBack/releases)
 
-> On macOS, you may need to go to **System Settings → Privacy & Security** and click "Open Anyway" the first time.
+| Platform | Format |
+|----------|--------|
+| Windows | Installer (`.exe`) |
+| macOS | Disk image (`.dmg`) |
+| Linux | AppImage (`.AppImage`) |
+
+> **macOS:** You may need to go to **System Settings → Privacy & Security** and click "Open Anyway" the first time.
+
+> **Linux:** Make the AppImage executable with `chmod +x TunesBack-*.AppImage`, then run it directly.
 
 **Or run from source:**
 
