@@ -38,8 +38,9 @@ import listening_age_algorithm
 # ==========================================
 
 APP_NAME = "TunesBack"
-IS_MACOS = platform.system().lower() == "darwin"
 IS_WINDOWS = platform.system() == "Windows"
+IS_MACOS = platform.system() == "Darwin"
+IS_LINUX = platform.system() == "Linux"
 
 class Theme:
     SIDEBAR_BG = "surfaceVariant"
@@ -164,6 +165,81 @@ def resolve_path(file_uri: str) -> Optional[str]:
                 local_path = "\\" + local_path
             path = f"\\\\{host}{local_path}"
             return path
+        
+        # Linux GVFS handling for network shares (SMB/CIFS)
+        if IS_LINUX and host and host.lower() != 'localhost':
+            # GVFS mounts network shares at /run/user/<uid>/gvfs/smb-share:server=<host>,share=<share>/...
+            clean_path = local_path.lstrip(os.sep)
+            parts = clean_path.split(os.sep)
+            
+            if parts:
+                share_name_from_uri = parts[0]  # Original share name from URI (e.g., "Media Library")
+                rest_of_path = os.sep.join(parts[1:]) if len(parts) > 1 else ""
+                
+                # Normalize share name for matching (lowercase, various encodings)
+                share_name_normalized = share_name_from_uri.lower()
+                share_name_encoded = share_name_normalized.replace(" ", "%20")
+                share_name_url_encoded = urllib.parse.quote(share_name_normalized, safe='')
+                
+                # Try common GVFS mount locations
+                uid = os.getuid()
+                gvfs_base = f"/run/user/{uid}/gvfs"
+                
+                candidates = []
+                
+                # First, scan the GVFS directory for ANY mount with matching share name
+                # This handles the case where hostname in XML differs from IP in mount
+                if os.path.isdir(gvfs_base):
+                    try:
+                        for mount_name in os.listdir(gvfs_base):
+                            if mount_name.startswith("smb-share:"):
+                                # Parse the mount name to extract share
+                                # Format: smb-share:server=<ip>,share=<share>
+                                mount_lower = mount_name.lower()
+                                
+                                # Check if share name matches (try various encodings)
+                                share_match = False
+                                for share_variant in [share_name_encoded, share_name_normalized, share_name_url_encoded]:
+                                    if f",share={share_variant}" in mount_lower or f":share={share_variant}" in mount_lower:
+                                        share_match = True
+                                        break
+                                
+                                if share_match:
+                                    candidate = os.path.join(gvfs_base, mount_name, rest_of_path)
+                                    if os.path.exists(candidate):
+                                        return candidate
+                                    candidates.append(candidate)
+                    except OSError:
+                        pass
+                
+                # Fallback: try exact host match (original behavior)
+                share_variants = [share_name_encoded, share_name_normalized, share_name_url_encoded]
+                for share in share_variants:
+                    gvfs_path = os.path.join(gvfs_base, f"smb-share:server={host},share={share}", rest_of_path)
+                    candidates.append(gvfs_path)
+                    # Also try with lowercase host
+                    gvfs_path_lower = os.path.join(gvfs_base, f"smb-share:server={host.lower()},share={share}", rest_of_path)
+                    if gvfs_path_lower not in candidates:
+                        candidates.append(gvfs_path_lower)
+                
+                # Also try the legacy ~/.gvfs location
+                legacy_gvfs = os.path.expanduser("~/.gvfs")
+                if os.path.isdir(legacy_gvfs):
+                    for share in share_variants:
+                        candidates.append(os.path.join(legacy_gvfs, f"{share} on {host}", rest_of_path))
+                
+                # Try /media and /mnt mounts as well
+                for mount_base in ["/media", f"/media/{os.environ.get('USER', '')}", "/mnt"]:
+                    if os.path.isdir(mount_base):
+                        candidates.append(os.path.join(mount_base, *parts))
+                
+                for c in candidates:
+                    if os.path.exists(c):
+                        return c
+                
+                # Return the first GVFS candidate even if it doesn't exist (for logging purposes)
+                if candidates:
+                    return candidates[0]
             
         if IS_MACOS:
             is_network = (host and host.lower() != 'localhost') or file_uri.startswith("//")
@@ -918,14 +994,10 @@ class TunesBackApp:
     def run_analysis(self, e):
         if not self.dd_start.value: return
         
-        # --- APPLY TAB LOGIC HERE ---
-        if self.cb_compare.value:
-            self.visible_tabs = {"song", "alb", "art", "new"}
-        else:
-            self.visible_tabs = {"song", "alb", "art", "gen"}
+        # Set default visible tabs based on analysis mode
+        self.visible_tabs = {"song", "alb", "art", "new"} if self.cb_compare.value else {"song", "alb", "art", "gen"}
         self._render_tabs()
         self.tabs_row.update()
-        # ----------------------------
 
         configure_dynamic_logging(self.cb_logging.value, mode='w')
         
@@ -1040,12 +1112,11 @@ class TunesBackApp:
         
         (val_main, val_plays, df_art, df_alb, df_song, df_gen, df_new, df_skip, df_year, top_genres, age) = stats
         
-        # --- FIX: Map Artist Images to their Best Album Cover ---
+        # Map artist images to their best album cover
         if not df_alb.empty and not df_art.empty:
-             best_covers = df_alb.sort_values('Count', ascending=False).drop_duplicates('Artist')
-             cover_map = dict(zip(best_covers['Artist'], best_covers['Location']))
-             df_art['Location'] = df_art['Artist'].map(cover_map).fillna(df_art['Location'])
-        # -------------------------------------------------------
+            best_covers = df_alb.sort_values('Count', ascending=False).drop_duplicates('Artist')
+            cover_map = dict(zip(best_covers['Artist'], best_covers['Location']))
+            df_art['Location'] = df_art['Artist'].map(cover_map).fillna(df_art['Location'])
 
         self.wrapped_data = {"genres": top_genres, "age": age}
         self.data_frames = {"art": df_art, "alb": df_alb, "song": df_song, "gen": df_gen, "new": df_new, "skip": df_skip, "year": df_year}
@@ -1166,19 +1237,13 @@ class TunesBackApp:
         wrapped_context = {
             'top_songs': [{'name': s['Song'], 'sub': s['Artist'], 'image': get_pil_art(s.get('Location')), 'count': s['Count']} for s in top_songs],
             'top_albums': [{'name': a['Album'], 'sub': a['Artist'], 'image': get_pil_art(a.get('Location')), 'minutes': int(a['Value'] * min_multiplier)} for a in top_albums],
-            # Pass image for top artists list as requested
-            'top_artists_list': [{'name': a['Artist'], 'image': get_pil_art(a.get('Location'))} for a in top_artists_list], 
+            'top_artists_list': [{'name': a['Artist'], 'image': get_pil_art(a.get('Location'))} for a in top_artists_list],
             'genres': self.wrapped_data.get('genres', []),
             'total_minutes': total_minutes
         }
 
-        # FIX: Single Library "Pres..." Bug
-        if self.is_compare_mode and self.dd_end.value:
-            lbl = self.dd_end.value
-        else:
-            # In single mode, use start date's year
-            lbl = self.dd_start.value
-            
+        # Determine year label from appropriate date
+        lbl = self.dd_end.value if self.is_compare_mode and self.dd_end.value else self.dd_start.value
         wrapped_context['year_label'] = lbl.split("-")[0] if lbl else "2025"
         
         start_label = self.dd_start.value.split(" ")[0] if self.dd_start.value else "Unknown"

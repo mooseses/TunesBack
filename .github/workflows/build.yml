@@ -65,7 +65,8 @@ jobs:
             ninja-build \
             pkg-config \
             libblkid-dev \
-            liblzma-dev
+            liblzma-dev \
+            libfuse2
       
       - name: Install Flet
         run: pip install flet==${{ env.FLET_VERSION }}
@@ -160,12 +161,59 @@ jobs:
           # Compile installer
           & $isccPath "installer.iss"
       
-      # ========== Linux: Create Tarball ==========
-      - name: Package Linux app
+      # ========== Linux: Create AppImage ==========
+      - name: Create Linux AppImage
         if: matrix.platform == 'linux'
         run: |
-          cd build/linux
-          tar -czf ../../TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64.tar.gz *
+          # Create AppDir structure
+          mkdir -p TunesBack.AppDir/usr/bin
+          mkdir -p TunesBack.AppDir/usr/share/applications
+          mkdir -p TunesBack.AppDir/usr/share/icons/hicolor/256x256/apps
+          
+          # Copy application files
+          cp -r build/linux/* TunesBack.AppDir/usr/bin/
+          
+          # Copy icon
+          cp assets/icon.png TunesBack.AppDir/usr/share/icons/hicolor/256x256/apps/tunesback.png
+          cp assets/icon.png TunesBack.AppDir/tunesback.png
+          
+          # Create .desktop file
+          printf '%s\n' \
+            "[Desktop Entry]" \
+            "Type=Application" \
+            "Name=TunesBack" \
+            "Comment=Analyze your iTunes listening history" \
+            "Exec=tunesback" \
+            "Icon=tunesback" \
+            "Categories=AudioVideo;Audio;Music;" \
+            "Terminal=false" \
+            "StartupWMClass=tunesback" \
+            > TunesBack.AppDir/tunesback.desktop
+          
+          # Copy .desktop to share/applications
+          cp TunesBack.AppDir/tunesback.desktop TunesBack.AppDir/usr/share/applications/
+          
+          # Create AppRun script
+          printf '%s\n' \
+            '#!/bin/bash' \
+            'SELF=$(readlink -f "$0")' \
+            'HERE=${SELF%/*}' \
+            'export PATH="${HERE}/usr/bin:${PATH}"' \
+            'export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"' \
+            'export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS}"' \
+            'exec "${HERE}/usr/bin/tunesback" "$@"' \
+            > TunesBack.AppDir/AppRun
+          chmod +x TunesBack.AppDir/AppRun
+          
+          # Make the main executable runnable
+          chmod +x TunesBack.AppDir/usr/bin/tunesback
+          
+          # Download appimagetool
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          
+          # Create AppImage (using --appimage-extract-and-run for CI compatibility)
+          ./appimagetool-x86_64.AppImage --appimage-extract-and-run TunesBack.AppDir TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64.AppImage
       
       # ========== Upload Artifacts ==========
       - name: Upload macOS artifact
@@ -189,5 +237,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64
-          path: TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64.tar.gz
+          path: TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64.AppImage
           retention-days: 0

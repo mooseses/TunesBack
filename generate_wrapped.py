@@ -42,6 +42,22 @@ class AssetManager:
         'book': "CircularSpotifyText-Book.otf",
         'light': "CircularSpotifyText-Light.otf"
     }
+    
+    # Common system fonts available on Linux (in order of preference)
+    _linux_fallback_fonts = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",  # Arch Linux path
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/noto/NotoSans-Bold.ttf",
+        "/usr/share/fonts/noto/NotoSans-Regular.ttf",
+    ]
+    
+    _font_cache = {}  # Cache loaded fonts to avoid repeated file access
 
     @staticmethod
     def get_base_path():
@@ -64,14 +80,53 @@ class AssetManager:
         return os.path.join(cls.get_base_path(), "fonts", "Spotify-Circular-Font", filename)
 
     @classmethod
+    def _get_fallback_font(cls, size: int) -> ImageFont.FreeTypeFont:
+        """Try to load a system TrueType font as fallback (Linux-friendly)."""
+        # Check cache first
+        cache_key = ('fallback', size)
+        if cache_key in cls._font_cache:
+            return cls._font_cache[cache_key]
+        
+        # Try Linux system fonts
+        for font_path in cls._linux_fallback_fonts:
+            if os.path.exists(font_path):
+                try:
+                    font = ImageFont.truetype(font_path, size)
+                    cls._font_cache[cache_key] = font
+                    logging.info(f"Using fallback font: {font_path}")
+                    return font
+                except Exception:
+                    continue
+        
+        # Try Pillow 10.0+ default (returns TrueType font)
+        try:
+            font = ImageFont.load_default(size=size)
+            cls._font_cache[cache_key] = font
+            return font
+        except TypeError:
+            # Older Pillow doesn't support size parameter
+            pass
+        
+        # Last resort: basic default (may not support all text operations)
+        logging.warning("No TrueType fallback font found, text rendering may be limited")
+        return ImageFont.load_default()
+
+    @classmethod
     def get_font(cls, size: int, weight: str = 'book') -> ImageFont.FreeTypeFont:
+        # Check cache first
+        cache_key = (weight, size)
+        if cache_key in cls._font_cache:
+            return cls._font_cache[cache_key]
+        
         try:
             # Use the robust path resolver
             path = cls.get_font_path(weight)
-            return ImageFont.truetype(path, size)
+            font = ImageFont.truetype(path, size)
+            cls._font_cache[cache_key] = font
+            return font
         except OSError as e:
             logging.error(f"Font not found at {path}: {e}")
-            return ImageFont.load_default()
+            return cls._get_fallback_font(size)
 
     @classmethod
     def get_icon(cls, is_light_theme: bool) -> Image.Image:
@@ -86,11 +141,48 @@ class AssetManager:
 
 class DrawUtils:
     @staticmethod
+    def _safe_textlength(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> float:
+        """Safely get text length, with fallback for bitmap fonts."""
+        try:
+            return draw.textlength(text, font)
+        except AttributeError:
+            # Fallback for bitmap fonts that don't support textlength
+            try:
+                bbox = draw.textbbox((0, 0), text, font=font)
+                return bbox[2] - bbox[0]
+            except Exception:
+                # Last resort: estimate based on character count
+                return len(text) * 10
+    
+    @staticmethod
+    def _safe_textbbox(draw: ImageDraw.ImageDraw, xy: Tuple[int, int], text: str, 
+                       font: ImageFont.FreeTypeFont, anchor: str = None, 
+                       stroke_width: int = 0) -> Tuple[int, int, int, int]:
+        """Safely get text bounding box, with fallback for bitmap fonts."""
+        try:
+            return draw.textbbox(xy, text, font=font, anchor=anchor, stroke_width=stroke_width)
+        except Exception:
+            # Fallback: estimate bounding box
+            try:
+                w = DrawUtils._safe_textlength(draw, text, font)
+                h = 20  # Default height estimate
+                if hasattr(font, 'size'):
+                    h = font.size
+                elif hasattr(font, 'getbbox'):
+                    bbox = font.getbbox(text)
+                    if bbox:
+                        h = bbox[3] - bbox[1]
+                return (xy[0], xy[1], xy[0] + int(w), xy[1] + int(h))
+            except Exception:
+                return (xy[0], xy[1], xy[0] + len(text) * 10, xy[1] + 20)
+    
+    @staticmethod
     def truncate(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: float) -> str:
-        if draw.textlength(text, font) <= max_width: return text
+        if DrawUtils._safe_textlength(draw, text, font) <= max_width: 
+            return text
         ellipsis = "..."
-        target = max_width - draw.textlength(ellipsis, font)
-        while len(text) > 0 and draw.textlength(text, font) > target:
+        target = max_width - DrawUtils._safe_textlength(draw, ellipsis, font)
+        while len(text) > 0 and DrawUtils._safe_textlength(draw, text, font) > target:
             text = text[:-1]
         return text + ellipsis
 
@@ -106,8 +198,12 @@ class DrawUtils:
         # Path 1: Standard High-Quality Text (No effects)
         if kerning == 0 and stretch_factor == 1.0 and force_width is None:
             draw = ImageDraw.Draw(target_img)
-            draw.text(xy, text, font=font, fill=fill, anchor=anchor, stroke_width=stroke_width, stroke_fill=stroke_fill)
-            bbox = draw.textbbox(xy, text, font=font, anchor=anchor, stroke_width=stroke_width)
+            try:
+                draw.text(xy, text, font=font, fill=fill, anchor=anchor, stroke_width=stroke_width, stroke_fill=stroke_fill)
+            except TypeError:
+                # Fallback for fonts that don't support anchor/stroke
+                draw.text(xy, text, font=font, fill=fill)
+            bbox = DrawUtils._safe_textbbox(draw, xy, text, font, anchor, stroke_width)
             return bbox[2]-bbox[0], bbox[3]-bbox[1]
 
         # Path 2: Custom Text (Stretched/Tightened)
@@ -115,34 +211,44 @@ class DrawUtils:
         
         # Calculate Dimensions
         if kerning == 0:
-            w_raw = dummy.textlength(text, font=font)
+            w_raw = DrawUtils._safe_textlength(dummy, text, font)
         else:
             w_raw = 0
             char_widths = []
             for char in text:
-                cw = dummy.textlength(char, font=font)
+                cw = DrawUtils._safe_textlength(dummy, char, font)
                 char_widths.append(cw)
                 w_raw += cw + kerning
             w_raw = max(1, w_raw - kerning if w_raw > 0 else 1)
 
-        bbox = dummy.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+        bbox = DrawUtils._safe_textbbox(dummy, (0, 0), text, font, stroke_width=stroke_width)
         h_raw = bbox[3] - bbox[1] + 20 
 
         # Render Layer
-        txt_layer = Image.new("RGBA", (int(w_raw), h_raw), (0, 0, 0, 0))
+        txt_layer = Image.new("RGBA", (max(1, int(w_raw)), max(1, h_raw)), (0, 0, 0, 0))
         d = ImageDraw.Draw(txt_layer)
         
-        if kerning == 0:
-            d.text((0, 0), text, font=font, fill=fill, stroke_width=stroke_width, stroke_fill=stroke_fill)
-        else:
-            cx = 0
-            for i, char in enumerate(text):
-                d.text((cx, 0), char, font=font, fill=fill, stroke_width=stroke_width, stroke_fill=stroke_fill)
-                cx += char_widths[i] + kerning
+        try:
+            if kerning == 0:
+                d.text((0, 0), text, font=font, fill=fill, stroke_width=stroke_width, stroke_fill=stroke_fill)
+            else:
+                cx = 0
+                for i, char in enumerate(text):
+                    d.text((cx, 0), char, font=font, fill=fill, stroke_width=stroke_width, stroke_fill=stroke_fill)
+                    cx += char_widths[i] + kerning
+        except TypeError:
+            # Fallback for fonts that don't support stroke
+            if kerning == 0:
+                d.text((0, 0), text, font=font, fill=fill)
+            else:
+                cx = 0
+                for i, char in enumerate(text):
+                    d.text((cx, 0), char, font=font, fill=fill)
+                    cx += char_widths[i] + kerning
 
         # Stretch & Paste
         new_w = force_width if force_width else max(1, int(w_raw * stretch_factor))
-        stretched = txt_layer.resize((int(new_w), h_raw), resample=Image.BICUBIC)
+        stretched = txt_layer.resize((int(new_w), max(1, h_raw)), resample=Image.BICUBIC)
 
         x, y = xy
         if anchor:
@@ -285,7 +391,7 @@ class CardRenderer:
         
         if bg_box:
             dummy = ImageDraw.Draw(Image.new("L", (1,1)))
-            box_w = dummy.textlength(text, font) * 1.3 + 60
+            box_w = DrawUtils._safe_textlength(dummy, text, font) * 1.3 + 60
             box_h = 90
             bx = (WIDTH - box_w) // 2
             self.draw.rectangle((bx, y_pos, bx + box_w, y_pos + box_h), fill=bg_box)
@@ -303,7 +409,7 @@ class CardRenderer:
             logo = logo.resize((105, 105), Image.Resampling.LANCZOS)
             self.img.paste(logo, (60, HEIGHT - 150), logo)
             
-        w = self.draw.textlength(FOOTER_URL, font)
+        w = DrawUtils._safe_textlength(self.draw, FOOTER_URL, font)
         self.draw.text((WIDTH - w - 60, HEIGHT - 120), FOOTER_URL, font=font, fill=color)
 
     def get_image(self) -> Image.Image:
@@ -394,12 +500,12 @@ def draw_top_genres(genres: List[str]) -> Image.Image:
         w_text = 0
         char_widths = []
         for char in g:
-            cw = d.textlength(char, font=f_src)
+            cw = DrawUtils._safe_textlength(d, char, f_src)
             char_widths.append(cw)
             w_text += cw + genre_kerning
         w_text = max(1, w_text - genre_kerning if w_text > 0 else 1)
         
-        bb = d.textbbox((0,0), g, font=f_src)
+        bb = DrawUtils._safe_textbbox(d, (0,0), g, f_src)
         h = bb[3]-bb[1]+20
         
         txt = Image.new("RGBA", (int(w_text), h), (0,0,0,0))
@@ -448,12 +554,12 @@ def draw_listening_age(age: int, label: str) -> Image.Image:
     prefix = "Early" if peak%10 < 4 else ("Mid" if peak%10 < 7 else "Late")
     txt_parts = [("Since I was into music from ", 'book'), ("the ", 'book'), (f"{prefix} ", 'black'), (f"{str(dec)[-2:]}s", 'black')]
     
-    total_w = sum(card.draw.textlength(t, AssetManager.get_font(45, w)) for t, w in txt_parts)
+    total_w = sum(DrawUtils._safe_textlength(card.draw, t, AssetManager.get_font(45, w)) for t, w in txt_parts)
     cx = (WIDTH - total_w) / 2
     for txt, weight in txt_parts:
         font = AssetManager.get_font(45, weight)
         DrawUtils.draw_flat_text(card.img, (cx, 1300), txt, font, Colors.DARK_BG, 1.0, "lm", kerning=0)
-        cx += card.draw.textlength(txt, font)
+        cx += DrawUtils._safe_textlength(card.draw, txt, font)
         
     return card.get_image()
 
@@ -538,17 +644,22 @@ def draw_summary_card(data: Dict[str, Any]) -> Image.Image:
     chars = []
     x = 16
     for c in yr:
-        w = dummy.textlength(c, font=f_yr)
+        w = DrawUtils._safe_textlength(dummy, c, f_yr)
         chars.append((c, x, w))
         x += w - 47
     
-    mask = Image.new("L", (int(x + 50), 350), 0)
+    mask = Image.new("L", (max(1, int(x + 50)), 350), 0)
     dm = ImageDraw.Draw(mask)
     for c, cx, _ in chars: dm.text((cx, 10), c, font=f_yr, fill=255)
     
     dilated = mask.copy()
     dd = ImageDraw.Draw(dilated)
-    for c, cx, _ in chars: dd.text((cx, 10), c, font=f_yr, fill=255, stroke_width=6, stroke_fill=255)
+    for c, cx, _ in chars:
+        try:
+            dd.text((cx, 10), c, font=f_yr, fill=255, stroke_width=6, stroke_fill=255)
+        except TypeError:
+            # Fallback for fonts that don't support stroke
+            dd.text((cx, 10), c, font=f_yr, fill=255)
     outline = ImageChops.subtract(dilated, mask)
     
     fill_col = Colors.get_age_color(data.get('age_data', {}).get('age', 25))
@@ -557,8 +668,10 @@ def draw_summary_card(data: Dict[str, Any]) -> Image.Image:
     final_yr.paste(c_txt, (0,0), outline)
     for c, cx, _ in chars: df.text((cx, 10), c, font=f_yr, fill=fill_col)
     
-    final_yr = final_yr.crop(final_yr.getbbox())
-    final_yr = final_yr.resize((int(final_yr.width * 1.6), final_yr.height), Image.BICUBIC)
+    bbox = final_yr.getbbox()
+    if bbox:
+        final_yr = final_yr.crop(bbox)
+    final_yr = final_yr.resize((max(1, int(final_yr.width * 1.6)), max(1, final_yr.height)), Image.BICUBIC)
     rotated = final_yr.rotate(90, expand=True)
     card.img.paste(rotated, (10, 0), rotated)
 

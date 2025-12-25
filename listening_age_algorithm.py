@@ -1,5 +1,6 @@
-from collections import Counter
+"""Listening Age calculation based on the Reminiscence Bump theory."""
 from datetime import datetime
+
 
 def calculate_listening_age(plays_per_year: dict, current_year: int = None) -> int:
     """
