@@ -1,4 +1,4 @@
-flet
+flet>=0.80.0
 pandas
 python-dateutil
 mutagen
