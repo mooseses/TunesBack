@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       
       - name: Extract version from pyproject.toml
         id: get_version
@@ -70,6 +72,9 @@ jobs:
       
       - name: Install Flet
         run: pip install flet==${{ env.FLET_VERSION }}
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
       
       - name: Build ${{ matrix.name }}
         run: flet build ${{ matrix.platform }}
@@ -199,7 +204,7 @@ jobs:
             'SELF=$(readlink -f "$0")' \
             'HERE=${SELF%/*}' \
             'export PATH="${HERE}/usr/bin:${PATH}"' \
-            'export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"' \
+            'export LD_LIBRARY_PATH="${HERE}/usr/bin/lib:${LD_LIBRARY_PATH}"' \
             'export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS}"' \
             'exec "${HERE}/usr/bin/tunesback" "$@"' \
             > TunesBack.AppDir/AppRun
