@@ -668,9 +668,13 @@ def draw_summary_card(data: Dict[str, Any]) -> Image.Image:
     final_yr.paste(c_txt, (0,0), outline)
     for c, cx, _ in chars: df.text((cx, 10), c, font=f_yr, fill=fill_col)
     
-    bbox = final_yr.getbbox()
-    if bbox:
-        final_yr = final_yr.crop(bbox)
+    try:
+        bbox = final_yr.getbbox()
+        if bbox:
+            final_yr = final_yr.crop(bbox)
+    except Exception as e:
+        logging.warning(f"Could not crop year image: {e}")
+    
     final_yr = final_yr.resize((max(1, int(final_yr.width * 1.6)), max(1, final_yr.height)), Image.BICUBIC)
     rotated = final_yr.rotate(90, expand=True)
     card.img.paste(rotated, (10, 0), rotated)
