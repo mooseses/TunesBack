@@ -5,7 +5,7 @@ description = "Analyze your iTunes listening history"
 authors = [{name = "Peter Jin"}]
 requires-python = ">=3.11"
 dependencies = [
-  "flet>=0.80.0",
+  "flet>=0.28.3",
   "pandas",
   "python-dateutil",
   "mutagen",

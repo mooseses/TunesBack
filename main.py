@@ -1341,4 +1341,4 @@ def main(page: ft.Page):
     page.add(app.main_layout)
 
 if __name__ == "__main__":
-    ft.app(main)
+    ft.app(target=main)
