@@ -198,39 +198,55 @@ class AssetManager:
 class DrawUtils:
     @staticmethod
     def _safe_textlength(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> float:
-        """Safely get text length, with fallback for bitmap fonts."""
+        """Safely get text length, with fallback for bitmap fonts and broken FreeType."""
+        max_reasonable = len(text) * 100  # No text should be >100px per character
+        
         try:
-            return draw.textlength(text, font)
-        except AttributeError:
-            # Fallback for bitmap fonts that don't support textlength
-            try:
-                bbox = draw.textbbox((0, 0), text, font=font)
-                return bbox[2] - bbox[0]
-            except Exception:
-                # Last resort: estimate based on character count
-                return len(text) * 10
+            length = draw.textlength(text, font)
+            if 0 < length < max_reasonable:
+                return length
+        except (AttributeError, Exception):
+            pass
+        
+        # Try textbbox as fallback
+        try:
+            bbox = draw.textbbox((0, 0), text, font=font)
+            length = bbox[2] - bbox[0]
+            if 0 < length < max_reasonable:
+                return length
+        except Exception:
+            pass
+        
+        # Estimate based on font size (for broken FreeType in AppImage)
+        try:
+            font_size = getattr(font, 'size', 20)
+            return len(text) * font_size * 0.6
+        except Exception:
+            return len(text) * 12  # Last resort
     
     @staticmethod
     def _safe_textbbox(draw: ImageDraw.ImageDraw, xy: Tuple[int, int], text: str, 
                        font: ImageFont.FreeTypeFont, anchor: str = None, 
                        stroke_width: int = 0) -> Tuple[int, int, int, int]:
-        """Safely get text bounding box, with fallback for bitmap fonts."""
+        """Safely get text bounding box, with fallback for bitmap fonts and broken FreeType."""
+        max_reasonable_w = len(text) * 100 + 100
+        max_reasonable_h = 500
+        
         try:
-            return draw.textbbox(xy, text, font=font, anchor=anchor, stroke_width=stroke_width)
+            bbox = draw.textbbox(xy, text, font=font, anchor=anchor, stroke_width=stroke_width)
+            w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            if 0 < w < max_reasonable_w and 0 < h < max_reasonable_h:
+                return bbox
         except Exception:
-            # Fallback: estimate bounding box
-            try:
-                w = DrawUtils._safe_textlength(draw, text, font)
-                h = 20  # Default height estimate
-                if hasattr(font, 'size'):
-                    h = font.size
-                elif hasattr(font, 'getbbox'):
-                    bbox = font.getbbox(text)
-                    if bbox:
-                        h = bbox[3] - bbox[1]
-                return (xy[0], xy[1], xy[0] + int(w), xy[1] + int(h))
-            except Exception:
-                return (xy[0], xy[1], xy[0] + len(text) * 10, xy[1] + 20)
+            pass
+        
+        # Estimate bounding box using safe text length
+        w = DrawUtils._safe_textlength(draw, text, font)
+        try:
+            h = getattr(font, 'size', 20) * 1.2
+        except Exception:
+            h = 20
+        return (int(xy[0]), int(xy[1]), int(xy[0] + w), int(xy[1] + h))
     
     @staticmethod
     def truncate(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: float) -> str:
