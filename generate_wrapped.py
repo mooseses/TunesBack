@@ -64,6 +64,7 @@ class AssetManager:
     
     _font_cache = {}  # Cache loaded fonts to avoid repeated file access
     _base_path_cache = None  # Cache the resolved base path
+    _is_appimage = None  # Cached AppImage detection result
 
     @staticmethod
     def get_base_path():
@@ -91,6 +92,7 @@ class AssetManager:
                 mount_base = pil_path.split('/usr/bin/')[0] + '/usr/bin'
                 possible_paths.append(os.path.join(mount_base, "assets"))
                 appimage_mount = mount_base
+                AssetManager._is_appimage = True
                 logging.debug(f"Found AppImage mount from PIL: {mount_base}")
         except Exception as e:
             logging.debug(f"PIL path detection failed: {e}")
@@ -156,6 +158,10 @@ class AssetManager:
         logging.debug(f"sys.path: {sys.path}")
         logging.debug(f"Candidate asset paths: {possible_paths}")
         
+        # Set _is_appimage to False if not already set (means no AppImage was detected)
+        if AssetManager._is_appimage is None:
+            AssetManager._is_appimage = False
+        
         # Return the first path that exists and contains readable fonts
         for path in possible_paths:
             fonts_path = os.path.join(path, "fonts", "Spotify-Circular-Font")
@@ -166,7 +172,7 @@ class AssetManager:
                     with open(font_file, 'rb') as f:
                         f.read(4)  # Try to actually read from the file
                     AssetManager._base_path_cache = path
-                    logging.info(f"Assets found at: {path}")
+                    logging.info(f"Assets found at: {path} (AppImage: {AssetManager._is_appimage})")
                     return path
                 except (IOError, OSError) as e:
                     logging.warning(f"Font file not readable at {font_file}: {e}")
@@ -341,8 +347,17 @@ class DrawUtils:
         Renders text. Draws directly for standard text to preserve quality. 
         Uses an intermediate layer for manual kerning or stretching.
         """
-        # Path 1: Standard High-Quality Text (No effects)
-        if kerning == 0 and stretch_factor == 1.0 and force_width is None:
+        # In AppImage, FreeType metrics may be broken, so always use manual positioning
+        # This ensures our safe measurements match actual rendering position
+        use_manual_positioning = (
+            AssetManager._is_appimage or 
+            kerning != 0 or 
+            stretch_factor != 1.0 or 
+            force_width is not None
+        )
+        
+        # Path 1: Standard High-Quality Text (No effects, not AppImage)
+        if not use_manual_positioning:
             draw = ImageDraw.Draw(target_img)
             try:
                 draw.text(xy, text, font=font, fill=fill, anchor=anchor, stroke_width=stroke_width, stroke_fill=stroke_fill)
@@ -756,7 +771,7 @@ def draw_top_song_single(item: Dict) -> Image.Image:
     DrawUtils.draw_flat_text(card.img, (CENTER_X, y+sz+280), nm, AssetManager.get_font(90, 'black'), Colors.LIGHT_BG, 1.4, "mm", kerning=-2)
     
     sub = DrawUtils.truncate(card.draw, item.get('sub', ''), AssetManager.get_font(50), safe_w)
-    card.draw.text((CENTER_X, y+sz+380), sub, font=AssetManager.get_font(50), fill=Colors.LIGHT_BG, anchor="mm")
+    DrawUtils.draw_flat_text(card.img, (CENTER_X, y+sz+380), sub, AssetManager.get_font(50), Colors.LIGHT_BG, 1.0, "mm", kerning=0)
     
     DrawUtils.draw_flat_text(card.img, (CENTER_X, y+sz+500), "Total Plays", AssetManager.get_font(40, 'medium'), Colors.LIGHT_BG, 1.0, "mm", kerning=0)
     val = f"{int(item.get('count', 0)):,}"
