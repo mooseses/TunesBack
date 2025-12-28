@@ -37,8 +37,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
       
       - name: Extract version from pyproject.toml
         id: get_version
@@ -70,10 +68,8 @@ jobs:
             liblzma-dev \
             libfuse2
       
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Install Flet
+        run: pip install flet==${{ env.FLET_VERSION }}
       
       - name: Build ${{ matrix.name }}
         run: flet build ${{ matrix.platform }}
