@@ -76,7 +76,12 @@ class AssetManager:
         possible_paths = []
         appimage_mount = None
         
-        # METHOD 1: Parse /proc/self/maps to find AppImage mount (MOST RELIABLE)
+        # METHOD 0: Check FLET_ASSETS_DIR (set by Flet for packaged apps)
+        flet_assets = os.environ.get('FLET_ASSETS_DIR')
+        if flet_assets and os.path.isdir(flet_assets):
+            possible_paths.append(flet_assets)
+        
+        # METHOD 1: Parse /proc/self/maps to find AppImage mount
         # This shows all memory-mapped files including from the AppImage
         try:
             with open('/proc/self/maps', 'r') as f:
@@ -90,6 +95,7 @@ class AssetManager:
             pass
         
         # METHOD 2: Check sys.path for Flet AppImage paths
+        # Flet sets modulePaths including /tmp/.mount_*/usr/bin/site-packages
         if not appimage_mount:
             for p in sys.path:
                 if '.mount_' in p and '/usr/bin' in p:
@@ -103,7 +109,7 @@ class AssetManager:
             possible_paths.append(os.path.join(appdir, "usr", "bin", "assets"))
         
         # If no AppImage detected, we're in dev mode - use local assets
-        if appimage_mount is None and appdir is None:
+        if appimage_mount is None and appdir is None and not flet_assets:
             possible_paths.append(os.path.join(os.path.dirname(__file__), "assets"))
         
         # METHOD 4: Try /proc/self/exe as fallback
