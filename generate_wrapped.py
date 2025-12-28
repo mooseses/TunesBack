@@ -64,13 +64,18 @@ class AssetManager:
     def get_base_path():
         """
         Returns the correct base path for assets whether running from source
-        or as a compiled executable (PyInstaller/Flet).
+        or as a compiled executable (PyInstaller/Flet/AppImage).
         """
         # Return cached path if available
         if AssetManager._base_path_cache is not None:
             return AssetManager._base_path_cache
         
         possible_paths = []
+        
+        # Check APPDIR environment variable (set by AppImage at runtime)
+        appdir = os.environ.get('APPDIR')
+        if appdir:
+            possible_paths.append(os.path.join(appdir, "usr", "bin", "assets"))
         
         if getattr(sys, 'frozen', False):
             # Running as compiled app
@@ -96,6 +101,7 @@ class AssetManager:
         # Log debug info if fonts not found
         script_dir = os.path.dirname(os.path.abspath(__file__))
         logging.error(f"Fonts not found. Script dir: {script_dir}")
+        logging.error(f"APPDIR env: {appdir}")
         logging.error(f"Searched paths: {possible_paths}")
         if os.path.isdir(script_dir):
             try:

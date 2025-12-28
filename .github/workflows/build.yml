@@ -165,6 +165,12 @@ jobs:
       - name: Create Linux AppImage
         if: matrix.platform == 'linux'
         run: |
+          # Debug: Show what flet build created
+          echo "Contents of build/linux:"
+          ls -la build/linux/ || echo "build/linux not found"
+          echo "Checking for assets in build output:"
+          find build/ -name "assets" -type d 2>/dev/null || echo "No assets folder found in build/"
+          
           # Create AppDir structure
           mkdir -p TunesBack.AppDir/usr/bin
           mkdir -p TunesBack.AppDir/usr/share/applications
@@ -172,6 +178,16 @@ jobs:
           
           # Copy application files
           cp -r build/linux/* TunesBack.AppDir/usr/bin/
+          
+          # Explicitly copy assets folder (in case flet build doesn't include it)
+          if [ -d "assets" ]; then
+            echo "Copying assets folder to AppDir..."
+            cp -r assets TunesBack.AppDir/usr/bin/
+          fi
+          
+          # Verify assets were copied
+          echo "Verifying assets in AppDir:"
+          ls -la TunesBack.AppDir/usr/bin/assets/fonts/Spotify-Circular-Font/ || echo "WARNING: Fonts not found in AppDir!"
           
           # Copy icon
           cp assets/icon.png TunesBack.AppDir/usr/share/icons/hicolor/256x256/apps/tunesback.png
