@@ -242,10 +242,16 @@ class AssetManager:
         
         try:
             path = cls.get_font_path(weight)
+            import sys as _sys
+            print(f"FONT DEBUG: Trying to load font from: {path}", file=_sys.stderr)
+            print(f"FONT DEBUG: File exists: {os.path.exists(path)}", file=_sys.stderr)
             font = ImageFont.truetype(path, size)
+            print(f"FONT DEBUG: Successfully loaded font: {font}", file=_sys.stderr)
             cls._font_cache[cache_key] = font
             return font
         except OSError as e:
+            import sys as _sys
+            print(f"FONT DEBUG: Font loading FAILED: {path} - {e}", file=_sys.stderr)
             logging.warning(f"Font not found at {path}: {e}")
             return cls._get_fallback_font(size)
 
