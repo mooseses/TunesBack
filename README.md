@@ -85,20 +85,62 @@ The order of items follows the "Ranked By" setting. Re-generate after changing t
 
 ## Listening Age
 
-This metric estimates the "age" of your music taste using your library's metadata.
+TunesBack computes a single-number summary called the "Listening Age" to describe the era that most strongly characterizes your listening habits. The metric is inspired by the psychological "reminiscence bump", which is the tendency for music encountered during one's formative years to retain stronger emotional significance.
+
+The following chart explains its methodology:
 
 <div align="center">
   <img width="720" alt="Listening Age Algorithm" src="https://github.com/user-attachments/assets/106dd2d7-0fe4-49df-84d1-4ae6620afe95" />
+  <em>Listening Age Algorithm</em>
 </div>
 
-The calculation is based on the "reminiscence bump": the idea that people form the strongest connections to music discovered in their late teens.
 
-1. **Aggregate**: Group play counts by each track's release year
-2. **Find the peak**: Identify the 5-year window with the highest listening density
-3. **Assume formative age**: Treat the midpoint of that window as age 18
-4. **Project**: Calculate the difference from the current year
+#### How the metric is calculated (algorithmic summary):
 
-*Example: If most of your listening falls between 2010 and 2015, the midpoint is around 2012. Assuming you were 18 then, your Listening Age in 2025 would be about 31.*
+- Aggregate play counts by each track's release year.
+- Slide a 5-year window across the years in your data and compute the total plays for each window.
+- Select the 5-year window with the highest total plays (the "peak era").
+- Take the center year of that window and assume the listener was 18 at that midpoint.
+- Calculate Listening Age as: current year − (midpoint year − 18).
+
+Formula:
+
+```
+Listening Age = Current Year - (Peak Era Midpoint - 18)
+```
+
+Example:
+
+- Peak window: 2010–2014 → midpoint 2012
+- Assumed birth year: 2012 − 18 = 1994
+- Listening Age (in 2025): 2025 − 1994 = 31
+
+Notes and interpretation:
+
+- A Listening Age lower than your chronological age indicates a preference for more recent releases.
+- A Listening Age higher than your chronological age indicates a preference for older material.
+- The method uses a fixed 5-year window and a formative age constant of 18; these parameters reflect a balance between sensitivity and robustness in typical music libraries.
+
+Implementation details: the algorithm (see `listening_age_algorithm.py`) filters out invalid years, sums plays per year, evaluates every 5-year window, selects the highest-sum window, and computes the final age as shown above.
+
+## New Music Finding
+
+TunesBack employs a two-stage validation process to accurately identify genuinely new additions to your library, distinguishing them from pre-existing tracks that were simply unplayed.
+
+### Classification Criteria
+
+When comparing two library snapshots, a track qualifies as a **New Find** only if both conditions are met:
+
+1. **Play Count Differential**: The track exhibits increased play activity in the more recent snapshot.
+2. **Date Added Verification**: The track's `Date Added` metadata falls within the analysis period (i.e., after the baseline snapshot date).
+
+This methodology ensures the "New Finds" category reflects actual discoveries rather than long-standing library items receiving their first plays.
+
+### Decision Flow
+
+<div align="center">
+  <img width="350" alt="New Music Classification Logic" src="assets/screenshots/new_music_flowchart.png" />
+</div>
 
 ## Album Art & Network Share Support
 
@@ -116,12 +158,6 @@ TunesBack extracts album artwork directly from your audio files using **embedded
    - **Moved files**: Works as long as the new path is accessible
 3. **No configuration needed**: Network paths are resolved automatically across all platforms
 
-### Why embedded artwork?
-
-iTunes' "Get Album Artwork" feature stores artwork in a separate database, not in the file itself. This means:
-
-- ✅ **Embedded artwork** (from ripped CDs or properly tagged files): **Works everywhere**
-- ❌ **iTunes-fetched artwork**: **Not accessible** from XML exports
 
 ### Troubleshooting missing artwork
 
