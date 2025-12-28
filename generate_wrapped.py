@@ -270,16 +270,38 @@ class DrawUtils:
     @staticmethod
     def _safe_textlength(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> float:
         """Safely get text length, with fallback for bitmap fonts."""
+        # Try font.getlength() first (more reliable, doesn't depend on draw context)
         try:
-            return draw.textlength(text, font)
-        except AttributeError:
-            # Fallback for bitmap fonts that don't support textlength
-            try:
-                bbox = draw.textbbox((0, 0), text, font=font)
-                return bbox[2] - bbox[0]
-            except Exception:
-                # Last resort: estimate based on character count
-                return len(text) * 10
+            length = font.getlength(text)
+            # Sanity check: text length should never exceed ~50 pixels per character
+            if length > 0 and length < len(text) * 100:
+                return length
+        except (AttributeError, Exception):
+            pass
+        
+        # Try draw.textlength()
+        try:
+            length = draw.textlength(text, font)
+            if length > 0 and length < len(text) * 100:
+                return length
+        except (AttributeError, Exception):
+            pass
+        
+        # Try textbbox
+        try:
+            bbox = draw.textbbox((0, 0), text, font=font)
+            length = bbox[2] - bbox[0]
+            if length > 0 and length < len(text) * 100:
+                return length
+        except Exception:
+            pass
+        
+        # Last resort: estimate based on character count and font size
+        try:
+            font_size = getattr(font, 'size', 20)
+            return len(text) * font_size * 0.6  # Rough estimate
+        except Exception:
+            return len(text) * 12  # Fallback estimate
     
     @staticmethod
     def _safe_textbbox(draw: ImageDraw.ImageDraw, xy: Tuple[int, int], text: str, 
