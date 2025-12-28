@@ -8,9 +8,6 @@ from typing import List, Dict, Any, Tuple, Optional, Set
 
 from PIL import Image, ImageDraw, ImageFont, ImageChops
 
-# Workaround for potential Pillow issues in Linux AppImage builds
-Image.MAX_IMAGE_PIXELS = None
-
 # --- CONFIGURATION ---
 
 WIDTH, HEIGHT = 1080, 1920
@@ -74,16 +71,6 @@ class AssetManager:
             return AssetManager._base_path_cache
         
         possible_paths = []
-        
-        # Check PIL module location for AppImage mount point
-        # In Flet AppImage, PIL is at /tmp/.mount_*/usr/bin/site-packages/PIL/
-        try:
-            pil_path = Image.__file__
-            if '.mount_' in pil_path and '/usr/bin/' in pil_path:
-                mount_base = pil_path.split('/usr/bin/')[0] + '/usr/bin'
-                possible_paths.append(os.path.join(mount_base, "assets"))
-        except Exception:
-            pass
         
         # Check APPDIR environment variable (set by AppImage at runtime)
         appdir = os.environ.get('APPDIR')
@@ -198,55 +185,39 @@ class AssetManager:
 class DrawUtils:
     @staticmethod
     def _safe_textlength(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> float:
-        """Safely get text length, with fallback for bitmap fonts and broken FreeType."""
-        max_reasonable = len(text) * 100  # No text should be >100px per character
-        
+        """Safely get text length, with fallback for bitmap fonts."""
         try:
-            length = draw.textlength(text, font)
-            if 0 < length < max_reasonable:
-                return length
-        except (AttributeError, Exception):
-            pass
-        
-        # Try textbbox as fallback
-        try:
-            bbox = draw.textbbox((0, 0), text, font=font)
-            length = bbox[2] - bbox[0]
-            if 0 < length < max_reasonable:
-                return length
-        except Exception:
-            pass
-        
-        # Estimate based on font size (for broken FreeType in AppImage)
-        try:
-            font_size = getattr(font, 'size', 20)
-            return len(text) * font_size * 0.6
-        except Exception:
-            return len(text) * 12  # Last resort
+            return draw.textlength(text, font)
+        except AttributeError:
+            # Fallback for bitmap fonts that don't support textlength
+            try:
+                bbox = draw.textbbox((0, 0), text, font=font)
+                return bbox[2] - bbox[0]
+            except Exception:
+                # Last resort: estimate based on character count
+                return len(text) * 10
     
     @staticmethod
     def _safe_textbbox(draw: ImageDraw.ImageDraw, xy: Tuple[int, int], text: str, 
                        font: ImageFont.FreeTypeFont, anchor: str = None, 
                        stroke_width: int = 0) -> Tuple[int, int, int, int]:
-        """Safely get text bounding box, with fallback for bitmap fonts and broken FreeType."""
-        max_reasonable_w = len(text) * 100 + 100
-        max_reasonable_h = 500
-        
+        """Safely get text bounding box, with fallback for bitmap fonts."""
         try:
-            bbox = draw.textbbox(xy, text, font=font, anchor=anchor, stroke_width=stroke_width)
-            w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-            if 0 < w < max_reasonable_w and 0 < h < max_reasonable_h:
-                return bbox
+            return draw.textbbox(xy, text, font=font, anchor=anchor, stroke_width=stroke_width)
         except Exception:
-            pass
-        
-        # Estimate bounding box using safe text length
-        w = DrawUtils._safe_textlength(draw, text, font)
-        try:
-            h = getattr(font, 'size', 20) * 1.2
-        except Exception:
-            h = 20
-        return (int(xy[0]), int(xy[1]), int(xy[0] + w), int(xy[1] + h))
+            # Fallback: estimate bounding box
+            try:
+                w = DrawUtils._safe_textlength(draw, text, font)
+                h = 20  # Default height estimate
+                if hasattr(font, 'size'):
+                    h = font.size
+                elif hasattr(font, 'getbbox'):
+                    bbox = font.getbbox(text)
+                    if bbox:
+                        h = bbox[3] - bbox[1]
+                return (xy[0], xy[1], xy[0] + int(w), xy[1] + int(h))
+            except Exception:
+                return (xy[0], xy[1], xy[0] + len(text) * 10, xy[1] + 20)
     
     @staticmethod
     def truncate(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: float) -> str:

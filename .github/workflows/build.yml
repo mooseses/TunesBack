@@ -27,10 +27,6 @@ jobs:
           - os: windows-latest
             platform: windows
             name: Windows
-            
-          - os: ubuntu-latest
-            platform: linux
-            name: Linux
     
     runs-on: ${{ matrix.os }}
     
@@ -52,22 +48,6 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
       
-      - name: Install Linux dependencies
-        if: matrix.platform == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libgstreamer1.0-dev \
-            libgstreamer-plugins-base1.0-dev \
-            clang \
-            cmake \
-            ninja-build \
-            pkg-config \
-            libblkid-dev \
-            liblzma-dev \
-            libfuse2
-      
       - name: Install Flet
         run: pip install flet==${{ env.FLET_VERSION }}
       
@@ -83,7 +63,6 @@ jobs:
         run: |
           brew install create-dmg
           
-          # Check if build succeeded
           if [ -d "build/macos/TunesBack.app" ]; then
             create-dmg \
               --volname "TunesBack" \
@@ -96,7 +75,6 @@ jobs:
               "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" \
               "build/macos/TunesBack.app" || true
             
-            # Fallback if create-dmg fails
             if [ ! -f "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" ]; then
               echo "create-dmg failed, using hdiutil..."
               hdiutil create -volname "TunesBack" \
@@ -109,18 +87,14 @@ jobs:
             exit 1
           fi
       
-        # ========== Windows: Create Installer ==========
+      # ========== Windows: Create Installer ==========
       - name: Create Windows Installer
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          # Install Inno Setup via Chocolatey
           choco install innosetup -y
-          
-          # Wait for installation to complete
           Start-Sleep -Seconds 5
           
-          # Create installer script
           $issContent = @"
           [Setup]
           AppName=TunesBack
@@ -138,7 +112,6 @@ jobs:
           WizardStyle=modern
           
           [Files]
-          ; Copy build files recursively including assets folder structure
           Source: "build\windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
           
           [Icons]
@@ -154,83 +127,7 @@ jobs:
           "@
           
           $issContent | Out-File -FilePath "installer.iss" -Encoding ASCII
-          
-          # Find ISCC.exe (Chocolatey install path)
-          $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          
-          # Compile installer
-          & $isccPath "installer.iss"
-      
-      # ========== Linux: Create AppImage ==========
-      - name: Create Linux AppImage
-        if: matrix.platform == 'linux'
-        run: |
-          # Debug: Show what flet build created
-          echo "Contents of build/linux:"
-          ls -la build/linux/ || echo "build/linux not found"
-          echo "Checking for assets in build output:"
-          find build/ -name "assets" -type d 2>/dev/null || echo "No assets folder found in build/"
-          
-          # Create AppDir structure
-          mkdir -p TunesBack.AppDir/usr/bin
-          mkdir -p TunesBack.AppDir/usr/share/applications
-          mkdir -p TunesBack.AppDir/usr/share/icons/hicolor/256x256/apps
-          
-          # Copy application files
-          cp -r build/linux/* TunesBack.AppDir/usr/bin/
-          
-          # Explicitly copy assets folder (in case flet build doesn't include it)
-          if [ -d "assets" ]; then
-            echo "Copying assets folder to AppDir..."
-            cp -r assets TunesBack.AppDir/usr/bin/
-          fi
-          
-          # Verify assets were copied
-          echo "Verifying assets in AppDir:"
-          ls -la TunesBack.AppDir/usr/bin/assets/fonts/Spotify-Circular-Font/ || echo "WARNING: Fonts not found in AppDir!"
-          
-          # Copy icon
-          cp assets/icon.png TunesBack.AppDir/usr/share/icons/hicolor/256x256/apps/tunesback.png
-          cp assets/icon.png TunesBack.AppDir/tunesback.png
-          
-          # Create .desktop file
-          printf '%s\n' \
-            "[Desktop Entry]" \
-            "Type=Application" \
-            "Name=TunesBack" \
-            "Comment=Analyze your iTunes listening history" \
-            "Exec=tunesback" \
-            "Icon=tunesback" \
-            "Categories=AudioVideo;Audio;Music;" \
-            "Terminal=false" \
-            "StartupWMClass=tunesback" \
-            > TunesBack.AppDir/tunesback.desktop
-          
-          # Copy .desktop to share/applications
-          cp TunesBack.AppDir/tunesback.desktop TunesBack.AppDir/usr/share/applications/
-          
-          # Create AppRun script
-          printf '%s\n' \
-            '#!/bin/bash' \
-            'SELF=$(readlink -f "$0")' \
-            'HERE=${SELF%/*}' \
-            'export PATH="${HERE}/usr/bin:${PATH}"' \
-            'export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"' \
-            'export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS}"' \
-            'exec "${HERE}/usr/bin/tunesback" "$@"' \
-            > TunesBack.AppDir/AppRun
-          chmod +x TunesBack.AppDir/AppRun
-          
-          # Make the main executable runnable
-          chmod +x TunesBack.AppDir/usr/bin/tunesback
-          
-          # Download appimagetool
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-          
-          # Create AppImage (using --appimage-extract-and-run for CI compatibility)
-          # ARCH is required when AppDir contains mixed-architecture libraries
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run TunesBack.AppDir TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64.AppImage
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"
       
       # ========== Upload Artifacts ==========
       - name: Upload macOS artifact
@@ -247,12 +144,4 @@ jobs:
         with:
           name: TunesBack-Windows-v${{ env.APP_VERSION }}-x64
           path: TunesBack-Windows-v${{ env.APP_VERSION }}-x64.exe
-          retention-days: 0
-      
-      - name: Upload Linux artifact
-        if: matrix.platform == 'linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64
-          path: TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64.AppImage
           retention-days: 0

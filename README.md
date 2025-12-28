@@ -109,13 +109,25 @@ The calculation is based on the "reminiscence bump" — the idea that people for
 |----------|--------|
 | Windows | Installer (`.exe`) |
 | macOS | Disk image (`.dmg`) |
-| Linux | AppImage (`.AppImage`) |
 
 > **macOS:** You may need to go to **System Settings → Privacy & Security** and click "Open Anyway" the first time.
 
-> **Linux:** Make the AppImage executable with `chmod +x TunesBack-*.AppImage`, then run it directly.
+### Linux
 
-**Or run from source:**
+Linux users should run from source:
+
+```bash
+git clone https://github.com/mooseses/TunesBack.git
+cd TunesBack
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
+
+**Requirements:** Python 3.10+
+
+**Or run from source on any platform:**
 
 ```bash
 git clone https://github.com/mooseses/TunesBack.git
