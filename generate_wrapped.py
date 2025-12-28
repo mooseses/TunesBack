@@ -58,6 +58,7 @@ class AssetManager:
     ]
     
     _font_cache = {}  # Cache loaded fonts to avoid repeated file access
+    _base_path_cache = None  # Cache the resolved base path
 
     @staticmethod
     def get_base_path():
@@ -65,7 +66,10 @@ class AssetManager:
         Returns the correct base path for assets whether running from source
         or as a compiled executable (PyInstaller/Flet).
         """
-        # Check multiple possible asset locations
+        # Return cached path if available
+        if AssetManager._base_path_cache is not None:
+            return AssetManager._base_path_cache
+        
         possible_paths = []
         
         if getattr(sys, 'frozen', False):
@@ -74,23 +78,38 @@ class AssetManager:
                 # PyInstaller extracts to sys._MEIPASS
                 possible_paths.append(os.path.join(sys._MEIPASS, "assets"))
             
-            # Flet packages assets alongside the main script
+            # Flet packages assets alongside the Python scripts
             script_dir = os.path.dirname(os.path.abspath(__file__))
             possible_paths.append(os.path.join(script_dir, "assets"))
-            
-            # Also check parent directories for Flet's structure
-            possible_paths.append(os.path.join(os.path.dirname(script_dir), "assets"))
         
-        # Always include the source directory path
+        # Standard source directory path (works for both frozen and non-frozen)
         possible_paths.append(os.path.join(os.path.dirname(__file__), "assets"))
         
-        # Return the first path that exists
+        # Return the first path that exists and contains fonts
         for path in possible_paths:
-            if os.path.isdir(path):
+            fonts_path = os.path.join(path, "fonts", "Spotify-Circular-Font")
+            if os.path.isdir(fonts_path):
+                AssetManager._base_path_cache = path
+                logging.info(f"Assets found at: {path}")
                 return path
         
+        # Log debug info if fonts not found
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        logging.error(f"Fonts not found. Script dir: {script_dir}")
+        logging.error(f"Searched paths: {possible_paths}")
+        if os.path.isdir(script_dir):
+            try:
+                logging.error(f"Script dir contents: {os.listdir(script_dir)}")
+                assets_dir = os.path.join(script_dir, "assets")
+                if os.path.isdir(assets_dir):
+                    logging.error(f"Assets dir contents: {os.listdir(assets_dir)}")
+            except Exception as e:
+                logging.error(f"Could not list directory: {e}")
+        
         # Default fallback
-        return os.path.join(os.path.dirname(__file__), "assets")
+        default = os.path.join(os.path.dirname(__file__), "assets")
+        AssetManager._base_path_cache = default
+        return default
 
     @classmethod
     def get_font_path(cls, weight: str):
@@ -117,7 +136,7 @@ class AssetManager:
                 except Exception:
                     continue
         
-        # Try Pillow 10.0+ default (returns TrueType font with proper size)
+        # Try Pillow 10.0+ default (returns TrueType font)
         try:
             font = ImageFont.load_default(size=size)
             cls._font_cache[cache_key] = font
@@ -126,34 +145,9 @@ class AssetManager:
             # Older Pillow doesn't support size parameter
             pass
         
-        # Last resort: create a basic truetype font from Pillow's built-in
-        # The bitmap default font causes rendering issues, so try harder to find a TTF
-        try:
-            # Try to find any TTF file on the system
-            import subprocess
-            result = subprocess.run(['fc-list', ':file'], capture_output=True, text=True, timeout=5)
-            if result.returncode == 0:
-                for line in result.stdout.split('\n'):
-                    if line.strip() and '.ttf' in line.lower():
-                        font_file = line.split(':')[0].strip()
-                        if os.path.exists(font_file):
-                            try:
-                                font = ImageFont.truetype(font_file, size)
-                                cls._font_cache[cache_key] = font
-                                logging.info(f"Using system font: {font_file}")
-                                return font
-                            except Exception:
-                                continue
-        except Exception:
-            pass
-        
-        # Absolute last resort: use Pillow's default with size if possible
-        logging.warning("No TrueType fallback font found, using Pillow default")
-        try:
-            # Try the sized default one more time
-            return ImageFont.load_default(size=size)
-        except Exception:
-            return ImageFont.load_default()
+        # Last resort: basic default (may not support all text operations)
+        logging.warning("No TrueType fallback font found, text rendering may be limited")
+        return ImageFont.load_default()
 
     @classmethod
     def get_font(cls, size: int, weight: str = 'book') -> ImageFont.FreeTypeFont:
@@ -163,13 +157,12 @@ class AssetManager:
             return cls._font_cache[cache_key]
         
         try:
-            # Use the robust path resolver
             path = cls.get_font_path(weight)
             font = ImageFont.truetype(path, size)
             cls._font_cache[cache_key] = font
             return font
         except OSError as e:
-            logging.error(f"Font not found at {path}: {e}")
+            logging.warning(f"Font not found at {path}: {e}")
             return cls._get_fallback_font(size)
 
     @classmethod
@@ -187,30 +180,16 @@ class DrawUtils:
     @staticmethod
     def _safe_textlength(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> float:
         """Safely get text length, with fallback for bitmap fonts."""
-        result = 0.0
         try:
-            result = draw.textlength(text, font)
-        except (AttributeError, TypeError):
+            return draw.textlength(text, font)
+        except AttributeError:
             # Fallback for bitmap fonts that don't support textlength
             try:
                 bbox = draw.textbbox((0, 0), text, font=font)
-                result = bbox[2] - bbox[0]
+                return bbox[2] - bbox[0]
             except Exception:
-                pass
-        
-        # If we still don't have a valid result, estimate based on font size and character count
-        if result <= 0:
-            try:
-                # Try to get font size for better estimation
-                font_size = getattr(font, 'size', None)
-                if font_size:
-                    result = len(text) * font_size * 0.6  # Approximate character width
-                else:
-                    result = len(text) * 20  # Fallback estimate
-            except Exception:
-                result = len(text) * 20
-        
-        return max(result, 1.0)  # Never return 0 or negative
+                # Last resort: estimate based on character count
+                return len(text) * 10
     
     @staticmethod
     def _safe_textbbox(draw: ImageDraw.ImageDraw, xy: Tuple[int, int], text: str, 
@@ -449,8 +428,7 @@ class CardRenderer:
         
         if bg_box:
             dummy = ImageDraw.Draw(Image.new("L", (1,1)))
-            text_width = DrawUtils._safe_textlength(dummy, text, font)
-            box_w = max(text_width * 1.3 + 60, 200)  # Ensure minimum width
+            box_w = DrawUtils._safe_textlength(dummy, text, font) * 1.3 + 60
             box_h = 90
             bx = (WIDTH - box_w) // 2
             self.draw.rectangle((bx, y_pos, bx + box_w, y_pos + box_h), fill=bg_box)
@@ -467,16 +445,9 @@ class CardRenderer:
         if logo:
             logo = logo.resize((105, 105), Image.Resampling.LANCZOS)
             self.img.paste(logo, (60, HEIGHT - 150), logo)
-        
-        # Calculate text width with bounds checking
+            
         w = DrawUtils._safe_textlength(self.draw, FOOTER_URL, font)
-        # Ensure x position is within reasonable bounds
-        x_pos = max(60, min(WIDTH - w - 60, WIDTH - 200))
-        try:
-            self.draw.text((x_pos, HEIGHT - 120), FOOTER_URL, font=font, fill=color)
-        except Exception as e:
-            # If text rendering fails, skip the footer text rather than crash
-            logging.warning(f"Failed to render footer text: {e}")
+        self.draw.text((WIDTH - w - 60, HEIGHT - 120), FOOTER_URL, font=font, fill=color)
 
     def get_image(self) -> Image.Image:
         self.add_footer()
