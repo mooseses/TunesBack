@@ -125,22 +125,57 @@ Implementation details: the algorithm (see `listening_age_algorithm.py`) filters
 
 ## New Music Finding
 
-TunesBack employs a two-stage validation process to accurately identify genuinely new additions to your library, distinguishing them from pre-existing tracks that were simply unplayed.
+TunesBack uses a multi-stage validation process to accurately identify genuinely new additions to your library, distinguishing them from pre-existing tracks that were simply unplayed.
 
 ### Classification Criteria
 
-When comparing two library snapshots, a track qualifies as a **New Find** only if both conditions are met:
+When comparing two library snapshots, a track qualifies as a **New Find** only if **all** of the following conditions are met:
 
-1. **Play Count Differential**: The track exhibits increased play activity in the more recent snapshot.
-2. **Date Added Verification**: The track's `Date Added` metadata falls within the analysis period (i.e., after the baseline snapshot date).
+1. **Play Count Increase**: The track shows increased play activity (`diff_count > 0`) in the more recent snapshot.
+2. **No Persistent ID Match**: The track's unique identifier (Persistent ID) does not exist in the baseline library, this confirms it wasn't already present.
+3. **Date Added Verification** (comparison mode): If a baseline date exists, the track's `Date Added` timestamp must fall after that date.
 
-This methodology ensures the "New Finds" category reflects actual discoveries rather than long-standing library items receiving their first plays.
+#### Single Snapshot Mode
+
+When analyzing a single library export (no baseline for comparison), a track is classified as a "New Find" if:
+- It has at least one play (`count > 0`)
+- No matching Persistent ID exists from a previous reference (i.e., no prior play history)
+
+### Why Persistent ID?
+
+iTunes assigns each track a unique **Persistent ID** that remains constant even if the file is renamed, moved, or re-tagged. By checking for ID matches between snapshots, TunesBack can:
+- Detect re-imported tracks (same song added again with a new ID)
+- Avoid false positives from tracks that existed but were never played
+- Accurately track genuinely new library additions
 
 ### Decision Flow
 
-<div align="center">
-  <img width="350" alt="New Music Classification Logic" src="assets/screenshots/new_music_flowchart.png" />
-</div>
+```mermaid
+flowchart TD
+    A[Track in New Snapshot] --> B{Play count<br/>increased?}
+    B -->|No| X[❌ Not a New Find]
+    B -->|Yes| C{Comparison mode<br/>AND has Date Added?}
+    C -->|Yes| D{Date Added ><br/>baseline date?}
+    C -->|No| E{Old play count<br/>== 0?}
+    D -->|No| X
+    D -->|Yes| F{Persistent ID<br/>exists in old library?}
+    E -->|No| X
+    E -->|Yes| F
+    F -->|Yes| X
+    F -->|No| Y[✅ New Find]
+```
+
+### Algorithm Summary
+
+```
+IF play_count_increased THEN
+    IF comparison_mode AND has_date_added THEN
+        new_find = (date_added > baseline_date) AND (no_persistent_id_match)
+    ELSE
+        new_find = (old_play_count == 0) AND (no_persistent_id_match)
+```
+
+Implementation details: see the `calculate_diff()` and `process_stats()` methods in `main.py`.
 
 ## Album Art & Network Share Support
 
