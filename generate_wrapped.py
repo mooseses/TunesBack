@@ -74,24 +74,26 @@ class AssetManager:
         
         possible_paths = []
         
+        # Check if we're running inside an AppImage by looking at sys.path
+        # Flet adds paths like /tmp/.mount_*/usr/bin/site-packages to sys.path
+        appimage_mount = None
+        for p in sys.path:
+            if '.mount_' in p and '/usr/bin' in p:
+                # Extract the base mount path (e.g., /tmp/.mount_TunesB*/usr/bin)
+                appimage_mount = p.split('/usr/bin')[0] + '/usr/bin'
+                possible_paths.append(os.path.join(appimage_mount, "assets"))
+                break
+        
         # Check APPDIR environment variable (set by AppImage at runtime)
         appdir = os.environ.get('APPDIR')
         if appdir:
             possible_paths.append(os.path.join(appdir, "usr", "bin", "assets"))
         
-        # Direct scan for AppImage mount points (most reliable for Flet AppImages)
-        # AppImages are always mounted at /tmp/.mount_<AppName><random>/
-        for mount_dir in glob.glob('/tmp/.mount_TunesB*/usr/bin'):
-            possible_paths.append(os.path.join(mount_dir, "assets"))
-        
-        # Check for Flet AppImage: Look for .mount_ paths in sys.path
-        # Flet adds paths like /tmp/.mount_*/usr/bin/site-packages to sys.path
-        for p in sys.path:
-            if '.mount_' in p and '/usr/bin' in p:
-                # Extract the base mount path (e.g., /tmp/.mount_TunesB*/usr/bin)
-                mount_base = p.split('/usr/bin')[0] + '/usr/bin'
-                possible_paths.append(os.path.join(mount_base, "assets"))
-                break
+        # Only use glob fallback if we detected AppImage context but sys.path didn't work
+        # This avoids picking up stale mounts in dev mode
+        if appimage_mount is None and appdir is None:
+            # Not in AppImage - check standard paths first
+            possible_paths.append(os.path.join(os.path.dirname(__file__), "assets"))
         
         # Also try /proc/self/exe for cases where sys.path doesn't help
         try:
@@ -115,6 +117,10 @@ class AssetManager:
         # Standard source directory path (works for both frozen and non-frozen)
         possible_paths.append(os.path.join(os.path.dirname(__file__), "assets"))
         
+        # Log sys.path for debugging AppImage issues
+        logging.debug(f"sys.path: {sys.path}")
+        logging.debug(f"Candidate asset paths: {possible_paths}")
+        
         # Return the first path that exists and contains readable fonts
         for path in possible_paths:
             fonts_path = os.path.join(path, "fonts", "Spotify-Circular-Font")
@@ -127,14 +133,18 @@ class AssetManager:
                     AssetManager._base_path_cache = path
                     logging.info(f"Assets found at: {path}")
                     return path
-                except (IOError, OSError):
+                except (IOError, OSError) as e:
+                    logging.warning(f"Font file not readable at {font_file}: {e}")
                     continue
+            else:
+                logging.debug(f"Font file not found: {font_file}")
         
         # Log debug info if fonts not found
         script_dir = os.path.dirname(os.path.abspath(__file__))
         logging.error(f"Fonts not found. Script dir: {script_dir}")
         logging.error(f"APPDIR env: {appdir}")
         logging.error(f"Searched paths: {possible_paths}")
+        logging.error(f"sys.path: {sys.path}")
         if os.path.isdir(script_dir):
             try:
                 logging.error(f"Script dir contents: {os.listdir(script_dir)}")
