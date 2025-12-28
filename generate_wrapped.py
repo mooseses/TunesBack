@@ -65,13 +65,32 @@ class AssetManager:
         Returns the correct base path for assets whether running from source
         or as a compiled executable (PyInstaller/Flet).
         """
+        # Check multiple possible asset locations
+        possible_paths = []
+        
         if getattr(sys, 'frozen', False):
             # Running as compiled app
-            # PyInstaller extracts to sys._MEIPASS
-            return os.path.join(sys._MEIPASS, "assets")
-        else:
-            # Running from source
-            return os.path.join(os.path.dirname(__file__), "assets")
+            if hasattr(sys, '_MEIPASS'):
+                # PyInstaller extracts to sys._MEIPASS
+                possible_paths.append(os.path.join(sys._MEIPASS, "assets"))
+            
+            # Flet packages assets alongside the main script
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            possible_paths.append(os.path.join(script_dir, "assets"))
+            
+            # Also check parent directories for Flet's structure
+            possible_paths.append(os.path.join(os.path.dirname(script_dir), "assets"))
+        
+        # Always include the source directory path
+        possible_paths.append(os.path.join(os.path.dirname(__file__), "assets"))
+        
+        # Return the first path that exists
+        for path in possible_paths:
+            if os.path.isdir(path):
+                return path
+        
+        # Default fallback
+        return os.path.join(os.path.dirname(__file__), "assets")
 
     @classmethod
     def get_font_path(cls, weight: str):
@@ -98,7 +117,7 @@ class AssetManager:
                 except Exception:
                     continue
         
-        # Try Pillow 10.0+ default (returns TrueType font)
+        # Try Pillow 10.0+ default (returns TrueType font with proper size)
         try:
             font = ImageFont.load_default(size=size)
             cls._font_cache[cache_key] = font
@@ -107,9 +126,34 @@ class AssetManager:
             # Older Pillow doesn't support size parameter
             pass
         
-        # Last resort: basic default (may not support all text operations)
-        logging.warning("No TrueType fallback font found, text rendering may be limited")
-        return ImageFont.load_default()
+        # Last resort: create a basic truetype font from Pillow's built-in
+        # The bitmap default font causes rendering issues, so try harder to find a TTF
+        try:
+            # Try to find any TTF file on the system
+            import subprocess
+            result = subprocess.run(['fc-list', ':file'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if line.strip() and '.ttf' in line.lower():
+                        font_file = line.split(':')[0].strip()
+                        if os.path.exists(font_file):
+                            try:
+                                font = ImageFont.truetype(font_file, size)
+                                cls._font_cache[cache_key] = font
+                                logging.info(f"Using system font: {font_file}")
+                                return font
+                            except Exception:
+                                continue
+        except Exception:
+            pass
+        
+        # Absolute last resort: use Pillow's default with size if possible
+        logging.warning("No TrueType fallback font found, using Pillow default")
+        try:
+            # Try the sized default one more time
+            return ImageFont.load_default(size=size)
+        except Exception:
+            return ImageFont.load_default()
 
     @classmethod
     def get_font(cls, size: int, weight: str = 'book') -> ImageFont.FreeTypeFont:
@@ -423,9 +467,16 @@ class CardRenderer:
         if logo:
             logo = logo.resize((105, 105), Image.Resampling.LANCZOS)
             self.img.paste(logo, (60, HEIGHT - 150), logo)
-            
+        
+        # Calculate text width with bounds checking
         w = DrawUtils._safe_textlength(self.draw, FOOTER_URL, font)
-        self.draw.text((WIDTH - w - 60, HEIGHT - 120), FOOTER_URL, font=font, fill=color)
+        # Ensure x position is within reasonable bounds
+        x_pos = max(60, min(WIDTH - w - 60, WIDTH - 200))
+        try:
+            self.draw.text((x_pos, HEIGHT - 120), FOOTER_URL, font=font, fill=color)
+        except Exception as e:
+            # If text rendering fails, skip the footer text rather than crash
+            logging.warning(f"Failed to render footer text: {e}")
 
     def get_image(self) -> Image.Image:
         self.add_footer()
