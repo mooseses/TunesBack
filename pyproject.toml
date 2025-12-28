@@ -9,7 +9,8 @@ dependencies = [
   "pandas",
   "python-dateutil",
   "mutagen",
-  "Pillow"
+  "Pillow",
+  "six>=1.11.0"
 ]
 
 [tool.flet]
@@ -19,6 +20,7 @@ copyright = "Copyright © 2025 Peter Jin"
 [tool.flet.app]
 assets_dir = "assets"
 icon = "icon.png"
+modules = ["libpytunes"]
 
 [tool.flet.macos]
 entitlement."com.apple.security.files.user-selected.read-only" = true
