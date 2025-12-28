@@ -77,6 +77,23 @@ class AssetManager:
         if appdir:
             possible_paths.append(os.path.join(appdir, "usr", "bin", "assets"))
         
+        # Check for Flet AppImage: Python scripts are extracted to ~/.local/share/
+        # but assets remain in the mounted AppImage at /tmp/.mount_*/usr/bin/
+        try:
+            exe_path = os.path.realpath('/proc/self/exe')
+            if '.mount_' in exe_path or exe_path.startswith('/tmp/'):
+                exe_dir = os.path.dirname(exe_path)
+                possible_paths.append(os.path.join(exe_dir, "assets"))
+                # Also check site-packages location (from Flet log: site-packages path)
+                possible_paths.append(os.path.join(exe_dir, "site-packages", "assets"))
+        except (OSError, AttributeError):
+            pass
+        
+        # Check sys.executable for Flet bundled Python location
+        if sys.executable and '.mount_' in sys.executable:
+            exe_dir = os.path.dirname(sys.executable)
+            possible_paths.append(os.path.join(exe_dir, "assets"))
+        
         if getattr(sys, 'frozen', False):
             # Running as compiled app
             if hasattr(sys, '_MEIPASS'):
