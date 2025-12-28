@@ -115,13 +115,20 @@ class AssetManager:
         # Standard source directory path (works for both frozen and non-frozen)
         possible_paths.append(os.path.join(os.path.dirname(__file__), "assets"))
         
-        # Return the first path that exists and contains fonts
+        # Return the first path that exists and contains readable fonts
         for path in possible_paths:
             fonts_path = os.path.join(path, "fonts", "Spotify-Circular-Font")
-            if os.path.isdir(fonts_path):
-                AssetManager._base_path_cache = path
-                logging.info(f"Assets found at: {path}")
-                return path
+            font_file = os.path.join(fonts_path, "CircularSpotifyText-Black.otf")
+            # Check if font file exists AND is readable (handles stale AppImage mounts)
+            if os.path.isfile(font_file):
+                try:
+                    with open(font_file, 'rb') as f:
+                        f.read(4)  # Try to actually read from the file
+                    AssetManager._base_path_cache = path
+                    logging.info(f"Assets found at: {path}")
+                    return path
+                except (IOError, OSError):
+                    continue
         
         # Log debug info if fonts not found
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -574,7 +581,7 @@ def draw_top_genres(genres: List[str]) -> Image.Image:
         w_text = max(1, w_text - genre_kerning if w_text > 0 else 1)
         
         bb = DrawUtils._safe_textbbox(d, (0,0), g, f_src)
-        h = bb[3]-bb[1]+20
+        h = max(50, bb[3]-bb[1]+20)  # Ensure minimum height
         
         txt = Image.new("RGBA", (int(w_text), h), (0,0,0,0))
         d_txt = ImageDraw.Draw(txt)
@@ -592,8 +599,12 @@ def draw_top_genres(genres: List[str]) -> Image.Image:
             ratio = 230 / h
             target_w = int(squished.width * ratio)
             new_h = 230
+        
+        # Ensure dimensions are valid
+        target_w = max(1, int(target_w))
+        new_h = max(1, int(new_h))
             
-        final_txt = squished.resize((int(target_w), int(new_h)), resample=Image.BICUBIC)
+        final_txt = squished.resize((target_w, new_h), resample=Image.BICUBIC)
         box = Image.new("RGBA", (int(target_w + 10 if new_h == 230 else box_w), int(new_h + 60)), Colors.DARK_BG)
         box.paste(final_txt, (5, 30), final_txt)
         assets.append(box)
