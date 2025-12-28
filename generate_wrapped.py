@@ -174,14 +174,7 @@ class AssetManager:
             else:
                 logging.debug(f"Font file not found: {font_file}")
         
-        # Log debug info to stderr if fonts not found (visible in terminal)
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        import sys as _sys
-        print(f"ASSET DEBUG: Fonts not found. Script dir: {script_dir}", file=_sys.stderr)
-        print(f"ASSET DEBUG: PIL Image path: {getattr(Image, '__file__', 'N/A')}", file=_sys.stderr)
-        print(f"ASSET DEBUG: APPDIR env: {appdir}", file=_sys.stderr)
-        print(f"ASSET DEBUG: Searched paths: {possible_paths}", file=_sys.stderr)
-        print(f"ASSET DEBUG: sys.path: {sys.path}", file=_sys.stderr)
         logging.error(f"Fonts not found. Script dir: {script_dir}")
         logging.error(f"APPDIR env: {appdir}")
         logging.error(f"Searched paths: {possible_paths}")
@@ -247,16 +240,10 @@ class AssetManager:
         
         try:
             path = cls.get_font_path(weight)
-            import sys as _sys
-            print(f"FONT DEBUG: Trying to load font from: {path}", file=_sys.stderr)
-            print(f"FONT DEBUG: File exists: {os.path.exists(path)}", file=_sys.stderr)
             font = ImageFont.truetype(path, size)
-            print(f"FONT DEBUG: Successfully loaded font: {font}", file=_sys.stderr)
             cls._font_cache[cache_key] = font
             return font
         except OSError as e:
-            import sys as _sys
-            print(f"FONT DEBUG: Font loading FAILED: {path} - {e}", file=_sys.stderr)
             logging.warning(f"Font not found at {path}: {e}")
             return cls._get_fallback_font(size)
 
@@ -314,21 +301,26 @@ class DrawUtils:
                        stroke_width: int = 0) -> Tuple[int, int, int, int]:
         """Safely get text bounding box, with fallback for bitmap fonts."""
         try:
-            return draw.textbbox(xy, text, font=font, anchor=anchor, stroke_width=stroke_width)
+            bbox = draw.textbbox(xy, text, font=font, anchor=anchor, stroke_width=stroke_width)
+            # Sanity check: bbox should be reasonable (not millions of pixels)
+            width = bbox[2] - bbox[0]
+            height = bbox[3] - bbox[1]
+            max_reasonable_width = len(text) * 100 + 100
+            max_reasonable_height = 500
+            if width > 0 and width < max_reasonable_width and height > 0 and height < max_reasonable_height:
+                return bbox
         except Exception:
-            # Fallback: estimate bounding box
-            try:
-                w = DrawUtils._safe_textlength(draw, text, font)
-                h = 20  # Default height estimate
-                if hasattr(font, 'size'):
-                    h = font.size
-                elif hasattr(font, 'getbbox'):
-                    bbox = font.getbbox(text)
-                    if bbox:
-                        h = bbox[3] - bbox[1]
-                return (xy[0], xy[1], xy[0] + int(w), xy[1] + int(h))
-            except Exception:
-                return (xy[0], xy[1], xy[0] + len(text) * 10, xy[1] + 20)
+            pass
+        
+        # Fallback: estimate bounding box using safe text length
+        w = DrawUtils._safe_textlength(draw, text, font)
+        h = 20  # Default height estimate
+        try:
+            if hasattr(font, 'size'):
+                h = font.size * 1.2  # Add some line height
+        except Exception:
+            pass
+        return (int(xy[0]), int(xy[1]), int(xy[0] + w), int(xy[1] + h))
     
     @staticmethod
     def truncate(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: float) -> str:
@@ -546,12 +538,9 @@ class CardRenderer:
         if bg_box:
             dummy = ImageDraw.Draw(Image.new("L", (1,1)))
             text_len = DrawUtils._safe_textlength(dummy, text, font)
-            import sys as _sys
-            print(f"HEADER DEBUG: text='{text}', font={font}, text_len={text_len}", file=_sys.stderr)
             box_w = text_len * 1.3 + 60  # Original formula
             box_h = 90
             bx = (WIDTH - box_w) // 2
-            print(f"HEADER DEBUG: box_w={box_w}, bx={bx}, rect=({bx}, {y_pos}, {bx + box_w}, {y_pos + box_h})", file=_sys.stderr)
             self.draw.rectangle((bx, y_pos, bx + box_w, y_pos + box_h), fill=bg_box)
             y_pos += (box_h // 2) + 12
             DrawUtils.draw_flat_text(self.img, (CENTER_X, y_pos), text, font, col, 1.3, "mm", kerning=-2)
