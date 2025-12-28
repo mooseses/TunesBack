@@ -8,6 +8,11 @@ from typing import List, Dict, Any, Tuple, Optional, Set
 
 from PIL import Image, ImageDraw, ImageFont, ImageChops
 
+# Workaround for Pillow + FreeType incompatibility in Linux AppImage builds
+# FreeType returns incorrect glyph sizes, triggering false decompression bomb errors
+# This is safe because we're not actually loading external images, just rendering text
+Image.MAX_IMAGE_PIXELS = None
+
 # --- CONFIGURATION ---
 
 WIDTH, HEIGHT = 1080, 1920
