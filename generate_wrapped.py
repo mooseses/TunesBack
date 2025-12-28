@@ -67,35 +67,46 @@ class AssetManager:
         or as a compiled executable (PyInstaller/Flet/AppImage).
         """
         import glob
+        import re
         
         # Return cached path if available
         if AssetManager._base_path_cache is not None:
             return AssetManager._base_path_cache
         
         possible_paths = []
-        
-        # Check if we're running inside an AppImage by looking at sys.path
-        # Flet adds paths like /tmp/.mount_*/usr/bin/site-packages to sys.path
         appimage_mount = None
-        for p in sys.path:
-            if '.mount_' in p and '/usr/bin' in p:
-                # Extract the base mount path (e.g., /tmp/.mount_TunesB*/usr/bin)
-                appimage_mount = p.split('/usr/bin')[0] + '/usr/bin'
-                possible_paths.append(os.path.join(appimage_mount, "assets"))
-                break
         
-        # Check APPDIR environment variable (set by AppImage at runtime)
+        # METHOD 1: Parse /proc/self/maps to find AppImage mount (MOST RELIABLE)
+        # This shows all memory-mapped files including from the AppImage
+        try:
+            with open('/proc/self/maps', 'r') as f:
+                for line in f:
+                    match = re.search(r'(/tmp/\.mount_TunesB[^/]+)', line)
+                    if match:
+                        appimage_mount = match.group(1) + '/usr/bin'
+                        possible_paths.append(os.path.join(appimage_mount, "assets"))
+                        break
+        except (IOError, OSError):
+            pass
+        
+        # METHOD 2: Check sys.path for Flet AppImage paths
+        if not appimage_mount:
+            for p in sys.path:
+                if '.mount_' in p and '/usr/bin' in p:
+                    appimage_mount = p.split('/usr/bin')[0] + '/usr/bin'
+                    possible_paths.append(os.path.join(appimage_mount, "assets"))
+                    break
+        
+        # METHOD 3: Check APPDIR environment variable
         appdir = os.environ.get('APPDIR')
         if appdir:
             possible_paths.append(os.path.join(appdir, "usr", "bin", "assets"))
         
-        # Only use glob fallback if we detected AppImage context but sys.path didn't work
-        # This avoids picking up stale mounts in dev mode
+        # If no AppImage detected, we're in dev mode - use local assets
         if appimage_mount is None and appdir is None:
-            # Not in AppImage - check standard paths first
             possible_paths.append(os.path.join(os.path.dirname(__file__), "assets"))
         
-        # Also try /proc/self/exe for cases where sys.path doesn't help
+        # METHOD 4: Try /proc/self/exe as fallback
         try:
             exe_path = os.path.realpath('/proc/self/exe')
             if '.mount_' in exe_path:
