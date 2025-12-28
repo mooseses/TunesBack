@@ -66,6 +66,8 @@ class AssetManager:
         Returns the correct base path for assets whether running from source
         or as a compiled executable (PyInstaller/Flet/AppImage).
         """
+        import glob
+        
         # Return cached path if available
         if AssetManager._base_path_cache is not None:
             return AssetManager._base_path_cache
@@ -76,6 +78,11 @@ class AssetManager:
         appdir = os.environ.get('APPDIR')
         if appdir:
             possible_paths.append(os.path.join(appdir, "usr", "bin", "assets"))
+        
+        # Direct scan for AppImage mount points (most reliable for Flet AppImages)
+        # AppImages are always mounted at /tmp/.mount_<AppName><random>/
+        for mount_dir in glob.glob('/tmp/.mount_TunesB*/usr/bin'):
+            possible_paths.append(os.path.join(mount_dir, "assets"))
         
         # Check for Flet AppImage: Look for .mount_ paths in sys.path
         # Flet adds paths like /tmp/.mount_*/usr/bin/site-packages to sys.path
