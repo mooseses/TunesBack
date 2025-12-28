@@ -8,9 +8,7 @@ from typing import List, Dict, Any, Tuple, Optional, Set
 
 from PIL import Image, ImageDraw, ImageFont, ImageChops
 
-# Workaround for Pillow + FreeType incompatibility in Linux AppImage builds
-# FreeType returns incorrect glyph sizes, triggering false decompression bomb errors
-# This is safe because we're not actually loading external images, just rendering text
+# Workaround for potential Pillow issues in Linux AppImage builds
 Image.MAX_IMAGE_PIXELS = None
 
 # --- CONFIGURATION ---
@@ -71,73 +69,26 @@ class AssetManager:
         Returns the correct base path for assets whether running from source
         or as a compiled executable (PyInstaller/Flet/AppImage).
         """
-        import glob
-        import re
-        
         # Return cached path if available
         if AssetManager._base_path_cache is not None:
             return AssetManager._base_path_cache
         
         possible_paths = []
-        appimage_mount = None
         
-        # METHOD 0: Use PIL Image module's location to find AppImage mount
-        # Image is already imported at the top of this file from the AppImage's site-packages
+        # Check PIL module location for AppImage mount point
+        # In Flet AppImage, PIL is at /tmp/.mount_*/usr/bin/site-packages/PIL/
         try:
-            pil_path = Image.__file__  # e.g., /tmp/.mount_TunesB*/usr/bin/site-packages/PIL/Image.py
-            logging.debug(f"PIL Image path: {pil_path}")
+            pil_path = Image.__file__
             if '.mount_' in pil_path and '/usr/bin/' in pil_path:
-                # Extract: /tmp/.mount_TunesB*/usr/bin
                 mount_base = pil_path.split('/usr/bin/')[0] + '/usr/bin'
                 possible_paths.append(os.path.join(mount_base, "assets"))
-                appimage_mount = mount_base
-                logging.debug(f"Found AppImage mount from PIL: {mount_base}")
-        except Exception as e:
-            logging.debug(f"PIL path detection failed: {e}")
-        
-        # METHOD 1: Check FLET_ASSETS_DIR (set by Flet for packaged apps)
-        flet_assets = os.environ.get('FLET_ASSETS_DIR')
-        if flet_assets and os.path.isdir(flet_assets):
-            possible_paths.append(flet_assets)
-        
-        # METHOD 2: Parse /proc/self/maps to find AppImage mount
-        try:
-            with open('/proc/self/maps', 'r') as f:
-                for line in f:
-                    match = re.search(r'(/tmp/\.mount_TunesB[^/]+)', line)
-                    if match:
-                        appimage_mount = match.group(1) + '/usr/bin'
-                        possible_paths.append(os.path.join(appimage_mount, "assets"))
-                        break
-        except (IOError, OSError):
+        except Exception:
             pass
         
-        # METHOD 2: Check sys.path for Flet AppImage paths
-        # Flet sets modulePaths including /tmp/.mount_*/usr/bin/site-packages
-        if not appimage_mount:
-            for p in sys.path:
-                if '.mount_' in p and '/usr/bin' in p:
-                    appimage_mount = p.split('/usr/bin')[0] + '/usr/bin'
-                    possible_paths.append(os.path.join(appimage_mount, "assets"))
-                    break
-        
-        # METHOD 3: Check APPDIR environment variable
+        # Check APPDIR environment variable (set by AppImage at runtime)
         appdir = os.environ.get('APPDIR')
         if appdir:
             possible_paths.append(os.path.join(appdir, "usr", "bin", "assets"))
-        
-        # If no AppImage detected, we're in dev mode - use local assets
-        if appimage_mount is None and appdir is None and not flet_assets:
-            possible_paths.append(os.path.join(os.path.dirname(__file__), "assets"))
-        
-        # METHOD 4: Try /proc/self/exe as fallback
-        try:
-            exe_path = os.path.realpath('/proc/self/exe')
-            if '.mount_' in exe_path:
-                exe_dir = os.path.dirname(exe_path)
-                possible_paths.append(os.path.join(exe_dir, "assets"))
-        except (OSError, AttributeError):
-            pass
         
         if getattr(sys, 'frozen', False):
             # Running as compiled app
@@ -152,40 +103,19 @@ class AssetManager:
         # Standard source directory path (works for both frozen and non-frozen)
         possible_paths.append(os.path.join(os.path.dirname(__file__), "assets"))
         
-        # Log sys.path for debugging AppImage issues
-        logging.debug(f"sys.path: {sys.path}")
-        logging.debug(f"Candidate asset paths: {possible_paths}")
-        
-        # Return the first path that exists and contains readable fonts
+        # Return the first path that exists and contains fonts
         for path in possible_paths:
             fonts_path = os.path.join(path, "fonts", "Spotify-Circular-Font")
-            font_file = os.path.join(fonts_path, "CircularSpotifyText-Black.otf")
-            # Check if font file exists AND is readable (handles stale AppImage mounts)
-            if os.path.isfile(font_file):
-                try:
-                    with open(font_file, 'rb') as f:
-                        f.read(4)  # Try to actually read from the file
-                    AssetManager._base_path_cache = path
-                    logging.info(f"Assets found at: {path}")
-                    return path
-                except (IOError, OSError) as e:
-                    logging.warning(f"Font file not readable at {font_file}: {e}")
-                    continue
-            else:
-                logging.debug(f"Font file not found: {font_file}")
+            if os.path.isdir(fonts_path):
+                AssetManager._base_path_cache = path
+                logging.info(f"Assets found at: {path}")
+                return path
         
-        # Log debug info to stderr if fonts not found (visible in terminal)
+        # Log debug info if fonts not found
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        import sys as _sys
-        print(f"ASSET DEBUG: Fonts not found. Script dir: {script_dir}", file=_sys.stderr)
-        print(f"ASSET DEBUG: PIL Image path: {getattr(Image, '__file__', 'N/A')}", file=_sys.stderr)
-        print(f"ASSET DEBUG: APPDIR env: {appdir}", file=_sys.stderr)
-        print(f"ASSET DEBUG: Searched paths: {possible_paths}", file=_sys.stderr)
-        print(f"ASSET DEBUG: sys.path: {sys.path}", file=_sys.stderr)
         logging.error(f"Fonts not found. Script dir: {script_dir}")
         logging.error(f"APPDIR env: {appdir}")
         logging.error(f"Searched paths: {possible_paths}")
-        logging.error(f"sys.path: {sys.path}")
         if os.path.isdir(script_dir):
             try:
                 logging.error(f"Script dir contents: {os.listdir(script_dir)}")
@@ -247,16 +177,10 @@ class AssetManager:
         
         try:
             path = cls.get_font_path(weight)
-            import sys as _sys
-            print(f"FONT DEBUG: Trying to load font from: {path}", file=_sys.stderr)
-            print(f"FONT DEBUG: File exists: {os.path.exists(path)}", file=_sys.stderr)
             font = ImageFont.truetype(path, size)
-            print(f"FONT DEBUG: Successfully loaded font: {font}", file=_sys.stderr)
             cls._font_cache[cache_key] = font
             return font
         except OSError as e:
-            import sys as _sys
-            print(f"FONT DEBUG: Font loading FAILED: {path} - {e}", file=_sys.stderr)
             logging.warning(f"Font not found at {path}: {e}")
             return cls._get_fallback_font(size)
 
@@ -275,38 +199,16 @@ class DrawUtils:
     @staticmethod
     def _safe_textlength(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> float:
         """Safely get text length, with fallback for bitmap fonts."""
-        # Try font.getlength() first (more reliable, doesn't depend on draw context)
         try:
-            length = font.getlength(text)
-            # Sanity check: text length should never exceed ~50 pixels per character
-            if length > 0 and length < len(text) * 100:
-                return length
-        except (AttributeError, Exception):
-            pass
-        
-        # Try draw.textlength()
-        try:
-            length = draw.textlength(text, font)
-            if length > 0 and length < len(text) * 100:
-                return length
-        except (AttributeError, Exception):
-            pass
-        
-        # Try textbbox
-        try:
-            bbox = draw.textbbox((0, 0), text, font=font)
-            length = bbox[2] - bbox[0]
-            if length > 0 and length < len(text) * 100:
-                return length
-        except Exception:
-            pass
-        
-        # Last resort: estimate based on character count and font size
-        try:
-            font_size = getattr(font, 'size', 20)
-            return len(text) * font_size * 0.6  # Rough estimate
-        except Exception:
-            return len(text) * 12  # Fallback estimate
+            return draw.textlength(text, font)
+        except AttributeError:
+            # Fallback for bitmap fonts that don't support textlength
+            try:
+                bbox = draw.textbbox((0, 0), text, font=font)
+                return bbox[2] - bbox[0]
+            except Exception:
+                # Last resort: estimate based on character count
+                return len(text) * 10
     
     @staticmethod
     def _safe_textbbox(draw: ImageDraw.ImageDraw, xy: Tuple[int, int], text: str, 
@@ -314,26 +216,21 @@ class DrawUtils:
                        stroke_width: int = 0) -> Tuple[int, int, int, int]:
         """Safely get text bounding box, with fallback for bitmap fonts."""
         try:
-            bbox = draw.textbbox(xy, text, font=font, anchor=anchor, stroke_width=stroke_width)
-            # Sanity check: bbox should be reasonable (not millions of pixels)
-            width = bbox[2] - bbox[0]
-            height = bbox[3] - bbox[1]
-            max_reasonable_width = len(text) * 100 + 100
-            max_reasonable_height = 500
-            if width > 0 and width < max_reasonable_width and height > 0 and height < max_reasonable_height:
-                return bbox
+            return draw.textbbox(xy, text, font=font, anchor=anchor, stroke_width=stroke_width)
         except Exception:
-            pass
-        
-        # Fallback: estimate bounding box using safe text length
-        w = DrawUtils._safe_textlength(draw, text, font)
-        h = 20  # Default height estimate
-        try:
-            if hasattr(font, 'size'):
-                h = font.size * 1.2  # Add some line height
-        except Exception:
-            pass
-        return (int(xy[0]), int(xy[1]), int(xy[0] + w), int(xy[1] + h))
+            # Fallback: estimate bounding box
+            try:
+                w = DrawUtils._safe_textlength(draw, text, font)
+                h = 20  # Default height estimate
+                if hasattr(font, 'size'):
+                    h = font.size
+                elif hasattr(font, 'getbbox'):
+                    bbox = font.getbbox(text)
+                    if bbox:
+                        h = bbox[3] - bbox[1]
+                return (xy[0], xy[1], xy[0] + int(w), xy[1] + int(h))
+            except Exception:
+                return (xy[0], xy[1], xy[0] + len(text) * 10, xy[1] + 20)
     
     @staticmethod
     def truncate(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: float) -> str:
@@ -550,13 +447,9 @@ class CardRenderer:
         
         if bg_box:
             dummy = ImageDraw.Draw(Image.new("L", (1,1)))
-            text_len = DrawUtils._safe_textlength(dummy, text, font)
-            import sys as _sys
-            print(f"HEADER DEBUG: text='{text}', font={font}, text_len={text_len}", file=_sys.stderr)
-            box_w = text_len * 1.3 + 60  # Original formula
+            box_w = DrawUtils._safe_textlength(dummy, text, font) * 1.3 + 60
             box_h = 90
             bx = (WIDTH - box_w) // 2
-            print(f"HEADER DEBUG: box_w={box_w}, bx={bx}, rect=({bx}, {y_pos}, {bx + box_w}, {y_pos + box_h})", file=_sys.stderr)
             self.draw.rectangle((bx, y_pos, bx + box_w, y_pos + box_h), fill=bg_box)
             y_pos += (box_h // 2) + 12
             DrawUtils.draw_flat_text(self.img, (CENTER_X, y_pos), text, font, col, 1.3, "mm", kerning=-2)
@@ -669,7 +562,7 @@ def draw_top_genres(genres: List[str]) -> Image.Image:
         w_text = max(1, w_text - genre_kerning if w_text > 0 else 1)
         
         bb = DrawUtils._safe_textbbox(d, (0,0), g, f_src)
-        h = max(50, bb[3]-bb[1]+20)  # Ensure minimum height
+        h = bb[3]-bb[1]+20
         
         txt = Image.new("RGBA", (int(w_text), h), (0,0,0,0))
         d_txt = ImageDraw.Draw(txt)
@@ -687,12 +580,8 @@ def draw_top_genres(genres: List[str]) -> Image.Image:
             ratio = 230 / h
             target_w = int(squished.width * ratio)
             new_h = 230
-        
-        # Ensure dimensions are valid
-        target_w = max(1, int(target_w))
-        new_h = max(1, int(new_h))
             
-        final_txt = squished.resize((target_w, new_h), resample=Image.BICUBIC)
+        final_txt = squished.resize((int(target_w), int(new_h)), resample=Image.BICUBIC)
         box = Image.new("RGBA", (int(target_w + 10 if new_h == 230 else box_w), int(new_h + 60)), Colors.DARK_BG)
         box.paste(final_txt, (5, 30), final_txt)
         assets.append(box)
