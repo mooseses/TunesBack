@@ -76,18 +76,19 @@ class AssetManager:
         possible_paths = []
         appimage_mount = None
         
-        # METHOD 0: Use PIL's location to find AppImage mount (MOST RELIABLE)
-        # PIL is imported from the AppImage, so its path tells us the mount point
+        # METHOD 0: Use PIL Image module's location to find AppImage mount
+        # Image is already imported at the top of this file from the AppImage's site-packages
         try:
-            import PIL
-            pil_path = PIL.__file__  # e.g., /tmp/.mount_TunesB*/usr/bin/site-packages/PIL/__init__.py
+            pil_path = Image.__file__  # e.g., /tmp/.mount_TunesB*/usr/bin/site-packages/PIL/Image.py
+            logging.debug(f"PIL Image path: {pil_path}")
             if '.mount_' in pil_path and '/usr/bin/' in pil_path:
                 # Extract: /tmp/.mount_TunesB*/usr/bin
                 mount_base = pil_path.split('/usr/bin/')[0] + '/usr/bin'
                 possible_paths.append(os.path.join(mount_base, "assets"))
                 appimage_mount = mount_base
-        except Exception:
-            pass
+                logging.debug(f"Found AppImage mount from PIL: {mount_base}")
+        except Exception as e:
+            logging.debug(f"PIL path detection failed: {e}")
         
         # METHOD 1: Check FLET_ASSETS_DIR (set by Flet for packaged apps)
         flet_assets = os.environ.get('FLET_ASSETS_DIR')
@@ -168,8 +169,14 @@ class AssetManager:
             else:
                 logging.debug(f"Font file not found: {font_file}")
         
-        # Log debug info if fonts not found
+        # Log debug info to stderr if fonts not found (visible in terminal)
         script_dir = os.path.dirname(os.path.abspath(__file__))
+        import sys as _sys
+        print(f"ASSET DEBUG: Fonts not found. Script dir: {script_dir}", file=_sys.stderr)
+        print(f"ASSET DEBUG: PIL Image path: {getattr(Image, '__file__', 'N/A')}", file=_sys.stderr)
+        print(f"ASSET DEBUG: APPDIR env: {appdir}", file=_sys.stderr)
+        print(f"ASSET DEBUG: Searched paths: {possible_paths}", file=_sys.stderr)
+        print(f"ASSET DEBUG: sys.path: {sys.path}", file=_sys.stderr)
         logging.error(f"Fonts not found. Script dir: {script_dir}")
         logging.error(f"APPDIR env: {appdir}")
         logging.error(f"Searched paths: {possible_paths}")
