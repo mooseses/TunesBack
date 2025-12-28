@@ -76,13 +76,25 @@ class AssetManager:
         possible_paths = []
         appimage_mount = None
         
-        # METHOD 0: Check FLET_ASSETS_DIR (set by Flet for packaged apps)
+        # METHOD 0: Use PIL's location to find AppImage mount (MOST RELIABLE)
+        # PIL is imported from the AppImage, so its path tells us the mount point
+        try:
+            import PIL
+            pil_path = PIL.__file__  # e.g., /tmp/.mount_TunesB*/usr/bin/site-packages/PIL/__init__.py
+            if '.mount_' in pil_path and '/usr/bin/' in pil_path:
+                # Extract: /tmp/.mount_TunesB*/usr/bin
+                mount_base = pil_path.split('/usr/bin/')[0] + '/usr/bin'
+                possible_paths.append(os.path.join(mount_base, "assets"))
+                appimage_mount = mount_base
+        except Exception:
+            pass
+        
+        # METHOD 1: Check FLET_ASSETS_DIR (set by Flet for packaged apps)
         flet_assets = os.environ.get('FLET_ASSETS_DIR')
         if flet_assets and os.path.isdir(flet_assets):
             possible_paths.append(flet_assets)
         
-        # METHOD 1: Parse /proc/self/maps to find AppImage mount
-        # This shows all memory-mapped files including from the AppImage
+        # METHOD 2: Parse /proc/self/maps to find AppImage mount
         try:
             with open('/proc/self/maps', 'r') as f:
                 for line in f:
