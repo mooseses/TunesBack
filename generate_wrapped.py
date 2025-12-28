@@ -143,16 +143,30 @@ class DrawUtils:
     @staticmethod
     def _safe_textlength(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> float:
         """Safely get text length, with fallback for bitmap fonts."""
+        result = 0.0
         try:
-            return draw.textlength(text, font)
-        except AttributeError:
+            result = draw.textlength(text, font)
+        except (AttributeError, TypeError):
             # Fallback for bitmap fonts that don't support textlength
             try:
                 bbox = draw.textbbox((0, 0), text, font=font)
-                return bbox[2] - bbox[0]
+                result = bbox[2] - bbox[0]
             except Exception:
-                # Last resort: estimate based on character count
-                return len(text) * 10
+                pass
+        
+        # If we still don't have a valid result, estimate based on font size and character count
+        if result <= 0:
+            try:
+                # Try to get font size for better estimation
+                font_size = getattr(font, 'size', None)
+                if font_size:
+                    result = len(text) * font_size * 0.6  # Approximate character width
+                else:
+                    result = len(text) * 20  # Fallback estimate
+            except Exception:
+                result = len(text) * 20
+        
+        return max(result, 1.0)  # Never return 0 or negative
     
     @staticmethod
     def _safe_textbbox(draw: ImageDraw.ImageDraw, xy: Tuple[int, int], text: str, 
@@ -391,7 +405,8 @@ class CardRenderer:
         
         if bg_box:
             dummy = ImageDraw.Draw(Image.new("L", (1,1)))
-            box_w = DrawUtils._safe_textlength(dummy, text, font) * 1.3 + 60
+            text_width = DrawUtils._safe_textlength(dummy, text, font)
+            box_w = max(text_width * 1.3 + 60, 200)  # Ensure minimum width
             box_h = 90
             bx = (WIDTH - box_w) // 2
             self.draw.rectangle((bx, y_pos, bx + box_w, y_pos + box_h), fill=bg_box)
