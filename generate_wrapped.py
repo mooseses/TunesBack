@@ -518,9 +518,13 @@ class CardRenderer:
         
         if bg_box:
             dummy = ImageDraw.Draw(Image.new("L", (1,1)))
-            box_w = DrawUtils._safe_textlength(dummy, text, font) * 1.3 + 60
+            text_len = DrawUtils._safe_textlength(dummy, text, font)
+            import sys as _sys
+            print(f"HEADER DEBUG: text='{text}', font={font}, text_len={text_len}", file=_sys.stderr)
+            box_w = text_len * 1.3 + 60  # Original formula
             box_h = 90
             bx = (WIDTH - box_w) // 2
+            print(f"HEADER DEBUG: box_w={box_w}, bx={bx}, rect=({bx}, {y_pos}, {bx + box_w}, {y_pos + box_h})", file=_sys.stderr)
             self.draw.rectangle((bx, y_pos, bx + box_w, y_pos + box_h), fill=bg_box)
             y_pos += (box_h // 2) + 12
             DrawUtils.draw_flat_text(self.img, (CENTER_X, y_pos), text, font, col, 1.3, "mm", kerning=-2)
