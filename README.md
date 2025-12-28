@@ -39,10 +39,11 @@ Powered by [libpytunes](https://github.com/liamks/libpytunes) for iTunes XML par
 
 ## Features
 
-- **Compare periods** or analyze single snapshots (XML files must be properly named — see guide below)
+- **Compare periods** or analyze single snapshots (XML files must be properly named: see guide below)
 - **Top Artists, Albums & Songs** with customizable rankings (5–100 items)
 - Sort with **Genres, New Finds, Skipped Tracks & Years**
 - **Album art** displayed alongside track details
+- **Network share support**: seamlessly works with UNC paths (Windows) and GVFS/CIFS mounts (Linux)
 - **Wrapped cards:** shareable Spotify-style visual summaries
 - **Listening Age:** calculates the "era" of music you gravitate toward
 - **Flexible display:** switch between hours/minutes, sort by time or plays
@@ -71,12 +72,12 @@ Generate shareable images summarizing your listening habits.
 </div>
 
 **Available cards:**
-- **Top Songs & Albums** — ranked lists with album artwork
-- **Top Genres** — typographic genre tiles
-- **Top Song** — hero card with large cover art
-- **Minutes Listened** — total listening time
-- **Listening Age** — your calculated musical age
-- **Summary** — overview combining top artist, stats, and genres
+- **Top Songs & Albums**: ranked lists with album artwork
+- **Top Genres**: typographic genre tiles
+- **Top Song**: hero card with large cover art
+- **Minutes Listened**: total listening time
+- **Listening Age**: your calculated musical age
+- **Summary**: overview combining top artist, stats, and genres
 
 The order of items follows the "Ranked By" setting. Re-generate after changing the ranking.
 
@@ -90,14 +91,70 @@ This metric estimates the "age" of your music taste using your library's metadat
   <img width="720" alt="Listening Age Algorithm" src="https://github.com/user-attachments/assets/106dd2d7-0fe4-49df-84d1-4ae6620afe95" />
 </div>
 
-The calculation is based on the "reminiscence bump" — the idea that people form the strongest connections to music discovered in their late teens.
+The calculation is based on the "reminiscence bump": the idea that people form the strongest connections to music discovered in their late teens.
 
-1. **Aggregate** — Group play counts by each track's release year
-2. **Find the peak** — Identify the 5-year window with the highest listening density
-3. **Assume formative age** — Treat the midpoint of that window as age 18
-4. **Project** — Calculate the difference from the current year
+1. **Aggregate**: Group play counts by each track's release year
+2. **Find the peak**: Identify the 5-year window with the highest listening density
+3. **Assume formative age**: Treat the midpoint of that window as age 18
+4. **Project**: Calculate the difference from the current year
 
 *Example: If most of your listening falls between 2010 and 2015, the midpoint is around 2012. Assuming you were 18 then, your Listening Age in 2025 would be about 31.*
+
+## Album Art & Network Share Support
+
+TunesBack extracts album artwork directly from your audio files using **embedded metadata tags** and features **intelligent path resolution for network shares**. This ensures artwork displays even when files are stored on remote servers or have been moved.
+
+### How it works
+
+1. **Direct extraction**: Uses [Mutagen](https://mutagen.readthedocs.io/) to read embedded artwork from audio file tags (ID3, MP4, FLAC, etc.)
+2. **Smart path resolution for network shares**: Automatically handles:
+   - **Windows UNC paths**: Converts `file://server/share/...` to `\\server\share\...`
+   - **Linux GNOME/GVFS**: Auto-detects mounts at `/run/user/<uid>/gvfs/smb-share:...`
+   - **Linux KDE/kio-fuse**: Auto-detects Dolphin mounts at `/run/user/<uid>/kio-fuse-*/smb/...`
+   - **macOS network volumes**: Resolves `/Volumes/...` paths
+   - **Hostname ↔ IP resolution**: Works even when XML uses hostname but mount uses IP
+   - **Moved files**: Works as long as the new path is accessible
+3. **No configuration needed**: Network paths are resolved automatically across all platforms
+
+### Why embedded artwork?
+
+iTunes' "Get Album Artwork" feature stores artwork in a separate database, not in the file itself. This means:
+
+- ✅ **Embedded artwork** (from ripped CDs or properly tagged files): **Works everywhere**
+- ❌ **iTunes-fetched artwork**: **Not accessible** from XML exports
+
+### Troubleshooting missing artwork
+
+If album art doesn't appear:
+
+1. **Enable Debug Logging** in the app settings
+2. Check the log file for path resolution errors:
+   - **macOS:** `~/Library/Logs/TunesBack/tunesback.log`
+   - **Windows:** `%LOCALAPPDATA%\TunesBack\Logs\tunesback.log`
+   - **Linux:** `~/.cache/TunesBack/logs/tunesback.log`
+3. Verify your audio files have embedded artwork:
+   ```bash
+   # macOS/Linux
+   ffprobe -v error -show_entries format_tags=title -of default=noprint_wrappers=1 "song.mp3"
+   
+   # Or use any audio tagger to check
+   ```
+4. For network shares, ensure they're mounted before starting TunesBack
+
+### Network share setup
+
+**Windows:**
+- Map network drive or use UNC paths directly
+- XML paths like `file://server/share/Music/...` are automatically converted
+
+**Linux:**
+- **KDE/Dolphin**: Simply browse to the network share in Dolphin before launching TunesBack
+- **GNOME/Nautilus**: Connect via Files → Other Locations → Connect to Server
+- **Manual mount**:
+  ```bash
+  sudo mount -t cifs //server/share /mnt/music -o username=user
+  ```
+
 
 ## Quick Start
 
@@ -170,11 +227,11 @@ Use ISO format (`YYYY-MM-DD.xml`) or include the month name to avoid ambiguity.
 
 ### These won't work reliably
 
-- `library.xml` — no date
-- `v2.1.3-export.xml` — version numbers get confused with dates
-- `backup.xml` — no date
-- `01-12-2025.xml` — could be January 12 or December 1
-- `12-01-2025.xml` — same issue
+- `library.xml`: no date
+- `v2.1.3-export.xml`: version numbers get confused with dates
+- `backup.xml`: no date
+- `01-12-2025.xml`: could be January 12 or December 1
+- `12-01-2025.xml`: same issue
 
 ### Automating exports
 
@@ -197,20 +254,20 @@ Copy-Item "$env:USERPROFILE\Music\iTunes\iTunes Library.xml" "$env:USERPROFILE\M
 ## Known Limitations
 
 - **Album art** is extracted from embedded tags. iTunes' "Get Album Art" feature stores artwork separately and won't be picked up.
-- **Moved libraries** — if your music files have moved and the XML paths are outdated, artwork won't load. Enable debug logging to investigate.
-- **Network shares** — path resolution works best when shares are already mounted.
-- **CJK text** — font fallback for Asian characters in Wrapped cards is limited.
+- **Moved libraries**: if your music files have moved and the XML paths are outdated, artwork won't load. Enable debug logging to investigate.
+- **Network shares**: path resolution works best when shares are already mounted.
+- **CJK text**: font fallback for Asian characters in Wrapped cards is limited.
 
 Enable "Debug Logging" in the app to see why artwork might be missing.
 
 ## Tech Stack
 
-- [Flet](https://flet.dev/) — Python UI framework
-- [libpytunes](https://github.com/liamks/libpytunes) — iTunes XML parser
-- [pandas](https://pandas.pydata.org/) — data analysis
-- [Pillow](https://pillow.readthedocs.io/) — image generation
-- [mutagen](https://mutagen.readthedocs.io/) — audio metadata extraction
-- [python-dateutil](https://dateutil.readthedocs.io/) — date parsing
+- [Flet](https://flet.dev/): Python UI framework
+- [libpytunes](https://github.com/liamks/libpytunes): iTunes XML parser
+- [pandas](https://pandas.pydata.org/): data analysis
+- [Pillow](https://pillow.readthedocs.io/): image generation
+- [mutagen](https://mutagen.readthedocs.io/): audio metadata extraction
+- [python-dateutil](https://dateutil.readthedocs.io/): date parsing
 
 ## Feedback
 

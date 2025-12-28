@@ -95,25 +95,11 @@ class AssetManager:
             fonts_path = os.path.join(path, "fonts", "Spotify-Circular-Font")
             if os.path.isdir(fonts_path):
                 AssetManager._base_path_cache = path
-                logging.info(f"Assets found at: {path}")
                 return path
         
-        # Log debug info if fonts not found
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        logging.error(f"Fonts not found. Script dir: {script_dir}")
-        logging.error(f"APPDIR env: {appdir}")
-        logging.error(f"Searched paths: {possible_paths}")
-        if os.path.isdir(script_dir):
-            try:
-                logging.error(f"Script dir contents: {os.listdir(script_dir)}")
-                assets_dir = os.path.join(script_dir, "assets")
-                if os.path.isdir(assets_dir):
-                    logging.error(f"Assets dir contents: {os.listdir(assets_dir)}")
-            except Exception as e:
-                logging.error(f"Could not list directory: {e}")
-        
-        # Default fallback
+        # Fallback with warning
         default = os.path.join(os.path.dirname(__file__), "assets")
+        logging.warning(f"Fonts not found in expected locations, using: {default}")
         AssetManager._base_path_cache = default
         return default
 
@@ -137,7 +123,6 @@ class AssetManager:
                 try:
                     font = ImageFont.truetype(font_path, size)
                     cls._font_cache[cache_key] = font
-                    logging.info(f"Using fallback font: {font_path}")
                     return font
                 except Exception:
                     continue

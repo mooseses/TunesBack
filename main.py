@@ -168,69 +168,96 @@ def resolve_path(file_uri: str) -> Optional[str]:
             path = f"\\\\{host}{local_path}"
             return path
         
-        # Linux GVFS handling for network shares (SMB/CIFS)
+        # Linux network share handling (GVFS/kio-fuse)
         if IS_LINUX and host and host.lower() != 'localhost':
-            # GVFS mounts network shares at /run/user/<uid>/gvfs/smb-share:server=<host>,share=<share>/...
             clean_path = local_path.lstrip(os.sep)
             parts = clean_path.split(os.sep)
             
             if parts:
-                share_name_from_uri = parts[0]  # Original share name from URI (e.g., "Media Library")
+                share_name_from_uri = parts[0]
                 rest_of_path = os.sep.join(parts[1:]) if len(parts) > 1 else ""
                 
-                # Normalize share name for matching (lowercase, various encodings)
-                share_name_normalized = share_name_from_uri.lower()
-                share_name_encoded = share_name_normalized.replace(" ", "%20")
-                share_name_url_encoded = urllib.parse.quote(share_name_normalized, safe='')
+                # URL-decode share name and path
+                share_name_decoded = urllib.parse.unquote(share_name_from_uri)
+                rest_of_path_decoded = urllib.parse.unquote(rest_of_path)
                 
-                # Try common GVFS mount locations
+                # Normalize for matching
+                share_name_normalized = share_name_decoded.lower()
+                share_name_encoded = urllib.parse.quote(share_name_normalized, safe='')
+                
                 uid = os.getuid()
                 gvfs_base = f"/run/user/{uid}/gvfs"
-                
                 candidates = []
                 
-                # First, scan the GVFS directory for ANY mount with matching share name
-                # This handles the case where hostname in XML differs from IP in mount
+                # Scan GVFS mounts (GNOME/Nautilus)
                 if os.path.isdir(gvfs_base):
                     try:
                         for mount_name in os.listdir(gvfs_base):
                             if mount_name.startswith("smb-share:"):
-                                # Parse the mount name to extract share
-                                # Format: smb-share:server=<ip>,share=<share>
                                 mount_lower = mount_name.lower()
+                                mount_share_decoded = urllib.parse.unquote(mount_lower)
                                 
-                                # Check if share name matches (try various encodings)
+                                # Match share name
                                 share_match = False
-                                for share_variant in [share_name_encoded, share_name_normalized, share_name_url_encoded]:
+                                for share_variant in [share_name_encoded, share_name_normalized]:
                                     if f",share={share_variant}" in mount_lower or f":share={share_variant}" in mount_lower:
+                                        share_match = True
+                                        break
+                                    if f",share={share_name_normalized}" in mount_share_decoded:
                                         share_match = True
                                         break
                                 
                                 if share_match:
-                                    candidate = os.path.join(gvfs_base, mount_name, rest_of_path)
-                                    if os.path.exists(candidate):
-                                        return candidate
-                                    candidates.append(candidate)
+                                    for rpath in [rest_of_path, rest_of_path_decoded]:
+                                        candidate = os.path.join(gvfs_base, mount_name, rpath)
+                                        if os.path.exists(candidate):
+                                            return candidate
+                                        if candidate not in candidates:
+                                            candidates.append(candidate)
                     except OSError:
                         pass
                 
-                # Fallback: try exact host match (original behavior)
-                share_variants = [share_name_encoded, share_name_normalized, share_name_url_encoded]
+                # Fallback: exact host match
+                share_variants = [share_name_encoded, share_name_normalized]
                 for share in share_variants:
-                    gvfs_path = os.path.join(gvfs_base, f"smb-share:server={host},share={share}", rest_of_path)
-                    candidates.append(gvfs_path)
-                    # Also try with lowercase host
-                    gvfs_path_lower = os.path.join(gvfs_base, f"smb-share:server={host.lower()},share={share}", rest_of_path)
-                    if gvfs_path_lower not in candidates:
-                        candidates.append(gvfs_path_lower)
+                    for rpath in [rest_of_path, rest_of_path_decoded]:
+                        gvfs_path = os.path.join(gvfs_base, f"smb-share:server={host},share={share}", rpath)
+                        if gvfs_path not in candidates:
+                            candidates.append(gvfs_path)
+                        # Also try with lowercase host
+                        gvfs_path_lower = os.path.join(gvfs_base, f"smb-share:server={host.lower()},share={share}", rpath)
+                        if gvfs_path_lower not in candidates:
+                            candidates.append(gvfs_path_lower)
                 
-                # Also try the legacy ~/.gvfs location
+                # Legacy ~/.gvfs location
                 legacy_gvfs = os.path.expanduser("~/.gvfs")
                 if os.path.isdir(legacy_gvfs):
                     for share in share_variants:
-                        candidates.append(os.path.join(legacy_gvfs, f"{share} on {host}", rest_of_path))
+                        for rpath in [rest_of_path, rest_of_path_decoded]:
+                            candidates.append(os.path.join(legacy_gvfs, f"{share} on {host}", rpath))
                 
-                # Try /media and /mnt mounts as well
+                # KDE kio-fuse support (Dolphin)
+                kio_fuse_base = f"/run/user/{uid}"
+                try:
+                    for entry in os.listdir(kio_fuse_base):
+                        if entry.startswith("kio-fuse-"):
+                            kio_smb_base = os.path.join(kio_fuse_base, entry, "smb")
+                            if os.path.isdir(kio_smb_base):
+                                for kio_host in os.listdir(kio_smb_base):
+                                    kio_host_path = os.path.join(kio_smb_base, kio_host)
+                                    if os.path.isdir(kio_host_path):
+                                        for kio_share in os.listdir(kio_host_path):
+                                            if kio_share.lower() == share_name_decoded.lower():
+                                                for rpath in [rest_of_path, rest_of_path_decoded]:
+                                                    candidate = os.path.join(kio_host_path, kio_share, rpath)
+                                                    if os.path.exists(candidate):
+                                                        return candidate
+                                                    if candidate not in candidates:
+                                                        candidates.append(candidate)
+                except OSError:
+                    pass
+                
+                # Standard mount points
                 for mount_base in ["/media", f"/media/{os.environ.get('USER', '')}", "/mnt"]:
                     if os.path.isdir(mount_base):
                         candidates.append(os.path.join(mount_base, *parts))
