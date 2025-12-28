@@ -68,8 +68,10 @@ jobs:
             liblzma-dev \
             libfuse2
       
-      - name: Install Flet
-        run: pip install flet==${{ env.FLET_VERSION }}
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
       
       - name: Build ${{ matrix.name }}
         run: flet build ${{ matrix.platform }}
