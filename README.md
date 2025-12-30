@@ -13,18 +13,11 @@
 </div>
 
 <div align="center">
-  <table>
-    <tr>
-      <td width="33%" align="center">
-        <img src="./assets/screenshots/mainUI.png" alt="Welcome Screen" width="100%" />
-        <br/><sub><b>Welcome Screen</b></sub>
-      </td>
-      <td width="33%" align="center">
-        <img src="./assets/screenshots/dashboard.png" alt="Main Dashboard" width="100%" />
-        <br/><sub><b>Main Dashboard</b></sub>
-      </td>
-    </tr>
-  </table>
+  <img src="./assets/screenshots/mainUI.png" alt="Welcome Screen" width="45%" />
+  <img src="./assets/screenshots/dashboard.png" alt="Main Dashboard" width="45%" />
+</div>
+<div align="center">
+  <em>TunesBack App - Welcome Screen and Main Dashboard</em>
 </div>
 
 ## Why TunesBack?
@@ -54,22 +47,18 @@ Powered by [libpytunes](https://github.com/liamks/libpytunes) for iTunes XML par
 
 Generate shareable images summarizing your listening habits.
 
-<div align="center">
-  <table>
-    <tr>
-      <td align="center"><img src="https://github.com/user-attachments/assets/43982e15-f82d-4ff7-9051-757a6fef3f39" width="160" /></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/2f61c61d-2023-4648-bac9-c9a0f8472265" width="160" /></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/e58681b5-e08b-48bf-91f0-2dfac3260cf7" width="160" /></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/38774d82-aa37-41a4-a5d4-9a78edb78536" width="160" /></td>
-    </tr>
-    <tr>
-      <td align="center"><img src="https://github.com/user-attachments/assets/fd0a398e-1e4e-4799-ba78-42b18c0ba1bb" width="160" /></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/cc03c1df-b0f3-4ac3-adcc-f96489e5f4d4" width="160" /></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/bda24ff6-6f8a-4d7b-a3e7-0f464293a4f9" width="160" /></td>
-      <td align="center"></td>
-    </tr>
-  </table>
-</div>
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/43982e15-f82d-4ff7-9051-757a6fef3f39" width="200" />
+  <img src="https://github.com/user-attachments/assets/2f61c61d-2023-4648-bac9-c9a0f8472265" width="200" />
+  <img src="https://github.com/user-attachments/assets/e58681b5-e08b-48bf-91f0-2dfac3260cf7" width="200" />
+  <img src="https://github.com/user-attachments/assets/38774d82-aa37-41a4-a5d4-9a78edb78536" width="200" />
+</p>
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/fd0a398e-1e4e-4799-ba78-42b18c0ba1bb" width="200" />
+  <img src="https://github.com/user-attachments/assets/cc03c1df-b0f3-4ac3-adcc-f96489e5f4d4" width="200" />
+  <img src="https://github.com/user-attachments/assets/bda24ff6-6f8a-4d7b-a3e7-0f464293a4f9" width="200" />
+</p>
 
 **Available cards:**
 - **Top Songs & Albums**: ranked lists with album artwork
@@ -125,7 +114,7 @@ Implementation details: the algorithm (see `listening_age_algorithm.py`) filters
 
 ## New Music Finding
 
-TunesBack uses a multi-stage validation process to accurately identify genuinely new additions to your library, distinguishing them from pre-existing tracks that were simply unplayed.
+TunesBack uses a multi-stage validation process to accurately identify genuinely new additions to your library, distinguishing them from tracks whose metadata has been edited and pre-existing tracks that were simply unplayed.
 
 ### Classification Criteria
 
@@ -144,7 +133,7 @@ When analyzing a single library export (no baseline for comparison), a track is 
 ### Why Persistent ID?
 
 iTunes assigns each track a unique **Persistent ID** that remains constant even if the file is renamed, moved, or re-tagged. By checking for ID matches between snapshots, TunesBack can:
-- Detect re-imported tracks (same song added again with a new ID)
+- Detect tracks whose metadata has been edited
 - Avoid false positives from tracks that existed but were never played
 - Accurately track genuinely new library additions
 
