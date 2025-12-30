@@ -10,6 +10,11 @@
   [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
   ![Build Status](https://github.com/mooseses/TunesBack/actions/workflows/build.yml/badge.svg?branch=main)
 
+
+ 📖 [Quick Start](https://github.com/mooseses/TunesBack#quick-start)
+
+  <br/>
+
 </div>
 
 <div align="center">
