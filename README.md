@@ -80,6 +80,7 @@ The following chart explains its methodology:
 
 <div align="center">
   <img width="720" alt="Listening Age Algorithm" src="https://github.com/user-attachments/assets/106dd2d7-0fe4-49df-84d1-4ae6620afe95" />
+<br/>
   <em>Listening Age Algorithm</em>
 </div>
 
