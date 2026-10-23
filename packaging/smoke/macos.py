@@ -130,7 +130,7 @@ b = window_bounds(); show("strip drag", b)
 if not moved((x, y, w, h), b):
     failures.append("main window: dragging the title strip didn't move the window")
 x, y, w, h = b
-drag(x + int(w * 0.6), y + 52, -50, -20)  # an empty part of the page's top bar
+drag(x + w - 70, y + 48, -50, -20)  # the empty end of the page's title row
 b = window_bounds(); show("bar drag", b)
 print("top bar drag moved the window:", moved((x, y, w, h), b))
 proc.terminate()
