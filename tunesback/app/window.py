@@ -511,12 +511,12 @@ def _cocoa_arrange_menu() -> None:
                 menu.removeItem_(item)
 
 
-_drag_view_class = None
-
-
 def _cocoa_transparent_titlebar(ns_window) -> None:
-    """Let the page extend under a transparent title bar, keeping the traffic lights."""
-    global _drag_view_class
+    """Let the page extend under a transparent title bar, keeping the traffic lights.
+
+    The title bar layer stays above the page, so dragging and double-clicking
+    the top strip keep working natively.
+    """
     import AppKit
 
     full_size_content = 1 << 15
@@ -533,28 +533,3 @@ def _cocoa_transparent_titlebar(ns_window) -> None:
         if "Titlebar" in name and view.respondsToSelector_("setBackgroundColor:"):
             view.setBackgroundColor_(AppKit.NSColor.clearColor())
 
-    if _drag_view_class is None:
-        class TunesBackTitlebarDragView(AppKit.NSView):
-            # The web view would swallow clicks in the title area; this strip
-            # gives them back to the window so it drags and zooms natively.
-            def mouseDown_(self, event):
-                log.debug("Title strip mouse down (clicks=%d)", event.clickCount())
-                if event.clickCount() == 2:
-                    self.window().performZoom_(None)
-                else:
-                    self.window().performWindowDragWithEvent_(event)
-
-            def acceptsFirstMouse_(self, event):
-                return True
-
-        _drag_view_class = TunesBackTitlebarDragView
-
-    # Attach to the window frame rather than the content view: pywebview swaps
-    # the content view for the web view once the page has loaded.
-    bounds = theme_frame.bounds()
-    height = 28.0
-    flipped = theme_frame.isFlipped()
-    strip = _drag_view_class.alloc().initWithFrame_(
-        AppKit.NSMakeRect(0, 0 if flipped else bounds.size.height - height, bounds.size.width, height))
-    strip.setAutoresizingMask_(AppKit.NSViewWidthSizable | (AppKit.NSViewMaxYMargin if flipped else AppKit.NSViewMinYMargin))
-    theme_frame.addSubview_positioned_relativeTo_(strip, AppKit.NSWindowAbove, ns_window.contentView())

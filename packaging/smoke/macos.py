@@ -35,9 +35,12 @@ def window_bounds():
     return None
 
 
-def post(kind, x, y, clicks=1):
+def post(kind, x, y, clicks=1, delta=(0, 0)):
     event = Quartz.CGEventCreateMouseEvent(None, kind, (x, y), Quartz.kCGMouseButtonLeft)
     Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventClickState, clicks)
+    # Window dragging follows the deltas carried by each event, not just positions.
+    Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaX, int(delta[0]))
+    Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaY, int(delta[1]))
     Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
 
 
@@ -45,7 +48,7 @@ def drag(x, y, dx, dy):
     post(Quartz.kCGEventMouseMoved, x, y); time.sleep(0.2)
     post(Quartz.kCGEventLeftMouseDown, x, y); time.sleep(0.2)
     for i in range(1, 11):
-        post(Quartz.kCGEventLeftMouseDragged, x + dx * i / 10, y + dy * i / 10); time.sleep(0.04)
+        post(Quartz.kCGEventLeftMouseDragged, x + dx * i / 10, y + dy * i / 10, delta=(dx / 10, dy / 10)); time.sleep(0.04)
     post(Quartz.kCGEventLeftMouseUp, x + dx, y + dy); time.sleep(0.8)
 
 
