@@ -10,6 +10,7 @@ import json
 import logging
 import mimetypes
 import secrets
+import socketserver
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -51,6 +52,14 @@ class AppServer(ThreadingHTTPServer):
         self.api = api
         self.token = secrets.token_urlsafe(24)
         super().__init__(("127.0.0.1", port), _Handler)
+
+    def server_bind(self) -> None:
+        # HTTPServer.server_bind looks up the machine's fully qualified name,
+        # which can reach out to the local network (and make macOS ask for
+        # network permission). We only ever serve 127.0.0.1, so skip it.
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name, self.server_port = host, port
 
     @property
     def url(self) -> str:
