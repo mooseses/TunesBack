@@ -1,4 +1,5 @@
 import http.client
+import os
 import json
 import re
 from datetime import datetime
@@ -14,7 +15,8 @@ from .conftest import track
 
 @pytest.fixture
 def server(tmp_path):
-    srv = AppServer(Api(Settings(tmp_path / "settings.json"), thumbnail_dir=tmp_path / "thumbs"))
+    srv = AppServer(Api(Settings(tmp_path / "settings.json"), thumbnail_dir=tmp_path / "thumbs",
+                        store_path=tmp_path / "library.sqlite"))
     srv.start_background()
     yield srv
     srv.shutdown()
@@ -62,12 +64,18 @@ def test_unknown_action(server):
     assert "error" in api(server, "card_jpeg", index=0)
 
 
-def test_scan_analyze_and_cards(server, library, tmp_path):
-    library("start.xml", [track(1, "A", plays=1, Genre="Rock", Year=2000)], datetime(2025, 1, 1))
-    library("end.xml", [track(1, "A", plays=6, Genre="Rock", Year=2000)], datetime(2025, 12, 31))
+def test_setup_reading_analysis_and_cards(server, library, tmp_path):
+    path = library("Library.xml", [track(1, "A", plays=1, Genre="Rock", Year=2000)], datetime(2025, 1, 1))
+    added = api(server, "add_library", path=str(path), location="local")
+    assert added["tracks"] == 1 and added["source"]["mode"] == "file"
+    assert api(server, "state")["settings"]["setup_done"] is True
 
-    scanned = api(server, "scan", folder=str(tmp_path))
-    first, second = scanned["snapshots"]
+    library("Library.xml", [track(1, "A", plays=6, Genre="Rock", Year=2000)], datetime(2025, 12, 31))
+    st = path.stat()
+    os.utime(path, (st.st_atime, st.st_mtime + 10))
+    assert api(server, "refresh_readings")["new"] == 1
+
+    first, second = api(server, "library")["readings"]
     report = api(server, "analyze", start=first["id"], end=second["id"])["report"]
     assert report["mode"] == "compare" and report["total_plays"] == 5
     assert api(server, "analyze", start=second["id"], end=first["id"])["error"]
@@ -81,6 +89,14 @@ def test_scan_analyze_and_cards(server, library, tmp_path):
     out = tmp_path / "out"
     assert api(server, "save_cards", indices=[0, 1], folder=str(out))["saved"] == 2
     assert len(list(out.glob("*.jpg"))) == 2
+
+
+def test_add_library_rejects_other_files(server, tmp_path):
+    other = tmp_path / "notes.xml"
+    other.write_text("<notes/>")
+    assert "isn't an iTunes" in api(server, "add_library", path=str(other))["error"]
+    assert "Can't find" in api(server, "add_library", path=str(tmp_path / "missing.xml"))["error"]
+    assert api(server, "library")["sources"] == []
 
 
 def test_settings_are_validated_and_saved(server, tmp_path):

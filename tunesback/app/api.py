@@ -22,10 +22,11 @@ from PIL import Image
 from .. import __version__
 from ..art.artwork import ThumbnailCache
 from ..cards import render_cards, save_card_stack
-from ..model import Snapshot
+from ..library import LibraryStore
 from ..sources import itunes_xml
+from ..sources.catalog import CATALOG
 from ..stats.report import Report, build_report
-from .settings import Settings, cache_dir, configure_logging, log_dir
+from .settings import Settings, cache_dir, configure_logging, data_dir, log_dir
 
 if TYPE_CHECKING:
     from .window import DesktopWindow
@@ -50,23 +51,24 @@ class Cancelled(Exception):
 
 
 class Api:
-    def __init__(self, settings: Settings, thumbnail_dir: Optional[Path] = None):
+    def __init__(self, settings: Settings, thumbnail_dir: Optional[Path] = None, store_path: Optional[Path] = None):
         self.settings = settings
         self.window: Optional["DesktopWindow"] = None  # None when running in a plain browser
         self._lock = threading.Lock()
         self._analysis_lock = threading.Lock()
-        self._snapshots: dict[str, itunes_xml.SnapshotInfo] = {}
-        self._parsed: dict[tuple[str, float], Snapshot] = {}
         self._report: Optional[Report] = None
         self._cards: list[Image.Image] = []
         self._progress = {"running": False, "stage": ""}
         self._cancel = threading.Event()
         self._thumbs = ThumbnailCache(cache_dir=thumbnail_dir or cache_dir() / "thumbnails")
+        self.store = LibraryStore(store_path or data_dir() / "library.sqlite")
+        self._migrate_snapshot_folder()
 
     # --- dispatch ---
 
     ACTIONS = frozenset({
-        "state", "update_settings", "open_logs", "open_website", "pick_folder", "scan", "progress", "cancel",
+        "state", "update_settings", "open_logs", "open_website", "pick_folder", "pick_file", "progress", "cancel",
+        "catalog", "discover", "add_library", "import_exports", "refresh_readings", "library", "remove_library",
         "analyze", "artwork", "generate_cards", "save_cards", "restart",
         "window_info", "window_minimize", "window_toggle_maximize", "window_close",
         "window_start_move", "window_start_resize",
@@ -163,29 +165,119 @@ class Api:
             subprocess.Popen(["open" if system == "Darwin" else "xdg-open", str(path)])
         return {"path": str(path)}
 
-    # --- snapshots ---
+    # --- choosing files ---
 
     def pick_folder(self) -> dict:
         if self.window is None:
             return {"path": None, "unsupported": True}
         return {"path": self.window.pick_folder()}
 
-    def scan(self, folder: str) -> dict:
+    def pick_file(self) -> dict:
+        if self.window is None:
+            return {"path": None, "unsupported": True}
+        return {"path": self.window.pick_file(("Library exports (*.xml)",))}
+
+    # --- set-up and library readings ---
+
+    def catalog(self) -> dict:
+        return {"sources": CATALOG}
+
+    def discover(self, root: Optional[str] = None) -> dict:
+        if root is not None:
+            root = os.path.expanduser(root.strip())
+            if not os.path.isdir(root):
+                raise UserError("That folder doesn't exist, or the drive isn't connected.")
+        return {"candidates": [
+            {"path": c.path, "kind": c.kind, "date": c.date.isoformat() if c.date else None,
+             "size": c.size, "note": c.note}
+            for c in itunes_xml.discover(root)
+        ]}
+
+    def add_library(self, path: str, location: str = "local") -> dict:
+        """Remember a library (file or folder of exports) and take its first reading."""
+        path = os.path.expanduser((path or "").strip())
+        location = "network" if location == "network" else "local"
+        if os.path.isdir(path):
+            if not itunes_xml.scan_folder(path):
+                raise UserError("There are no library exports in that folder.")
+            mode = "folder"
+        elif os.path.isfile(path):
+            try:
+                with open(path, "rb") as f:
+                    header = f.read(16 * 1024)
+            except OSError as e:
+                raise UserError(f"Can't open that file: {e}") from e
+            if not itunes_xml.is_library_export(header):
+                raise UserError("That file isn't an iTunes or Apple Music library export.")
+            mode = "file"
+        else:
+            raise UserError("Can't find that file or folder. Is the drive connected?")
+
+        source = self.store.add_source("itunes", mode, path, location)
+        results = self.store.refresh(source["id"])
+        errors = [r.error for r in results if r.status == "error"]
+        readings = [r.reading for r in results if r.reading]
+        if not readings:
+            self.store.remove_source(source["id"])
+            raise UserError(errors[0] if errors else "TunesBack couldn't read that library.")
+        self.settings.update({"setup_done": True})
+        latest = max(readings, key=lambda r: r["date"])
+        return {"source": self._source_json(source["id"]), "readings": len(readings),
+                "tracks": latest["track_count"], "plays": latest["total_plays"]}
+
+    def import_exports(self, folder: str, source_id: Optional[int] = None) -> dict:
+        """Add a folder of older exports as history for a library."""
         folder = os.path.expanduser((folder or "").strip())
-        if not os.path.isdir(folder):
-            raise UserError("That folder doesn't exist.")
-        found = itunes_xml.scan_folder(folder)
-        with self._lock:
-            self._snapshots = {str(i): s for i, s in enumerate(found)}
-        self.settings.update({"last_folder": folder})
+        if source_id is None:
+            sources = self.store.sources()
+            if not sources:
+                return self.add_library(folder)
+            source_id = sources[0]["id"]
+        results = self.store.import_folder(int(source_id), folder)
+        new = sum(1 for r in results if r.status == "new")
+        errors = [r.error for r in results if r.status == "error"]
+        if not new and errors:
+            raise UserError(errors[0])
+        if not results:
+            raise UserError("There are no library exports in that folder.")
+        return {"imported": new, "skipped": len(results) - new}
+
+    def refresh_readings(self) -> dict:
+        """Take a new reading of every library that changed (done at start-up)."""
+        new, problems = 0, []
+        for source in self.store.sources():
+            for result in self.store.refresh(source["id"]):
+                if result.status == "new":
+                    new += 1
+                elif result.status == "error":
+                    problems.append({"source": source["path"], "error": result.error})
+        return {"new": new, "problems": problems}
+
+    def library(self) -> dict:
         return {
-            "folder": folder,
-            "snapshots": [
-                {"id": str(i), "label": s.label, "date": s.date.isoformat(), "file": s.file,
-                 "size": s.size, "date_source": s.date_source}
-                for i, s in enumerate(found)
-            ],
+            "sources": [self._source_json(s["id"]) for s in self.store.sources()],
+            "readings": self.store.readings(),
         }
+
+    def remove_library(self, source_id: int) -> dict:
+        self.store.remove_source(int(source_id))
+        if not self.store.sources():
+            self.settings.update({"setup_done": False})
+        return self.library()
+
+    def _source_json(self, source_id: int) -> dict:
+        source = next((s for s in self.store.sources() if s["id"] == source_id), None) or {}
+        return {k: source.get(k) for k in ("id", "kind", "mode", "path", "location", "reading_count", "last_reading")}
+
+    def _migrate_snapshot_folder(self) -> None:
+        """TunesBack 1.x pointed at a folder of exports; adopt it as a library."""
+        folder = self.settings["last_folder"]
+        if self.settings["setup_done"] or self.store.sources() or not folder or not os.path.isdir(folder):
+            return
+        if itunes_xml.scan_folder(folder):
+            source = self.store.add_source("itunes", "folder", folder, "local")
+            self.store.refresh(source["id"])
+            self.settings.update({"setup_done": True})
 
     # --- analysis ---
 
@@ -203,53 +295,34 @@ class Api:
         with self._lock:
             self._progress = {"running": True, "stage": text}
 
-    def _load(self, info: itunes_xml.SnapshotInfo) -> Snapshot:
-        key = (info.path, os.path.getmtime(info.path))
-        with self._lock:
-            cached = self._parsed.get(key)
-        if cached:
-            return cached
-        try:
-            snapshot = itunes_xml.load_snapshot(info.path, info.date)
-        except ValueError as e:
-            raise UserError(str(e)) from e
-        with self._lock:
-            # Keep the two most recent parses: enough to tweak one end of a period cheaply.
-            self._parsed = dict(list(self._parsed.items())[-1:])
-            self._parsed[key] = snapshot
-        return snapshot
-
-    def analyze(self, end: str, start: Optional[str] = None) -> dict:
+    def analyze(self, end: int, start: Optional[int] = None) -> dict:
         if not self._analysis_lock.acquire(blocking=False):
             raise UserError("An analysis is already running.")
         self._cancel.clear()
         try:
-            with self._lock:
-                end_info = self._snapshots.get(end)
-                start_info = self._snapshots.get(start) if start else None
-            if end_info is None or (start and start_info is None):
-                raise UserError("Pick a snapshot first.")
-            if start_info and start_info.date > end_info.date:
-                raise UserError("The start snapshot is newer than the end snapshot.")
-            if start_info and start_info.path == end_info.path:
-                raise UserError("Pick two different snapshots to compare.")
+            readings = {r["id"]: r for r in self.store.readings()}
+            end_info = readings.get(int(end))
+            start_info = readings.get(int(start)) if start is not None else None
+            if end_info is None or (start is not None and start_info is None):
+                raise UserError("Pick a reading first.")
+            if start_info and start_info["date"] > end_info["date"]:
+                raise UserError("The start of the period is after its end.")
+            if start_info and start_info["id"] == end_info["id"]:
+                raise UserError("Pick two different readings to compare.")
 
             start_snapshot = None
             if start_info:
-                self._stage(f"Reading {start_info.label}…")
-                start_snapshot = self._load(start_info)
-            self._stage(f"Reading {end_info.label}…")
-            end_snapshot = self._load(end_info)
+                self._stage("Loading the start of the period…")
+                start_snapshot = self.store.load(start_info["id"])
+            self._stage("Loading the end of the period…")
+            end_snapshot = self.store.load(end_info["id"])
             self._stage("Crunching numbers…")
             report = build_report(end_snapshot, start_snapshot)
             self._stage("Done")
             with self._lock:
                 self._report = report
                 self._cards = []
-            result = report.to_dict()
-            result["start_label"] = start_info.label if start_info else None
-            result["end_label"] = end_info.label
-            return {"report": result}
+            return {"report": report.to_dict()}
         except Cancelled:
             return {"cancelled": True}
         finally:

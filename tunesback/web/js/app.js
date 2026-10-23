@@ -2,6 +2,7 @@ import { call } from "./api.js";
 import { h, icon, segmented, shortDate, showMessage, toast } from "./util.js";
 import { initWindow } from "./window.js";
 import * as setup from "./views/setup.js";
+import { openOnboarding } from "./views/onboarding.js";
 import * as overview from "./views/overview.js";
 import * as charts from "./views/charts.js";
 import * as wrapped from "./views/wrapped.js";
@@ -16,8 +17,9 @@ const VIEWS = {
 export const state = {
   info: null,
   settings: {},
-  folder: "",
-  snapshots: [],
+  sources: [],
+  readings: [],
+  openSetup: (options) => openSetup(options),
   mode: "compare",
   startId: null,
   endId: null,
@@ -80,16 +82,30 @@ function renderPeriodChip() {
   chip.replaceChildren(icon("calendar"), text);
 }
 
+// The unit and ranking toggles persist while you stay in a view, so a change
+// (from a click, the menu or a shortcut) slides their indicator instead of
+// redrawing them.
+let topbar = { key: null, unit: null, rank: null };
+
 function renderTopbarActions() {
   const actions = document.getElementById("topbar-actions");
+  const key = `${state.view}|${!!state.report}`;
+  if (topbar.key === key) {
+    topbar.unit?.setValue(state.settings.unit);
+    topbar.rank?.setValue(state.settings.rank_by);
+    return;
+  }
+  topbar = { key, unit: null, rank: null };
   actions.replaceChildren();
   if (!state.report || state.view === "setup") return;
   if (state.view !== "wrapped") {
-    actions.append(segmented([["hours", "Hours"], ["minutes", "Minutes"], ["days", "Days"]], state.settings.unit,
-      (unit) => { saveSettings({ unit }); render(); }, "Time unit"));
+    topbar.unit = segmented([["hours", "Hours"], ["minutes", "Minutes"], ["days", "Days"]], state.settings.unit,
+      (unit) => { saveSettings({ unit }); render(); }, "Time unit");
+    actions.append(topbar.unit);
   }
-  actions.append(segmented([["plays", "By plays"], ["time", "By time"]], state.settings.rank_by,
-    (rank_by) => { state.cards = null; saveSettings({ rank_by }); render(); }, "Rank by"));
+  topbar.rank = segmented([["plays", "By plays"], ["time", "By time"]], state.settings.rank_by,
+    (rank_by) => { state.cards = null; saveSettings({ rank_by }); render(); }, "Rank by");
+  actions.append(topbar.rank);
 }
 
 // ---------- settings ----------
@@ -133,6 +149,9 @@ export function openSettings() {
         segmented([["system", "System"], ["light", "Light"], ["dark", "Dark"]], s.theme, (theme) => saveSettings({ theme }), "Theme")),
       state.info.desktop && titleBarSetting(),
       toggle("show_art", "Album artwork in lists", "Read from your music files. Can be slow on network drives."),
+      h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Set-up"),
+        h("div.desc", "Go through the welcome steps again, for example to add another library.")),
+        h("button.btn", { onclick: () => { dialog.close(); openSetup({ start: "welcome", cancellable: true }); } }, "Run set-up")),
       toggle("debug_logging", "Detailed logging", "Writes extra detail to the log file to help track down problems."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Log files"), h("div.desc", state.info.log_dir)),
         h("button.btn", { onclick: async () => { const r = await call("open_logs"); if (r.error) toast(r.error, { error: true }); } }, "Open folder")),
@@ -164,10 +183,13 @@ function titleBarSetting() {
 export function runCommand(id) {
   const [kind, arg] = id.split(":");
   switch (kind) {
-    case "open_folder":
-      navigate("setup");
-      if (state.info.desktop) setup.browse();
-      else document.querySelector("input[aria-label='Snapshot folder']")?.focus();
+    case "add_library": openSetup({ start: "apps", cancellable: true }); break;
+    case "import_exports":
+      if (state.info.desktop) setup.importExports();
+      else toast("Importing exports needs the desktop app");
+      break;
+    case "refresh":
+      setup.refresh().then(() => { if (state.view === "setup") render(); });
       break;
     case "generate":
       if (setup.canGenerate()) runAnalysis();
@@ -204,6 +226,7 @@ const commandHooks = {
     const [kind, arg] = command.split(":");
     if (kind === "view") return arg === "setup" || !!state.report;
     if (kind === "generate") return setup.canGenerate();
+    if (kind === "import_exports" || kind === "refresh") return state.sources.length > 0;
     if (kind === "save_cards") return !!state.report;
     return true;
   },
@@ -250,6 +273,18 @@ export async function runAnalysis() {
 
 // ---------- start-up ----------
 
+/** Show first-run set-up; when it finishes, load the library and show a recap. */
+function openSetup(options = {}) {
+  openOnboarding({ ...options, finish: () => showLibrary({ recap: true }) });
+}
+
+async function showLibrary({ recap }) {
+  await setup.loadLibrary();
+  if (recap && setup.canGenerate()) await runAnalysis();
+  else navigate("setup");
+  if (!state.report) render({ entering: true });
+}
+
 async function init() {
   for (const item of document.querySelectorAll(".nav-item[data-view]")) {
     const view = VIEWS[item.dataset.view];
@@ -266,10 +301,22 @@ async function init() {
   state.info = info;
   state.settings = info.settings;
   initWindow(info.window, commandHooks);
-  state.folder = info.settings.last_folder || "";
   applyTheme();
-  render({ entering: true });
-  if (state.folder) setup.scan(state.folder, { quiet: true });
+
+  if (!state.settings.setup_done) {
+    render({ entering: true });
+    openSetup();
+    return;
+  }
+  // Every launch: read the libraries again, then go straight to the recap.
+  showBusy("Reading your library…");
+  await setup.refresh({ quiet: true });
+  hideBusy();
+  if (!state.sources.length) {
+    openSetup();
+    return;
+  }
+  await showLibrary({ recap: true });
 }
 
 init();

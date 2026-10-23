@@ -28,7 +28,7 @@ def test_title_bar_setting(tmp_path):
 
 
 def test_window_actions_without_a_window(tmp_path):
-    api = Api(Settings(tmp_path / "s.json"), thumbnail_dir=tmp_path / "t")
+    api = Api(Settings(tmp_path / "s.json"), thumbnail_dir=tmp_path / "t", store_path=tmp_path / "l.sqlite")
     assert api.call("window_info", {}) == {"window": None}
     assert "error" in api.call("window_minimize", {})
     assert "error" in api.call("restart", {})
@@ -40,3 +40,14 @@ def test_relaunch_command(monkeypatch):
     assert api_module.relaunch_command() == [sys.executable, "-m", "tunesback", "--debug"]
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     assert api_module.relaunch_command() == [sys.executable, "--debug"]
+
+
+def test_pre_2_snapshot_folder_is_adopted(tmp_path, library):
+    from datetime import datetime
+    from .conftest import track
+    folder = library("2024.xml", [track(1, "A", plays=2)], datetime(2024, 1, 1)).parent
+    settings = Settings(tmp_path / "s.json")
+    settings.update({"last_folder": str(folder)})
+    api = Api(settings, thumbnail_dir=tmp_path / "t", store_path=tmp_path / "l.sqlite")
+    assert settings["setup_done"] is True
+    assert len(api.call("library", {})["readings"]) == 1

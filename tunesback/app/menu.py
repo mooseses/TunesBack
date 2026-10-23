@@ -23,7 +23,10 @@ Entry = Union[Item, None]
 
 MENU: list[tuple[str, list[Entry]]] = [
     ("File", [
-        Item("open_folder", "Open Snapshot Folder…", "Mod+O"),
+        Item("add_library", "Add Library…", "Mod+O"),
+        Item("import_exports", "Import Older Exports…"),
+        Item("refresh", "Read Libraries Now", "Mod+R"),
+        SEPARATOR,
         Item("generate", "Generate Recap", "Mod+Enter"),
         SEPARATOR,
         Item("save_cards", "Save Wrapped Cards…", "Mod+S"),

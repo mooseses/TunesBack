@@ -286,6 +286,12 @@ class DesktopWindow:
         result = self.window.create_file_dialog(dialog)
         return result[0] if result else None
 
+    def pick_file(self, file_types: tuple[str, ...] = ()) -> Optional[str]:
+        webview = self._webview
+        dialog = getattr(getattr(webview, "FileDialog", None), "OPEN", None) or webview.OPEN_DIALOG
+        result = self.window.create_file_dialog(dialog, file_types=file_types)
+        return result[0] if result else None
+
     def minimize(self) -> None:
         self.window.minimize()
 

@@ -46,6 +46,11 @@ const ICONS = {
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
   refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8M21 3v5h-5"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  computer: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
 };
 
 export function icon(name) {
@@ -81,6 +86,16 @@ export function fileSize(bytes) {
   return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
 }
 
+export function relativeTime(iso) {
+  const seconds = (Date.now() - new Date(iso).getTime()) / 1000;
+  const units = [["year", 31536000], ["month", 2592000], ["week", 604800], ["day", 86400], ["hour", 3600], ["minute", 60]];
+  const format = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  for (const [unit, size] of units) {
+    if (Math.abs(seconds) >= size) return format.format(-Math.round(seconds / size), unit);
+  }
+  return "just now";
+}
+
 export const plural = (n, word) => `${number(n)} ${word}${n === 1 ? "" : "s"}`;
 
 // ---------- feedback ----------
@@ -101,15 +116,59 @@ export function showMessage(title, message) {
   dialog.showModal();
 }
 
+/**
+ * A row of mutually exclusive options with an indicator that slides to the
+ * chosen one. `group.setValue(key)` moves it without firing onChange.
+ */
+/** An in-app yes/no question; resolves to true when confirmed. */
+export function confirmAction(title, message, confirmLabel) {
+  const dialog = document.getElementById("message-dialog");
+  return new Promise((resolve) => {
+    const finish = (value) => { dialog.close(); resolve(value); };
+    dialog.replaceChildren(
+      h("div.dialog-head", h("h2", { id: "message-title", tabindex: "-1", autofocus: true }, title)),
+      h("div.dialog-body", h("p", message)),
+      h("div.dialog-foot",
+        h("button.btn", { onclick: () => finish(false) }, "Cancel"),
+        h("button.btn.btn-primary", { onclick: () => finish(true) }, confirmLabel)));
+    dialog.addEventListener("cancel", () => resolve(false), { once: true });
+    dialog.showModal();
+  });
+}
+
 export function segmented(options, value, onChange, label) {
   const group = h("div.segmented", { role: "group", "aria-label": label });
+  const indicator = h("span.segmented-indicator", { "aria-hidden": "true" });
+  group.append(indicator);
+  const buttons = new Map();
+  let current = value;
+
+  const place = (animate) => {
+    const button = buttons.get(current);
+    if (!button || !button.offsetWidth) return;
+    group.classList.toggle("animate", animate);
+    indicator.style.width = `${button.offsetWidth}px`;
+    indicator.style.transform = `translateX(${button.offsetLeft - 3}px)`;
+    indicator.style.opacity = "1";
+  };
+
+  group.setValue = (key, animate = true) => {
+    current = key;
+    buttons.forEach((b, k) => b.setAttribute("aria-pressed", String(k === key)));
+    place(animate);
+  };
+
   for (const [key, text] of options) {
     const button = h("button", { type: "button", "aria-pressed": String(key === value) }, text);
     button.addEventListener("click", () => {
-      group.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+      if (current === key) return;
+      group.setValue(key);
       onChange(key);
     });
+    buttons.set(key, button);
     group.append(button);
   }
+  // Position without animation once laid out (and again if fonts or size change).
+  new ResizeObserver(() => place(false)).observe(group);
   return group;
 }

@@ -8,6 +8,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from dateutil import parser as date_parser
@@ -164,3 +165,134 @@ def load_snapshot(path: str, date: Optional[datetime] = None) -> Snapshot:
     tracks = [t for t in map(parse_track, data["Tracks"].values()) if t is not None]
     log.info("Parsed %d music tracks (%d entries)", len(tracks), len(data["Tracks"]))
     return Snapshot(path=path, date=date, tracks=tracks, library_id=data.get("Library Persistent ID"))
+
+
+# --- discovery ---
+
+@dataclass(frozen=True, slots=True)
+class Candidate:
+    """A place a library might be."""
+
+    path: str
+    kind: str  # "library": a library file to read; "exports": a folder of exports; "needs_export": found, but unreadable
+    date: Optional[datetime] = None
+    size: int = 0
+    note: Optional[str] = None
+
+
+_LIBRARY_NAMES = ("iTunes Library.xml", "iTunes Music Library.xml")
+
+
+def _windows_prefs_locations() -> list[str]:
+    """Library XML locations recorded in iTunes for Windows' preferences, if any."""
+    appdata = os.environ.get("APPDATA")
+    if not appdata:
+        return []
+    prefs = os.path.join(appdata, "Apple Computer", "iTunes", "iTunesPrefs.xml")
+    try:
+        with open(prefs, "rb") as f:
+            data = plistlib.load(f)
+    except (OSError, plistlib.InvalidFileException, ValueError):
+        return []
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if isinstance(key, str) and key.startswith("iTunes Library XML Location") and isinstance(value, bytes):
+                    path = value.decode("utf-16-le", errors="ignore").rstrip("\x00")
+                    if path:
+                        found.append(path)
+                else:
+                    walk(value)
+
+    walk(data)
+    return found
+
+
+def _local_library_paths() -> list[str]:
+    home = Path.home()
+    music = [home / "Music", home / "OneDrive" / "Music"]
+    paths = [str(m / "iTunes" / name) for m in music for name in _LIBRARY_NAMES]
+    paths += _windows_prefs_locations()
+    # iTunes under Wine on Linux
+    for users in (home / ".wine" / "drive_c" / "users").glob("*"):
+        for folder in ("Music", "My Music"):
+            paths += [str(users / folder / "iTunes" / name) for name in _LIBRARY_NAMES]
+    return paths
+
+
+def _xml_exports_in(folders: list[Path]) -> list[str]:
+    found = []
+    for folder in folders:
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            continue
+        found += [str(folder / n) for n in names if n.lower().endswith(".xml")]
+    return found
+
+
+def _describe(path: str, kind: str = "library") -> Optional[Candidate]:
+    try:
+        header = _read_header(path)
+        if not is_library_export(header):
+            return None
+        date, _ = snapshot_date(path, header)
+        return Candidate(path=path, kind=kind, date=date, size=os.path.getsize(path))
+    except OSError:
+        return None
+
+
+def discover(root: Optional[str] = None, max_dirs: int = 4000) -> list[Candidate]:
+    """Look for iTunes / Apple Music libraries.
+
+    Without `root`, check where iTunes keeps its library on this computer and
+    a few places people save exports. With `root` (e.g. a mounted network
+    share), search inside it a few levels deep.
+    """
+    found: dict[str, Candidate] = {}
+
+    def add(candidate: Optional[Candidate]) -> None:
+        if candidate and candidate.path not in found:
+            found[candidate.path] = candidate
+
+    if root is None:
+        for path in _local_library_paths():
+            if os.path.isfile(path):
+                add(_describe(path))
+        home = Path.home()
+        for path in _xml_exports_in([home / "Music", home / "Music" / "iTunes", home / "Desktop",
+                                     home / "Documents", home / "Downloads"]):
+            add(_describe(path))
+        music_app = home / "Music" / "Music" / "Music Library.musiclibrary"
+        if music_app.exists():
+            add(Candidate(path=str(music_app), kind="needs_export",
+                          note="The Music app on macOS doesn't share its library automatically."))
+    else:
+        root = os.path.expanduser(root)
+        visited = 0
+        for current, dirs, files in os.walk(root):
+            visited += 1
+            depth = os.path.relpath(current, root).count(os.sep)
+            if depth >= 3 or visited > max_dirs:
+                dirs[:] = []
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for name in files:
+                if name.lower().endswith(".xml"):
+                    add(_describe(os.path.join(current, name)))
+
+    # Folders holding several exports are better offered as a folder.
+    by_folder: dict[str, list[Candidate]] = {}
+    for c in found.values():
+        if c.kind == "library":
+            by_folder.setdefault(os.path.dirname(c.path), []).append(c)
+    results = [c for c in found.values() if c.kind != "library"]
+    for folder, items in by_folder.items():
+        if len(items) > 1 and not any(os.path.basename(c.path) in _LIBRARY_NAMES for c in items):
+            newest = max(items, key=lambda c: c.date or datetime.min)
+            results.append(Candidate(path=folder, kind="exports", date=newest.date, size=len(items)))
+        else:
+            results += items
+    order = {"library": 0, "exports": 1, "needs_export": 2}
+    return sorted(results, key=lambda c: (order[c.kind], -(c.date.timestamp() if c.date else 0)))

@@ -21,7 +21,9 @@ DEFAULTS = {
     "rank_by": "plays",  # plays | time
     "show_art": True,
     "debug_logging": False,
-    "last_folder": None,
+    "last_folder": None,  # pre-2.0 snapshot folder, imported into the library on first start
+    "setup_done": False,
+    "sources_wanted": [],  # players picked during set-up that aren't supported yet
 }
 
 _CHOICES = {
@@ -50,6 +52,14 @@ def log_dir() -> Path:
     if system == "Darwin":
         return Path.home() / "Library" / "Logs" / APP_NAME
     return Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / APP_NAME / "logs"
+
+
+def data_dir() -> Path:
+    """Where TunesBack keeps its library readings."""
+    system = platform.system()
+    if system in ("Windows", "Darwin"):
+        return config_dir()
+    return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / APP_NAME
 
 
 def cache_dir() -> Path:
@@ -105,7 +115,11 @@ class Settings:
                 continue
             if key in _CHOICES and value not in _CHOICES[key]:
                 continue
-            if key in ("show_art", "debug_logging"):
+            if key == "sources_wanted":
+                if not isinstance(value, list):
+                    continue
+                value = [str(v) for v in value][:20]
+            if key in ("show_art", "debug_logging", "setup_done"):
                 value = bool(value)
             if key == "last_folder" and value is not None and not isinstance(value, str):
                 continue

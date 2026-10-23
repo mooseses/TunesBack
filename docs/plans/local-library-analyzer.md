@@ -1,7 +1,15 @@
 # Plan: TunesBack as a local music library analyzer
 
-Status: proposal. Only the iTunes / Apple Music source is in scope for the first
-implementation; the other sources are listed so the design accommodates them.
+Status: milestones 1–4 implemented for iTunes / Apple Music (set-up flow,
+library store, discovery, automatic readings). Other players are listed in
+set-up as "Coming Soon!".
+
+Decisions so far:
+- Every player is listed during set-up; unsupported ones show "Coming Soon!".
+- The first reading is taken during set-up, right after the library is chosen.
+  TunesBack remembers where the library is and reads it again on every launch.
+- If automatic discovery or reading fails, set-up falls back to choosing the
+  file or folder by hand, with export instructions.
 
 ## Goal
 
@@ -157,9 +165,8 @@ tunesback/
 
 ## Open questions
 
-1. **Automatic readings only when the app opens**, or also a lightweight
-   background/scheduled task? On-open is simpler and respects users, but
-   long gaps make periods coarse.
+1. **Readings only when the app opens** (current), or also a lightweight
+   background/scheduled task? Long gaps make periods coarse.
 2. **macOS `iTunesLibrary` access:** it requires a Media Library privacy prompt
    and may need a signed app. Do we sign macOS builds (Apple Developer account)?
 3. **Show unimplemented sources** as "Coming soon" (proposed) or hide them?

@@ -1,88 +1,137 @@
+// Library: the libraries TunesBack reads, the readings it has taken, and the
+// period to recap.
+
 import { call } from "../api.js";
 import { render as renderApp, runAnalysis, state } from "../app.js";
-import { fileSize, h, icon, segmented, shortDate, toast } from "../util.js";
+import { confirmAction, h, icon, number, relativeTime, segmented, shortDate, toast } from "../util.js";
 
-const DATE_SOURCE = { filename: "date from file name", modified: "date from file" };
+/** Reload sources and readings from the server. */
+export async function loadLibrary() {
+  const result = await call("library");
+  if (result.error) return toast(result.error, { error: true });
+  state.sources = result.sources;
+  state.readings = result.readings;
+  pickDefaults();
+}
 
-export async function scan(folder, { quiet = false } = {}) {
-  folder = folder.trim();
-  if (!folder) return;
-  const result = await call("scan", { folder });
+/** Take a new reading of every library that changed. */
+export async function refresh({ quiet = false } = {}) {
+  const result = await call("refresh_readings");
   if (result.error) {
     if (!quiet) toast(result.error, { error: true });
-    state.snapshots = [];
-  } else {
-    if (result.folder !== state.folder || !state.snapshots.length) state.mode = result.snapshots.length > 1 ? "compare" : "single";
-    state.folder = result.folder;
-    state.snapshots = result.snapshots;
-    pickDefaults();
+    return result;
   }
+  for (const problem of result.problems) toast(problem.error, { error: true, timeout: 6000 });
+  if (!quiet || result.new) toast(result.new ? `Took ${result.new} new reading${result.new === 1 ? "" : "s"}` : "Your library hasn't changed since the last reading");
+  await loadLibrary();
+  return result;
+}
+
+export async function importExports() {
+  const picked = await call("pick_folder");
+  if (!picked.path) return;
+  const result = await call("import_exports", { folder: picked.path });
+  if (result.error) return toast(result.error, { error: true });
+  toast(`Added ${result.imported} reading${result.imported === 1 ? "" : "s"}`);
+  await loadLibrary();
   if (state.view === "setup") renderApp();
 }
 
-export async function browse() {
-  const result = await call("pick_folder");
-  if (result.path) scan(result.path);
+/** Default period: the newest reading, compared with the one closest to a year before it. */
+function pickDefaults() {
+  const ids = state.readings.map((r) => r.id);
+  if (!ids.includes(state.endId)) state.endId = ids.at(-1) ?? null;
+  if (!ids.includes(state.startId) || state.startId === state.endId) {
+    const end = state.readings.find((r) => r.id === state.endId);
+    const earlier = end ? state.readings.filter((r) => r.date < end.date) : [];
+    if (earlier.length) {
+      const target = new Date(end.date);
+      target.setUTCFullYear(target.getUTCFullYear() - 1);
+      state.startId = earlier.reduce((a, b) =>
+        Math.abs(new Date(b.date) - target) < Math.abs(new Date(a.date) - target) ? b : a).id;
+    } else {
+      state.startId = null;
+    }
+  }
+  if (state.readings.length < 2) state.mode = "single";
 }
 
 export function canGenerate() {
-  if (state.mode === "compare") return state.snapshots.length > 1 && !!state.startId && !!state.endId && state.startId !== state.endId;
+  if (state.mode === "compare") return !!state.startId && !!state.endId && state.startId !== state.endId;
   return !!state.endId;
 }
 
-function pickDefaults() {
-  const ids = state.snapshots.map((s) => s.id);
-  if (!ids.includes(state.endId)) state.endId = ids.at(-1) ?? null;
-  if (!ids.includes(state.startId) || state.startId === state.endId) state.startId = ids.length > 1 ? ids.at(-2) : null;
-  // Default to a year-long window when one exists.
-  if (ids.length > 2 && state.startId === ids.at(-2)) {
-    const end = new Date(state.snapshots.at(-1).date);
-    const target = new Date(end); target.setUTCFullYear(end.getUTCFullYear() - 1);
-    const best = state.snapshots.slice(0, -1).reduce((a, b) =>
-      Math.abs(new Date(b.date) - target) < Math.abs(new Date(a.date) - target) ? b : a);
-    state.startId = best.id;
-  }
-}
-
 export function render(root) {
-  const desktop = state.info?.desktop;
-  const pathInput = h("input.input", {
-    type: "text", value: state.folder, placeholder: desktop ? "Choose a folder…" : "Paste the folder path, e.g. ~/Music/Snapshots",
-    "aria-label": "Snapshot folder", spellcheck: "false",
-    onkeydown: (e) => { if (e.key === "Enter") scan(e.target.value); },
-  });
-
-  const folderRow = h("div.folder-row", pathInput,
-    desktop && h("button.btn", { onclick: browse }, icon("folder"), "Browse…"),
-    h("button.btn", { onclick: () => scan(pathInput.value) }, icon("refresh"), "Scan"));
-
   root.append(h("div.setup",
-    h("div.setup-intro",
-      h("h2", "Your listening, recapped"),
-      h("p.muted", "TunesBack reads library exports from iTunes or Apple Music. Compare two exports to see what you listened to in between.")),
-    h("div.card",
-      h("div.card-title", "1. Snapshot folder"),
-      folderRow,
-      h("p.hint", "In iTunes or Music choose File → Library → Export Library, and save it in this folder. Export again later to compare."),
-      snapshotList()),
-    state.snapshots.length > 0 && periodCard()));
+    sourcesCard(),
+    state.readings.length > 0 && periodCard(),
+    state.readings.length > 0 && readingsCard()));
 }
 
-function snapshotList() {
-  if (!state.folder) return null;
-  if (!state.snapshots.length) {
-    return h("div.snapshot-list", h("div.empty", "No library exports found in this folder."));
-  }
-  return h("div.snapshot-list", { role: "list" }, [...state.snapshots].reverse().map((s) =>
-    h("div.snapshot-row", { role: "listitem" },
-      h("span.date", shortDate(s.date)),
-      h("span.file", { title: s.file }, s.file, DATE_SOURCE[s.date_source] && h("span.badge", DATE_SOURCE[s.date_source])),
-      h("span.meta", fileSize(s.size)))));
+function sourcesCard() {
+  return h("div.card",
+    h("div.card-title", "Your libraries",
+      h("div", { style: { display: "flex", gap: "8px" } },
+        state.info.desktop && h("button.btn", { onclick: importExports }, icon("calendar"), "Import exports"),
+        h("button.btn", { onclick: () => state.openSetup({ start: "apps", cancellable: true }) }, icon("library"), "Add library"))),
+    state.sources.length
+      ? h("div.source-list", state.sources.map((s) => h("div.source-row",
+        h("span.source-icon", icon(s.mode === "folder" ? "folder" : "song")),
+        h("div.source-text",
+          h("b", s.mode === "folder" ? "Folder of exports" : "iTunes library"),
+          h("small", { title: s.path }, s.path),
+          h("small", `${s.reading_count} reading${s.reading_count === 1 ? "" : "s"}`,
+            s.last_reading ? ` · last read ${relativeTime(s.last_reading + "Z")}` : "",
+            s.location === "network" ? " · network drive" : "")),
+        h("button.btn.btn-ghost", { onclick: () => refresh() }, icon("refresh"), "Read now"),
+        h("button.btn.btn-ghost", {
+          onclick: async () => {
+            const ok = await confirmAction("Remove this library?",
+              `TunesBack will stop reading ${s.path} and forget its readings. Your music and the file itself aren't touched.`, "Remove");
+            if (!ok) return;
+            const r = await call("remove_library", { source_id: s.id });
+            if (r.error) return toast(r.error, { error: true });
+            state.sources = r.sources; state.readings = r.readings; pickDefaults();
+            if (!state.sources.length) state.openSetup({ start: "welcome" }); else renderApp();
+          },
+        }, "Remove"))))
+      : h("div.empty", "No libraries yet."));
+}
+
+function periodCard() {
+  const readings = state.readings;
+  const canCompare = readings.length > 1;
+  if (!canCompare) state.mode = "single";
+  const label = (r) => `${shortDate(r.date)} · ${number(r.total_plays)} plays`;
+
+  const select = (title, key, options) => h("div.field",
+    h("label", { for: `select-${key}` }, title),
+    h("select.select", {
+      id: `select-${key}`, disabled: !options.length,
+      onchange: (e) => { state[key] = Number(e.target.value); keepOrdered(key); renderApp(); },
+    }, options.map((r) => h("option", { value: r.id, selected: r.id === state[key] }, label(r)))));
+
+  const endIndex = readings.findIndex((r) => r.id === state.endId);
+  const startIndex = readings.findIndex((r) => r.id === state.startId);
+  const fields = state.mode === "compare"
+    ? [select("From", "startId", readings.slice(0, Math.max(endIndex, 1))), select("To", "endId", readings.slice(startIndex + 1))]
+    : [select("Up to", "endId", readings), h("p.hint", { style: { alignSelf: "end" } }, "Lifetime totals up to this reading.")];
+
+  const mode = segmented([["compare", "Compare two readings"], ["single", "Lifetime"]], state.mode,
+    (value) => { state.mode = value; renderApp(); }, "Mode");
+  mode.querySelector("button").disabled = !canCompare;
+
+  return h("div.card",
+    h("div.mode-row", h("div.card-title", { style: { margin: 0 } }, "Recap"), mode),
+    !canCompare && h("p.hint", "Comparisons unlock after the next reading. TunesBack reads your library each time you open it, or import older exports now."),
+    h("div.period-grid", fields),
+    h("div", { style: { marginTop: "20px" } },
+      h("button.btn.btn-primary.btn-large.btn-block", { disabled: !canGenerate(), onclick: runAnalysis }, "Generate recap")));
 }
 
 /** After one end of the period changes, keep "From" earlier than "To". */
 function keepOrdered(changed) {
-  const ids = state.snapshots.map((s) => s.id);
+  const ids = state.readings.map((r) => r.id);
   const start = ids.indexOf(state.startId);
   const end = ids.indexOf(state.endId);
   if (start >= 0 && end >= 0 && start >= end) {
@@ -91,35 +140,12 @@ function keepOrdered(changed) {
   }
 }
 
-function periodCard() {
-  const snapshots = state.snapshots;
-  const canCompare = snapshots.length > 1;
-  if (!canCompare) state.mode = "single";
-  const ready = canGenerate();
-
-  const select = (label, key, options) => h("div.field",
-    h("label", { for: `select-${key}` }, label),
-    h("select.select", {
-      id: `select-${key}`,
-      disabled: !options.length,
-      onchange: (e) => { state[key] = e.target.value; keepOrdered(key); renderApp(); },
-    }, options.map((s) => h("option", { value: s.id, selected: s.id === state[key] }, `${shortDate(s.date)} · ${s.file}`))));
-
-  const endIndex = snapshots.findIndex((s) => s.id === state.endId);
-  const startIndex = snapshots.findIndex((s) => s.id === state.startId);
-  const fields = state.mode === "compare"
-    ? [select("From", "startId", snapshots.slice(0, Math.max(endIndex, 1))),
-       select("To", "endId", snapshots.slice(startIndex + 1))]
-    : [select("Snapshot", "endId", snapshots), h("p.hint", { style: { alignSelf: "end" } }, "Shows lifetime totals up to this export.")];
-
-  const mode = segmented([["compare", "Compare two snapshots"], ["single", "Single snapshot"]], state.mode,
-    (value) => { state.mode = value; renderApp(); }, "Mode");
-  mode.querySelector("button").disabled = !canCompare;
-
+function readingsCard() {
   return h("div.card",
-    h("div.mode-row", h("div.card-title", { style: { margin: 0 } }, "2. Period"), mode),
-    !canCompare && snapshots.length === 1 && h("p.hint", "Add a second export to compare two points in time."),
-    h("div.period-grid", fields),
-    h("div", { style: { marginTop: "20px" } },
-      h("button.btn.btn-primary.btn-large.btn-block", { disabled: !ready, onclick: runAnalysis }, "Generate recap")));
+    h("div.card-title", "Readings", h("span.muted", "each one is your library at a point in time")),
+    h("div.snapshot-list", { role: "list" }, [...state.readings].reverse().map((r) => h("div.snapshot-row", { role: "listitem" },
+      h("span.date", shortDate(r.date)),
+      h("span.file", `${number(r.track_count)} songs · ${number(r.total_plays)} plays`,
+        h("span.badge", r.origin === "imported" ? "imported" : "automatic")),
+      h("span.meta", { title: r.file_path }, r.kind === "itunes" ? "iTunes" : r.kind)))));
 }

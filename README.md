@@ -242,23 +242,23 @@ If no web view is available, TunesBack opens in your default browser instead. Yo
 
 **KDE Plasma:** TunesBack uses Qt on Plasma so its menu can appear in the global menu bar. Install your distribution's Qt WebEngine bindings (Debian/Ubuntu: `sudo apt install python3-pyqt6 python3-pyqt6.qtwebengine python3-qtpy`, in a venv created with `--system-site-packages`). On Wayland the global menu needs the distribution's Qt (with Plasma's platform theme), not the pip `PyQt6` wheels; on X11 either works. Without Qt, TunesBack uses GTK and shows the menu in its own title bar.
 
-### 2. Export Your Library
+### 2. Set up
 
-1. In iTunes or Music, go to **File → Library → Export Library**
-2. Save it in a folder you keep for snapshots (any file name works)
-3. Export again later to compare snapshots
+The first time you open TunesBack, a short set-up asks which music apps you use and whether your music is on this computer or a network drive. It then finds your iTunes library, takes a first reading of it, and remembers where it is.
 
-### 3. Analyze
+If it can't find the library, point it to the file or to a folder of exports. In iTunes or Music: **File → Library → Export Library**. On Windows you can also turn on *Edit → Preferences → Advanced → Share iTunes Library XML with other applications* so iTunes keeps the file up to date.
 
-1. On the **Library** screen, click **Browse…** and pick your snapshot folder
-2. Choose **Compare two snapshots** (and the From/To dates) or **Single snapshot**
-3. Click **Generate recap**
-4. Explore **Overview** and **Top charts**
-5. Open **Wrapped** to create shareable cards
+### 3. Explore
+
+TunesBack reads your library again every time you open it, so each launch adds a point in time to compare. Older exports can be added from the Library page (or File → Import Older Exports…) to compare right away.
+
+- **Library**: your libraries, their readings, and the period to recap
+- **Overview** and **Top charts**: your stats for that period
+- **Wrapped**: shareable cards
 
 ## Snapshot Dates
 
-Every library export records when it was made, and TunesBack reads that date from inside the file. File names don't matter.
+Every library export records when it was made, and TunesBack reads that date from inside the file, so file names don't matter.
 
 For XML files without that header, TunesBack falls back to a date in the file name (e.g. `2025-12-01.xml`), and then to the file's modification date. The Library screen labels snapshots whose date came from a fallback.
 
@@ -311,7 +311,8 @@ Project layout:
 
 ```
 tunesback/
-  sources/itunes_xml.py   reads library exports
+  sources/itunes_xml.py   reads and finds iTunes / Apple Music libraries
+  library.py              TunesBack's own readings of your libraries (SQLite)
   model.py                Track and Snapshot, shared by every source
   stats/                  period activity, rankings, Listening Age
   art/                    file location resolution and artwork
