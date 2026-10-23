@@ -85,9 +85,9 @@ def _names(data: bytes, tables: dict) -> tuple[list[str], int, bool]:
         base = tables["name"][0]
         _fmt, count, strings = struct.unpack_from(">HHH", data, base)
         for i in range(count):
-            pid, _eid, lang, nid, length, off = struct.unpack_from(">6H", data, base + 6 + 12 * i)
-            if nid not in (1, 16) or pid not in (0, 1, 3):
-                continue
+            pid, eid, lang, nid, length, off = struct.unpack_from(">6H", data, base + 6 + 12 * i)
+            if nid not in (1, 16) or pid not in (0, 1, 3) or (pid == 1 and (eid, lang) != (0, 0)):
+                continue  # old Mac records other than Roman/English use encodings we can't decode
             raw = data[base + strings + off: base + strings + off + length]
             try:
                 text = raw.decode("mac_roman" if pid == 1 else "utf-16-be").strip()
