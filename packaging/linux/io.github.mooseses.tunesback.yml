@@ -26,10 +26,8 @@ modules:
       - install -Dm644 io.github.mooseses.tunesback.desktop -t /app/share/applications
       - install -Dm644 io.github.mooseses.tunesback.metainfo.xml -t /app/share/metainfo
       - install -Dm644 linux.png /app/share/icons/hicolor/512x512/apps/io.github.mooseses.tunesback.png
-      # List any system library the bundle needs that the runtime doesn't have.
-      - >-
-        find /app/tunesback -name '*.so*' -type f -exec ldd {} + 2>/dev/null
-        | grep 'not found' | sort -u | sed 's/^/MISSING /' || true
+      # List any library the bundle needs that the runtime doesn't have, and what needs it.
+      - sh ldd-scan.sh /app/tunesback
     sources:
       - type: archive
         path: TunesBack.tar.gz
@@ -40,3 +38,5 @@ modules:
         path: io.github.mooseses.tunesback.metainfo.xml
       - type: file
         path: linux.png  # copied from packaging/icons by CI
+      - type: file
+        path: ldd-scan.sh
