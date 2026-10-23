@@ -32,7 +32,7 @@ function save(next) {
 
 // ---------- the tile grid ----------
 
-const CELL = 104; // the smallest a cell gets before a column is dropped (px)
+const CELL = 88; // the smallest a cell gets before a pair of columns is dropped (px)
 const GAP = 14;
 
 /**
