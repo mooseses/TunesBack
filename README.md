@@ -239,17 +239,26 @@ If album art doesn't appear:
 
 ### 1. Run TunesBack
 
-**Download from** [Releases](https://github.com/mooseses/TunesBack/releases)
+**Download from** [Releases](https://github.com/mooseses/TunesBack/releases). TunesBack 2.0 is in beta: the beta is marked "Pre-release" on that page, below or above the latest 1.x release.
 
-| Platform | Format |
-|----------|--------|
-| Windows | Installer (`.exe`) |
-| macOS | Disk image (`.dmg`) |
-| Linux | AppImage, or a `.tar.gz` of the same app |
+| Platform | Download | |
+|----------|----------|---|
+| Windows 10/11 | `TunesBack-Windows-…-x64.exe` | Installer; or the `-portable.zip` to run without installing |
+| macOS, Apple silicon (M1 and later) | `TunesBack-macOS-…-arm64.dmg` | |
+| macOS, Intel | `TunesBack-macOS-…-x86_64.dmg` | |
+| Debian, Ubuntu, Mint, Pop!_OS | `TunesBack-Linux-…-x86_64.deb` | `sudo apt install ./TunesBack-Linux-…-x86_64.deb` |
+| Fedora and other RPM distributions | `TunesBack-Linux-…-x86_64.rpm` | `sudo dnf install ./TunesBack-Linux-…-x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS | `TunesBack-Linux-…-x86_64.pkg.tar.zst` | `sudo pacman -U ./TunesBack-Linux-…-x86_64.pkg.tar.zst` |
+| Any Linux, sandboxed | `TunesBack-Linux-…-x86_64.flatpak` | `flatpak install --user ./TunesBack-Linux-…-x86_64.flatpak` (needs Flathub's `org.freedesktop.Platform` 24.08) |
+| Any Linux | `TunesBack-Linux-…-x86_64.AppImage` | `chmod +x` it and run it; or the `.tar.gz` of the same app |
+
+Not sure which Mac you have? Apple menu → **About This Mac**: "Chip: Apple M…" is Apple silicon, "Processor: Intel…" is Intel.
+
+TunesBack checks GitHub for new versions (About TunesBack → **Check for Updates**, and once a day on its own unless you turn that off in Settings).
 
 > **macOS:** You may need to go to **System Settings → Privacy & Security** and click "Open Anyway" the first time.
 
-> **Linux:** the packaged app brings its own Qt, so it doesn't depend on your system's web view. Make the AppImage executable (`chmod +x`) and run it.
+> **Linux:** every package brings its own Qt, so TunesBack doesn't depend on your system's web view. The packages need glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and later).
 
 ### Run from source (any platform)
 
@@ -366,7 +375,7 @@ tunesback/
   app/                    local API server, settings, window and menu bar
   web/                    the interface (no build step)
 tests/
-packaging/                PyInstaller spec, icons, Linux AppImage files and smoke tests
+packaging/                PyInstaller spec, icons (make_icons.py), Linux packages and Flatpak, release notes, smoke tests
 ```
 
 Release builds can include a Last.fm API key: set the `LASTFM_API_KEY` repository secret (CI writes it into `tunesback/_build.py`), or set `TUNESBACK_LASTFM_API_KEY` when running from source.

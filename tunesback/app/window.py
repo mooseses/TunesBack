@@ -56,8 +56,9 @@ def prepare_qt_sandbox() -> None:
     """Let Qt WebEngine start where Chromium's sandbox can't.
 
     The sandbox needs unprivileged user namespaces, which Ubuntu 23.10+ blocks
-    for apps without an AppArmor profile (such as an AppImage), and Chromium
-    refuses to sandbox as root. The window only shows TunesBack's own pages.
+    for apps without an AppArmor profile (such as an AppImage), Flatpak has its
+    own sandbox that Chromium's can't nest in, and Chromium refuses to sandbox
+    as root. The window only shows TunesBack's own pages.
     """
     if SYSTEM != "linux":
         return
@@ -65,7 +66,7 @@ def prepare_qt_sandbox() -> None:
         restricted = Path("/proc/sys/kernel/apparmor_restrict_unprivileged_userns").read_text().strip() == "1"
     except OSError:
         restricted = False
-    if restricted or os.geteuid() == 0:
+    if restricted or os.geteuid() == 0 or Path("/.flatpak-info").exists():
         os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
 
 
@@ -205,6 +206,11 @@ class DesktopWindow:
 
     def _setup_qt(self) -> None:
         from qtpy.QtCore import QCoreApplication, QObject, Signal, Slot
+        from qtpy.QtGui import QGuiApplication
+
+        from .. import APP_ID
+
+        QGuiApplication.setDesktopFileName(APP_ID)  # Wayland: ties the window to its launcher and icon
 
         class Invoker(QObject):
             call = Signal(object)

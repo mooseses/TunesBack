@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tunesback"
-version = "2.0.0.dev0"
+version = "2.0.0b1"
 description = "Year-in-review statistics for your music library"
 readme = "README.md"
 license = { file = "LICENSE" }

@@ -8,7 +8,9 @@ from PyInstaller.utils.hooks import collect_submodules
 
 ROOT = Path(SPECPATH).parent
 VERSION = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.M).group(1)
-ICON_PNG = str(ROOT / "tunesback" / "assets" / "icon.png")
+# Padded for the Dock and launchers (packaging/make_icons.py); the app's pages use the full-bleed one.
+ICON_MAC = str(ROOT / "packaging" / "icons" / "macos.png")
+ICON_LINUX = str(ROOT / "packaging" / "icons" / "linux.png")
 
 hiddenimports = collect_submodules("tunesback")
 excludes = ["tkinter", "numpy", "pandas", "matplotlib"]
@@ -38,7 +40,7 @@ exe = EXE(
     exclude_binaries=True,
     name="tunesback",
     console=False,
-    icon=str(ROOT / "packaging" / "icon.ico") if sys.platform == "win32" else ICON_PNG,
+    icon=str(ROOT / "packaging" / "icon.ico") if sys.platform == "win32" else ICON_MAC if sys.platform == "darwin" else ICON_LINUX,
 )
 coll = COLLECT(exe, a.binaries, a.datas, name="TunesBack")
 
@@ -46,7 +48,7 @@ if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name="TunesBack.app",
-        icon=ICON_PNG,
+        icon=ICON_MAC,
         bundle_identifier="io.github.mooseses.tunesback",
         version=VERSION,
         info_plist={"NSHighResolutionCapable": True, "CFBundleShortVersionString": VERSION},

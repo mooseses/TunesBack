@@ -1,0 +1,62 @@
+name: Bug report
+description: Something doesn't work, looks wrong or crashes.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: TunesBack version
+      description: In About TunesBack (or `tunesback --version`).
+      placeholder: 2.0.0 Beta 1
+    validations:
+      required: true
+  - type: dropdown
+    id: download
+    attributes:
+      label: Which download?
+      options:
+        - Windows installer
+        - Windows portable zip
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Linux .deb
+        - Linux .rpm
+        - Linux Arch package
+        - Linux Flatpak
+        - Linux AppImage
+        - Linux .tar.gz
+        - Running from source
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 26.1, Windows 11 24H2, Ubuntu 24.04 (GNOME, Wayland)…
+    validations:
+      required: true
+  - type: dropdown
+    id: sources
+    attributes:
+      label: Sources you use
+      multiple: true
+      options:
+        - iTunes / Apple Music library
+        - Last.fm
+        - ListenBrainz
+        - Spotify download
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: >-
+        Turn on Dev space → Detailed logging (enable the Dev space in Settings), reproduce the
+        problem, then paste the end of the log. Dev space → Logs shows where it is.
+      render: text

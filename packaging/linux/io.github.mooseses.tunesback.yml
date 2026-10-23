@@ -1,0 +1,42 @@
+# Flatpak manifest. CI builds it from the Linux tarball (dist/TunesBack packed by
+# packaging/linux/packages.sh), copied next to this file as TunesBack.tar.gz.
+id: io.github.mooseses.tunesback
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+command: tunesback
+finish-args:
+  - --share=ipc
+  - --share=network  # Last.fm, ListenBrainz, album covers, update checks
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Your iTunes/Apple Music library XML and the music files it points to (for artwork).
+  - --filesystem=home:ro
+  - --filesystem=xdg-pictures  # saving Wrapped cards
+  - --filesystem=xdg-download
+  - --talk-name=com.canonical.AppMenu.Registrar  # KDE's global menu
+  - --talk-name=org.freedesktop.portal.Desktop
+modules:
+  - name: tunesback
+    buildsystem: simple
+    build-commands:
+      - cp -a TunesBack /app/tunesback
+      - mkdir -p /app/bin && ln -s /app/tunesback/tunesback /app/bin/tunesback
+      - install -Dm644 io.github.mooseses.tunesback.desktop -t /app/share/applications
+      - install -Dm644 io.github.mooseses.tunesback.metainfo.xml -t /app/share/metainfo
+      - install -Dm644 linux.png /app/share/icons/hicolor/512x512/apps/io.github.mooseses.tunesback.png
+      # List any system library the bundle needs that the runtime doesn't have.
+      - >-
+        find /app/tunesback -name '*.so*' -type f -exec ldd {} + 2>/dev/null
+        | grep 'not found' | sort -u | sed 's/^/MISSING /' || true
+    sources:
+      - type: archive
+        path: TunesBack.tar.gz
+        strip-components: 0
+      - type: file
+        path: io.github.mooseses.tunesback.desktop
+      - type: file
+        path: io.github.mooseses.tunesback.metainfo.xml
+      - type: file
+        path: linux.png  # copied from packaging/icons by CI
