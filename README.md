@@ -44,6 +44,7 @@ Works with iTunes and Apple Music libraries on **Windows, macOS, and Linux**.
 - **Listening Age:** calculates the "era" of music you gravitate toward
 - **Flexible display:** switch between hours, minutes and days; rank by plays or listening time
 - **Dark and light mode**, or follow the system
+- **Native-feeling window:** TunesBack's own title bar by default (or your system's, in Settings), a File/View/Help menu bar with keyboard shortcuts, the macOS menu bar on Macs and the global menu on KDE Plasma
 - **Fully offline:** all processing happens on your machine
 
 ## Wrapped Cards
@@ -239,6 +240,8 @@ pip install ".[qt]"
 
 If no web view is available, TunesBack opens in your default browser instead. You can also ask for that with `tunesback --browser`.
 
+**KDE Plasma:** TunesBack uses Qt on Plasma so its menu can appear in the global menu bar. Install your distribution's Qt WebEngine bindings (Debian/Ubuntu: `sudo apt install python3-pyqt6 python3-pyqt6.qtwebengine python3-qtpy`, in a venv created with `--system-site-packages`). On Wayland the global menu needs the distribution's Qt (with Plasma's platform theme), not the pip `PyQt6` wheels; on X11 either works. Without Qt, TunesBack uses GTK and shows the menu in its own title bar.
+
 ### 2. Export Your Library
 
 1. In iTunes or Music, go to **File → Library → Export Library**
@@ -313,7 +316,7 @@ tunesback/
   stats/                  period activity, rankings, Listening Age
   art/                    file location resolution and artwork
   cards/                  Wrapped card rendering
-  app/                    local API server, settings
+  app/                    local API server, settings, window and menu bar
   web/                    the interface (no build step)
 tests/
 packaging/                PyInstaller spec and icons
