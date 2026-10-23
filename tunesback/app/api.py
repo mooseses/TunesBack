@@ -5,23 +5,25 @@ dict. Expected failures are returned as {"error": message}.
 """
 from __future__ import annotations
 
-import base64
 import logging
 import os
 import platform
+import re
 import subprocess
 import sys
 import threading
 import webbrowser
+from collections import OrderedDict
 from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-from PIL import Image
-
 from .. import __version__
 from ..art.artwork import ThumbnailCache
-from ..cards import render_cards, save_card_stack
+from ..cards import CardChoice, CardData, build_data, catalog, draw, normalize, plan, resolve_theme
+from ..cards.layouts.base import FORMATS
+from ..cards.registry import CARD_TYPES
+from ..cards.themes import THEMES
 from ..library import LibraryStore
 from ..sources import itunes_xml
 from ..sources.catalog import CATALOG
@@ -57,7 +59,11 @@ class Api:
         self._lock = threading.Lock()
         self._analysis_lock = threading.Lock()
         self._report: Optional[Report] = None
-        self._cards: list[Image.Image] = []
+        self._report_version = 0
+        self._card_lock = threading.Lock()
+        self._card_data: Optional[CardData] = None
+        self._card_data_key: Optional[tuple] = None
+        self._card_cache: OrderedDict[tuple, bytes] = OrderedDict()
         self._progress = {"running": False, "stage": ""}
         self._cancel = threading.Event()
         self._thumbs = ThumbnailCache(cache_dir=thumbnail_dir or cache_dir() / "thumbnails")
@@ -69,7 +75,7 @@ class Api:
     ACTIONS = frozenset({
         "state", "update_settings", "open_logs", "open_website", "pick_folder", "pick_file", "progress", "cancel",
         "catalog", "discover", "add_library", "import_exports", "refresh_readings", "library", "remove_library",
-        "analyze", "artwork", "generate_cards", "save_cards", "restart",
+        "analyze", "artwork", "card_options", "cards", "save_cards", "restart",
         "window_info", "window_minimize", "window_toggle_maximize", "window_close",
         "window_start_move", "window_start_resize",
     })
@@ -321,7 +327,7 @@ class Api:
             self._stage("Done")
             with self._lock:
                 self._report = report
-                self._cards = []
+                self._report_version += 1
             return {"report": report.to_dict()}
         except Cancelled:
             return {"cancelled": True}
@@ -336,49 +342,86 @@ class Api:
 
     # --- wrapped cards ---
 
-    def generate_cards(self, rank_by: str = "plays") -> dict:
+    SIZES = {"thumb": 0.24, "preview": 0.5, "full": 1.0}
+
+    def _data_for_cards(self, rank_by: Optional[str] = None) -> tuple[CardData, tuple]:
+        """The current recap, prepared for the cards (rebuilt when the recap or ranking changes)."""
         with self._lock:
-            report = self._report
+            report, version = self._report, self._report_version
         if report is None:
             raise UserError("Generate a recap first.")
-        cards = render_cards(report, "time" if rank_by == "time" else "plays")
-        with self._lock:
-            self._cards = cards
-        previews = []
-        for i, card in enumerate(cards):
-            preview = card.convert("RGB")
-            preview.thumbnail((540, 960))
-            buf = BytesIO()
-            preview.save(buf, format="JPEG", quality=88)
-            previews.append({"index": i, "name": card.info.get("card_name", f"Card {i + 1}").replace("_", " "),
-                             "preview": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()})
-        return {"cards": previews}
+        key = (version, "time" if (rank_by or self.settings["rank_by"]) == "time" else "plays")
+        with self._card_lock:
+            if self._card_data_key != key:
+                self._card_data = build_data(report, key[1])
+                self._card_data_key = key
+                self._card_cache.clear()
+            return self._card_data, key
 
-    def save_cards(self, indices: Optional[list] = None, folder: Optional[str] = None) -> dict:
-        with self._lock:
-            cards = list(self._cards)
-        if not cards:
-            raise UserError("Generate the cards first.")
+    def card_options(self) -> dict:
+        return catalog()
+
+    def cards(self, deck: Optional[dict] = None, rank_by: Optional[str] = None) -> dict:
+        """The deck for the current recap. Passing `deck` saves it as the new design."""
+        if deck is not None:
+            self.settings.update({"cards": normalize(deck)})
+        deck = normalize(self.settings["cards"])
+        data, key = self._data_for_cards(rank_by)
+        return {
+            "deck": deck,
+            "version": f"{key[0]}-{key[1]}",
+            "period": data.period,
+            "cover_swatch": resolve_theme("cover", data).swatch,
+            "cards": [{"type": c.type, "name": CARD_TYPES[c.type].name, "layout": c.layout,
+                       "layout_name": CARD_TYPES[c.type].layouts[c.layout].name, "theme": c.theme, "hidden": c.hidden}
+                      for c in plan(data, deck)],
+        }
+
+    def card_image(self, card_type: str, layout: str, theme: str, fmt: str, size: str, seed: int = 0,
+                   rank_by: Optional[str] = None) -> Optional[bytes]:
+        """One card as a JPEG (for the gallery, the editor or a download)."""
+        if (card_type not in CARD_TYPES or layout not in CARD_TYPES[card_type].layouts
+                or theme not in ("cover", *THEMES) or fmt not in FORMATS or size not in self.SIZES):
+            return None
+        data, key = self._data_for_cards(rank_by)
+        cache_key = (key, card_type, layout, theme, fmt, size, seed)
+        with self._card_lock:
+            if cache_key in self._card_cache:
+                self._card_cache.move_to_end(cache_key)
+                return self._card_cache[cache_key]
+        image = draw(CardChoice(card_type, layout, theme), data, fmt, self.SIZES[size], seed)
+        buf = BytesIO()
+        image.save(buf, format="JPEG", quality=95 if size == "full" else 86, subsampling=0 if size == "full" else 2)
+        jpeg = buf.getvalue()
+        with self._card_lock:
+            self._card_cache[cache_key] = jpeg
+            while len(self._card_cache) > 80:
+                self._card_cache.popitem(last=False)
+        return jpeg
+
+    def card_filename(self, card_type: str) -> str:
+        data, _key = self._data_for_cards()
+        name = CARD_TYPES[card_type].name if card_type in CARD_TYPES else "Card"
+        safe = re.sub(r"[^\w\- ]+", "", f"TunesBack {data.period} {name}").strip()
+        return re.sub(r"\s+", " ", safe) + ".jpg"
+
+    def save_cards(self, types: Optional[list] = None, folder: Optional[str] = None,
+                   rank_by: Optional[str] = None) -> dict:
+        """Save cards at full size: the given card types, or every card that isn't hidden."""
+        deck = normalize(self.settings["cards"])
+        data, _key = self._data_for_cards(rank_by)
+        chosen = [c for c in plan(data, deck) if (c.type in types if types is not None else not c.hidden)]
+        if not chosen:
+            raise UserError("Choose at least one card to save.")
         if folder is None:
             if self.window is None:
                 raise UserError("Choose where to save the cards.")
             folder = self.window.pick_folder()
             if not folder:
                 return {"saved": 0, "cancelled": True}
-        chosen = None if indices is None else {int(i) for i in indices}
-        saved = save_card_stack(cards, folder, chosen)
-        return {"saved": saved, "folder": folder}
-
-    def card_jpeg(self, index: int) -> Optional[bytes]:
-        with self._lock:
-            cards = list(self._cards)
-        if not 0 <= index < len(cards):
-            return None
-        buf = BytesIO()
-        cards[index].convert("RGB").save(buf, format="JPEG", quality=95)
-        return buf.getvalue()
-
-    def card_filename(self, index: int) -> str:
-        with self._lock:
-            name = self._cards[index].info.get("card_name", f"Card_{index + 1}") if index < len(self._cards) else "Card"
-        return f"TunesBack_{name}.jpg"
+        os.makedirs(folder, exist_ok=True)
+        for choice in chosen:
+            jpeg = self.card_image(choice.type, choice.layout, choice.theme, deck["format"], "full", deck["seed"], rank_by)
+            with open(os.path.join(folder, self.card_filename(choice.type)), "wb") as f:
+                f.write(jpeg)
+        return {"saved": len(chosen), "folder": folder}

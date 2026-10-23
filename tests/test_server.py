@@ -62,6 +62,7 @@ def test_static_files_stay_inside_package(server):
 
 def test_unknown_action(server):
     assert "error" in api(server, "card_jpeg", index=0)
+    assert "Generate a recap first" in api(server, "cards")["error"]
 
 
 def test_setup_reading_analysis_and_cards(server, library, tmp_path):
@@ -80,15 +81,26 @@ def test_setup_reading_analysis_and_cards(server, library, tmp_path):
     assert report["mode"] == "compare" and report["total_plays"] == 5
     assert api(server, "analyze", start=second["id"], end=first["id"])["error"]
 
-    cards = api(server, "generate_cards", rank_by="plays")["cards"]
-    assert cards and cards[0]["preview"].startswith("data:image/jpeg")
-    status, _ = request(server, "GET", f"/api/card/0.jpg?token={server.token}")
-    assert status == 200
-    assert request(server, "GET", "/api/card/0.jpg?token=nope")[0] == 403
+    deck = api(server, "cards", rank_by="plays")
+    first_card = deck["cards"][0]
+    assert first_card["type"] == "top_songs" and deck["deck"]["format"] == "story"
+    path = f"/api/card/{first_card['type']}/{first_card['layout']}/{first_card['theme']}/story/preview.jpg"
+    status, body = request(server, "GET", f"{path}?s=0&r=plays&token={server.token}")
+    assert status == 200 and body[:2] == b"\xff\xd8"
+    assert request(server, "GET", f"{path}?token=nope")[0] == 403
+    assert request(server, "GET", f"/api/card/top_songs/nope/midnight/story/preview.jpg?token={server.token}")[0] == 404
+
+    # Changing the design is saved with the settings.
+    designed = api(server, "cards", deck={"format": "square", "theme": "paper", "seed": 3,
+                                          "cards": {"top_songs": {"hidden": True}}})
+    assert designed["deck"]["format"] == "square" and all(c["theme"] == "paper" for c in designed["cards"])
+    assert api(server, "state")["settings"]["cards"]["theme"] == "paper"
 
     out = tmp_path / "out"
-    assert api(server, "save_cards", indices=[0, 1], folder=str(out))["saved"] == 2
-    assert len(list(out.glob("*.jpg"))) == 2
+    saved = api(server, "save_cards", folder=str(out))
+    assert saved["saved"] == len(designed["cards"]) - 1  # the hidden card is left out
+    assert api(server, "save_cards", types=["top_songs"], folder=str(out))["saved"] == 1
+    assert len(list(out.glob("*.jpg"))) == len(designed["cards"])
 
 
 def test_add_library_rejects_other_files(server, tmp_path):

@@ -17,7 +17,11 @@ export async function call(method, args = {}) {
   return response.json();
 }
 
-export const cardUrl = (index) => `/api/card/${index}.jpg?token=${encodeURIComponent(token)}`;
+/** A card image: `size` is "thumb", "preview" or "full". */
+export function cardImageUrl(card, format, size, seed, rank, extra = {}) {
+  const query = new URLSearchParams({ s: seed, r: rank, token, ...extra });
+  return `/api/card/${card.type}/${card.layout}/${card.theme}/${format}/${size}.jpg?${query}`;
+}
 
 // ---------- artwork ----------
 // Thumbnails load lazily as tiles scroll into view, a batch at a time.

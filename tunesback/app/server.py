@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from .api import Api
+from .api import Api, UserError
 
 log = logging.getLogger(__name__)
 
@@ -88,9 +88,10 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        extra = dict(extra or {})
+        self.send_header("Cache-Control", extra.pop("Cache-Control", "no-store"))
         self.send_header("X-Content-Type-Options", "nosniff")
-        for key, value in (extra or {}).items():
+        for key, value in extra.items():
             self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
@@ -106,19 +107,7 @@ class _Handler(BaseHTTPRequestHandler):
         url = urlsplit(self.path)
 
         if url.path.startswith("/api/card/"):
-            query = parse_qs(url.query)
-            if query.get("token", [""])[0] != self.server.token:
-                return self._send(HTTPStatus.FORBIDDEN, b"Forbidden", "text/plain")
-            try:
-                index = int(url.path.rsplit("/", 1)[-1].split(".")[0])
-            except ValueError:
-                return self._send(HTTPStatus.NOT_FOUND, b"Not found", "text/plain")
-            data = self.server.api.card_jpeg(index)
-            if data is None:
-                return self._send(HTTPStatus.NOT_FOUND, b"Not found", "text/plain")
-            name = self.server.api.card_filename(index)
-            return self._send(HTTPStatus.OK, data, "image/jpeg",
-                              {"Content-Disposition": f'attachment; filename="{name}"'})
+            return self._card(url)
 
         path = _static_path(url.path)
         if path is None:
@@ -128,6 +117,29 @@ class _Handler(BaseHTTPRequestHandler):
             body = body.replace(b"__TUNESBACK_TOKEN__", self.server.token.encode())
         content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         self._send(HTTPStatus.OK, body, content_type)
+
+    def _card(self, url) -> None:
+        """GET /api/card/<type>/<layout>/<theme>/<format>/<size>.jpg?s=<seed>&token=...[&download=1]"""
+        query = parse_qs(url.query)
+        if not secrets.compare_digest(query.get("token", [""])[0], self.server.token):
+            return self._send(HTTPStatus.FORBIDDEN, b"Forbidden", "text/plain")
+        parts = url.path[len("/api/card/"):].removesuffix(".jpg").split("/")
+        if len(parts) != 5:
+            return self._send(HTTPStatus.NOT_FOUND, b"Not found", "text/plain")
+        try:
+            seed = int(query.get("s", ["0"])[0])
+            data = self.server.api.card_image(*parts, seed=seed, rank_by=query.get("r", [None])[0])
+        except UserError as e:
+            return self._send(HTTPStatus.CONFLICT, str(e).encode(), "text/plain")
+        except ValueError:
+            data = None
+        if data is None:
+            return self._send(HTTPStatus.NOT_FOUND, b"Not found", "text/plain")
+        # The URL names everything that goes into the image (plus a version), so it can be cached.
+        headers = {"Cache-Control": "private, max-age=86400"}
+        if query.get("download"):
+            headers["Content-Disposition"] = f'attachment; filename="{self.server.api.card_filename(parts[0])}"'
+        self._send(HTTPStatus.OK, data, "image/jpeg", headers)
 
     def do_POST(self) -> None:
         url = urlsplit(self.path)

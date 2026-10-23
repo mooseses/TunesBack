@@ -24,6 +24,7 @@ DEFAULTS = {
     "last_folder": None,  # pre-2.0 snapshot folder, imported into the library on first start
     "setup_done": False,
     "sources_wanted": [],  # players picked during set-up that aren't supported yet
+    "cards": {},  # the Wrapped deck's design: format, theme, shuffle seed and per-card choices
 }
 
 _CHOICES = {
@@ -122,6 +123,8 @@ class Settings:
             if key in ("show_art", "debug_logging", "setup_done"):
                 value = bool(value)
             if key == "last_folder" and value is not None and not isinstance(value, str):
+                continue
+            if key == "cards" and not isinstance(value, dict):
                 continue
             clean[key] = value
         return clean

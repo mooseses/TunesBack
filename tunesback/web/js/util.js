@@ -51,6 +51,10 @@ const ICONS = {
   server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  shuffle: '<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  hidden: '<path d="M9.9 4.2A10 10 0 0 1 12 4c7 0 10 8 10 8a17 17 0 0 1-2.2 3.2M6.6 6.6A17 17 0 0 0 2 12s3 8 10 8a9.7 9.7 0 0 0 5.4-1.6M3 3l18 18M14.1 14.1a3 3 0 0 1-4.2-4.2"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
 };
 
 export function icon(name) {
@@ -100,10 +104,12 @@ export const plural = (n, word) => `${number(n)} ${word}${n === 1 ? "" : "s"}`;
 
 // ---------- feedback ----------
 
-export function toast(message, { error = false, timeout = 3200 } = {}) {
-  const el = h(`div.toast${error ? ".error" : ""}`, { role: error ? "alert" : "status" }, message);
+/** A short message at the bottom. `action` ({label, run}) adds a button, e.g. Undo. */
+export function toast(message, { error = false, timeout = 3200, action = null } = {}) {
+  const el = h(`div.toast${error ? ".error" : ""}`, { role: error ? "alert" : "status" }, message,
+    action && h("button.toast-action", { type: "button", onclick: () => { el.remove(); action.run(); } }, action.label));
   document.getElementById("toasts").append(el);
-  setTimeout(() => el.remove(), timeout);
+  setTimeout(() => el.remove(), action ? Math.max(timeout, 6000) : timeout);
 }
 
 export function showMessage(title, message) {
@@ -116,10 +122,6 @@ export function showMessage(title, message) {
   dialog.showModal();
 }
 
-/**
- * A row of mutually exclusive options with an indicator that slides to the
- * chosen one. `group.setValue(key)` moves it without firing onChange.
- */
 /** An in-app yes/no question; resolves to true when confirmed. */
 export function confirmAction(title, message, confirmLabel) {
   const dialog = document.getElementById("message-dialog");
@@ -136,6 +138,10 @@ export function confirmAction(title, message, confirmLabel) {
   });
 }
 
+/**
+ * A row of mutually exclusive options with an indicator that slides to the
+ * chosen one. `group.setValue(key)` moves it without firing onChange.
+ */
 export function segmented(options, value, onChange, label) {
   const group = h("div.segmented", { role: "group", "aria-label": label });
   const indicator = h("span.segmented-indicator", { "aria-hidden": "true" });

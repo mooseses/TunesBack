@@ -26,8 +26,8 @@ export const state = {
   report: null,
   view: "setup",
   charts: { category: "songs", limit: 25, filter: "" },
-  cards: null,
-  selectedCards: new Set(),
+  deck: null, // the Wrapped cards for the current recap
+  selectedCards: new Set(), // card types picked for saving
 };
 
 const content = document.getElementById("content");
@@ -104,7 +104,7 @@ function renderTopbarActions() {
     actions.append(topbar.unit);
   }
   topbar.rank = segmented([["plays", "By plays"], ["time", "By time"]], state.settings.rank_by,
-    (rank_by) => { state.cards = null; saveSettings({ rank_by }); render(); }, "Rank by");
+    (rank_by) => { saveSettings({ rank_by }); render(); }, "Rank by");
   actions.append(topbar.rank);
 }
 
@@ -196,13 +196,13 @@ export function runCommand(id) {
       break;
     case "save_cards":
       navigate("wrapped");
-      if (state.cards) wrapped.save(null);
-      else toast("Generate the cards first");
+      if (state.deck?.cards) wrapped.save(null);
+      else toast("The cards are still being drawn");
       break;
     case "settings": openSettings(); break;
     case "quit": call("window_close"); break;
     case "view": navigate(arg); break;
-    case "rank": state.cards = null; saveSettings({ rank_by: arg }); render(); break;
+    case "rank": saveSettings({ rank_by: arg }); render(); break;
     case "unit": saveSettings({ unit: arg }); render(); break;
     case "theme": saveSettings({ theme: arg }); break;
     case "open_logs": call("open_logs").then((r) => r.error && toast(r.error, { error: true })); break;
@@ -263,7 +263,7 @@ export async function runAnalysis() {
   if (result.error) return showMessage("Couldn't build your recap", result.error);
   if (result.cancelled) return toast("Cancelled");
   state.report = result.report;
-  state.cards = null;
+  state.deck = null;
   state.selectedCards.clear();
   state.charts.filter = "";
   if (state.report.mode !== "compare" && state.charts.category === "new_finds") state.charts.category = "songs";
