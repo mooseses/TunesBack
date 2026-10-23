@@ -311,11 +311,13 @@ class Api:
             account = self._service({"kind": kind, "path": username}, api_key).check()
         except SourceError as e:
             raise UserError(str(e)) from e
+        except Stopped as e:
+            raise UserError("Stopped before anything was imported.") from e
         if kind == "lastfm" and api_key and not lastfm.bundled_key():
             self.settings.update({"lastfm_api_key": api_key})
         source = self.store.add_source(kind, "account", account["name"], "online")
         self.settings.update({"setup_done": True})
-        result = self.sync_sources(source_id=source["id"])
+        result = self.sync_sources(source_id=source["id"], keep_stop=True)
         return {"source": self._source_json(source["id"]), "expected": account["plays"], **result}
 
     def import_history(self, path: str, kind: str = "spotify") -> dict:
@@ -340,11 +342,13 @@ class Api:
         self.settings.update({"setup_done": True})
         return {"source": self._source_json(source["id"]), "plays": len(plays), "new": new}
 
-    def sync_sources(self, source_id: Optional[int] = None, quiet: bool = False) -> dict:
-        """Fetch new listens from online accounts (one, or all of them)."""
+    def sync_sources(self, source_id: Optional[int] = None, quiet: bool = False, keep_stop: bool = False) -> dict:
+        """Fetch new listens from online accounts (one, or all of them). `quiet`: return
+        at once if a sync is already running. `keep_stop`: honour a Stop pressed earlier."""
         if not self._sync_lock.acquire(blocking=not quiet):
             return {"new": 0, "problems": [], "busy": True}
-        self._cancel["sync"].clear()
+        if not keep_stop:
+            self._cancel["sync"].clear()
         new, problems, stopped = 0, [], False
         try:
             accounts = [s for s in self.store.sources() if s["mode"] == "account"
