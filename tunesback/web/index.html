@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="tunesback-token" content="__TUNESBACK_TOKEN__">
+  <title>TunesBack</title>
+  <link rel="icon" href="/assets/icon.png">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav" aria-label="Main">
+      <div class="brand">
+        <img src="/assets/icon.png" alt="" width="28" height="28">
+        <span>TunesBack</span>
+      </div>
+      <div class="nav-items">
+        <button class="nav-item" data-view="overview" disabled></button>
+        <button class="nav-item" data-view="charts" disabled></button>
+        <button class="nav-item" data-view="wrapped" disabled></button>
+      </div>
+      <div class="nav-spacer"></div>
+      <div class="nav-items">
+        <button class="nav-item" data-view="setup"></button>
+        <button class="nav-item" id="open-settings"></button>
+      </div>
+    </nav>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1 id="view-title">Library</h1>
+          <button class="period-chip" id="period-chip" hidden></button>
+        </div>
+        <div class="topbar-actions" id="topbar-actions"></div>
+      </header>
+      <div class="content" id="content"></div>
+    </main>
+  </div>
+
+  <div class="overlay" id="busy" hidden>
+    <div class="busy-card">
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="busy-text">Working…</p>
+      <button class="btn btn-ghost" id="busy-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <dialog id="settings-dialog" class="dialog" aria-labelledby="settings-title"></dialog>
+  <dialog id="message-dialog" class="dialog dialog-small" aria-labelledby="message-title"></dialog>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</body>
+</html>

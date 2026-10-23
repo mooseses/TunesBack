@@ -3,19 +3,39 @@ on:
   push:
     branches:
       - main
-      - v1.2.0_dev
   pull_request:
     branches:
       - main
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: "3.11"
-  FLET_VERSION: "0.28.3"
+  PYTHON_VERSION: "3.12"
 
 jobs:
+  test:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        run: pip install -e . pytest
+
+      - name: Run tests
+        run: pytest -q
+
   build:
-    name: Build ${{ matrix.platform }}
+    name: Build ${{ matrix.name }}
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -23,70 +43,63 @@ jobs:
           - os: macos-latest
             platform: macos
             name: macOS
-            
           - os: windows-latest
             platform: windows
             name: Windows
-    
     runs-on: ${{ matrix.os }}
-    
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
+      - uses: actions/checkout@v4
+
       - name: Extract version from pyproject.toml
-        id: get_version
         shell: bash
         run: |
-          VERSION=$(grep -m 1 'version = ' pyproject.toml | cut -d'"' -f2)
+          VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d'"' -f2)
           echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
           echo "Building version: $VERSION"
-      
-      - name: Setup Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
+
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      
-      - name: Install Flet
-        run: pip install flet==${{ env.FLET_VERSION }}
-      
-      - name: Build ${{ matrix.name }}
-        run: flet build ${{ matrix.platform }}
+          cache: pip
+
+      - name: Install
+        run: pip install . pyinstaller
+
+      - name: Build app
+        run: pyinstaller packaging/tunesback.spec --noconfirm
         env:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: 1
-      
+
       # ========== macOS: Create DMG ==========
       - name: Create macOS DMG
         if: matrix.platform == 'macos'
         run: |
           brew install create-dmg
-          
-          if [ -d "build/macos/TunesBack.app" ]; then
-            create-dmg \
-              --volname "TunesBack" \
-              --window-pos 200 120 \
-              --window-size 800 400 \
-              --icon-size 100 \
-              --icon "TunesBack.app" 200 190 \
-              --hide-extension "TunesBack.app" \
-              --app-drop-link 600 185 \
-              "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" \
-              "build/macos/TunesBack.app" || true
-            
-            if [ ! -f "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" ]; then
-              echo "create-dmg failed, using hdiutil..."
-              hdiutil create -volname "TunesBack" \
-                -srcfolder "build/macos/TunesBack.app" \
-                -ov -format UDZO \
-                "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg"
-            fi
-          else
-            echo "Error: TunesBack.app not found in build/macos/"
+          DMG="TunesBack-macOS-v${{ env.APP_VERSION }}-arm64.dmg"
+
+          if [ ! -d "dist/TunesBack.app" ]; then
+            echo "Error: TunesBack.app not found in dist/"
             exit 1
           fi
-      
+
+          create-dmg \
+            --volname "TunesBack" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "TunesBack.app" 200 190 \
+            --hide-extension "TunesBack.app" \
+            --app-drop-link 600 185 \
+            "$DMG" \
+            "dist/TunesBack.app" || true
+
+          if [ ! -f "$DMG" ]; then
+            echo "create-dmg failed, using hdiutil..."
+            hdiutil create -volname "TunesBack" -srcfolder "dist/TunesBack.app" -ov -format UDZO "$DMG"
+          fi
+
       # ========== Windows: Create Installer ==========
       - name: Create Windows Installer
         if: matrix.platform == 'windows'
@@ -94,7 +107,7 @@ jobs:
         run: |
           choco install innosetup -y
           Start-Sleep -Seconds 5
-          
+
           $issContent = @"
           [Setup]
           AppName=TunesBack
@@ -103,6 +116,7 @@ jobs:
           DefaultDirName={autopf}\TunesBack
           DefaultGroupName=TunesBack
           UninstallDisplayIcon={app}\tunesback.exe
+          SetupIconFile=packaging\icon.ico
           Compression=lzma2
           SolidCompression=yes
           OutputDir=.
@@ -110,38 +124,36 @@ jobs:
           ArchitecturesAllowed=x64compatible
           ArchitecturesInstallIn64BitMode=x64compatible
           WizardStyle=modern
-          
+
           [Files]
-          Source: "build\windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-          
+          Source: "dist\TunesBack\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
           [Icons]
           Name: "{group}\TunesBack"; Filename: "{app}\tunesback.exe"
           Name: "{autodesktop}\TunesBack"; Filename: "{app}\tunesback.exe"; Tasks: desktopicon
           Name: "{group}\Uninstall TunesBack"; Filename: "{uninstallexe}"
-          
+
           [Tasks]
           Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"
-          
+
           [Run]
           Filename: "{app}\tunesback.exe"; Description: "Launch TunesBack"; Flags: nowait postinstall skipifsilent
           "@
-          
+
           $issContent | Out-File -FilePath "installer.iss" -Encoding ASCII
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"
-      
+
       # ========== Upload Artifacts ==========
       - name: Upload macOS artifact
         if: matrix.platform == 'macos'
         uses: actions/upload-artifact@v4
         with:
-          name: TunesBack-macOS-v${{ env.APP_VERSION }}-Universal
-          path: TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg
-          retention-days: 0
-      
+          name: TunesBack-macOS-v${{ env.APP_VERSION }}-arm64
+          path: TunesBack-macOS-v${{ env.APP_VERSION }}-arm64.dmg
+
       - name: Upload Windows artifact
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v4
         with:
           name: TunesBack-Windows-v${{ env.APP_VERSION }}-x64
           path: TunesBack-Windows-v${{ env.APP_VERSION }}-x64.exe
-          retention-days: 0
