@@ -35,9 +35,13 @@ function save(next) {
 const CELL = 104; // the smallest a cell gets before a column is dropped (px)
 const GAP = 14;
 
-/** Columns and cell size for a grid this wide: at least four columns, so every tile fits. */
+/**
+ * Columns and cell size for a grid this wide: an even number of columns (every tile is two
+ * or four cells wide, so an odd one would always be left empty), and at least four.
+ */
 export function gridFor(width) {
-  const cols = Math.max(4, Math.min(16, Math.floor((width + GAP) / (CELL + GAP))));
+  const fit = Math.floor((width + GAP) / (CELL + GAP));
+  const cols = Math.max(4, Math.min(16, fit - (fit % 2)));
   return { cols, cell: Math.floor((width - GAP * (cols - 1)) / cols) };
 }
 
