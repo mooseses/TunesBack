@@ -23,10 +23,10 @@ public static class Win {
 "@
 [Win]::SetProcessDPIAware() | Out-Null
 
-# Point the app at the test library so the screen has content.
+# Fresh profile, so the app opens on its first-run set-up.
 $config = Join-Path $env:APPDATA "TunesBack"
 New-Item -ItemType Directory -Force -Path $config | Out-Null
-@{ last_folder = (Resolve-Path $Fixtures).Path; debug_logging = $true; theme = "dark" } |
+@{ debug_logging = $true; theme = "dark" } |
     ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $config "settings.json")
 
 function Rect($h) { $r = New-Object Win+RECT; [Win]::GetWindowRect($h, [ref]$r) | Out-Null; $r }

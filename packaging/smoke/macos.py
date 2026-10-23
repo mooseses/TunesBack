@@ -21,8 +21,8 @@ screenshots = len(sys.argv) > 3 and sys.argv[3] == "true"
 
 config = Path.home() / "Library" / "Application Support" / "TunesBack"
 config.mkdir(parents=True, exist_ok=True)
-(config / "settings.json").write_text(json.dumps(
-    {"last_folder": str(Path(fixtures).resolve()), "debug_logging": True, "theme": "dark"}))
+# Fresh profile, so the app opens on its first-run set-up.
+(config / "settings.json").write_text(json.dumps({"debug_logging": True, "theme": "dark"}))
 log = Path.home() / "Library" / "Logs" / "TunesBack" / "tunesback.log"
 
 
