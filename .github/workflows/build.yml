@@ -323,12 +323,12 @@ jobs:
           manifest-path: packaging/linux/io.github.mooseses.tunesback.yml
           cache: false
           upload-artifact: false
-      - name: Run inside the Flatpak
+      - name: Install and run the Flatpak
         run: |
           [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
-          RUN="flatpak-builder --disable-rofiles-fuse --run flatpak_app packaging/linux/io.github.mooseses.tunesback.yml"
-          $RUN tunesback --version
-          $RUN tunesback --selftest /tmp/flatpak-cards.jpg
+          flatpak install --system -y --noninteractive --bundle "$BUNDLE"
+          flatpak run --command=tunesback io.github.mooseses.tunesback --version
+          flatpak run --command=tunesback --filesystem=/tmp io.github.mooseses.tunesback --selftest /tmp/flatpak-cards.jpg
           test -s /tmp/flatpak-cards.jpg
       - uses: actions/upload-artifact@v4
         with:
