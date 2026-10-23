@@ -16,7 +16,7 @@ Each release's section here becomes its notes on GitHub (`packaging/release_note
 - **Services page:** sync status, history imported and recent syncs for your accounts.
 - **Native window styles:** the macOS sidebar and Liquid Glass controls on macOS Tahoe, Mica on Windows 11, a menu bar everywhere (the global menu on KDE Plasma).
 - **Check for updates** from About TunesBack, and once a day on its own (you can turn that off in Settings).
-- **Privacy policy:** TunesBack collects no data.
+- **Privacy policy:** TunesBack collects no data. It lists every online service TunesBack talks to, including GitHub for update checks.
 
 ### Downloads
 

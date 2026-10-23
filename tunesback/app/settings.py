@@ -41,7 +41,10 @@ DEFAULTS = {
     # The Overview's tiles, [{"id", "size"}] in order; None for the standard layout. (Builds before
     # the tile grid saved a row layout as "overview_layout"; unknown keys are dropped on load.)
     "overview_tiles": None,
-    "title_bar_menu": True,  # show the menu bar in TunesBack's title bar (Alt shows it when hidden)
+    "title_bar_menu": True,
+    "update_check": True,  # look for a new version on GitHub once a day
+    "update_last": 0,  # when that last happened (Unix time)
+    "update_skipped": "",  # a release tag you said not to be reminded about  # show the menu bar in TunesBack's title bar (Alt shows it when hidden)
 }
 
 # Feature flags for trying things out and tracking down problems, set in the Dev space.
@@ -161,8 +164,14 @@ class Settings:
                     continue
                 value = int(min(max(value, SIDEBAR_WIDTH[0]), SIDEBAR_WIDTH[1]))
             if key in ("sidebar_hidden", "sync_on_launch", "dev_mode", "age_calculated", "age_cards",
-                       "native_sidebar", "mica", "title_bar_menu"):
+                       "native_sidebar", "mica", "title_bar_menu", "update_check"):
                 value = bool(value)
+            if key == "update_last":
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    continue
+                value = max(0, int(value))
+            if key == "update_skipped":
+                value = str(value)[:60] if value else ""
             if key == "age_overview" and value is not None:
                 value = bool(value)
             if key == "overview_tiles" and value is not None:

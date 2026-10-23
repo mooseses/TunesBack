@@ -824,6 +824,19 @@ h1, h2, h3, p { margin: 0; }
 .about-legal { margin-top: 14px; font-size: 12px; color: var(--faint); line-height: 1.55; }
 .about-buttons { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
 .about-buttons .btn { height: 34px; padding: 0 14px; font-size: 14px; }
+.about-update { margin-top: 14px; font-size: 13px; }
+.about-update:empty { display: none; }
+.update-checking { display: inline-flex; align-items: center; gap: 8px; }
+.update-ok { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.update-ok .icon { width: 15px; height: 15px; color: #22c55e; }
+.update-error { color: var(--danger); }
+.update-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); text-align: left; }
+.update-head { display: flex; flex-direction: column; gap: 2px; }
+.update-head b { font-size: 15px; }
+.update-notes { max-height: 180px; overflow: auto; font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+.update-notes b { color: var(--text); margin-top: 4px; }
+.update-notes p { margin: 0; }
+.update-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .privacy-page { display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
 .privacy-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 12px 12px 12px 14px; border-bottom: 1px solid var(--border); }
 .privacy-head h2 { font-size: 16px; font-weight: 800; outline: none; text-align: center; }

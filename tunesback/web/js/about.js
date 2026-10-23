@@ -11,6 +11,7 @@ export const POLICIES = {
   lastfm: { name: "Last.fm", url: "https://www.last.fm/legal/privacy" },
   listenbrainz: { name: "MetaBrainz", url: "https://metabrainz.org/privacy", covers: "ListenBrainz and the Cover Art Archive" },
   spotify: { name: "Spotify", url: "https://www.spotify.com/legal/privacy-policy/" },
+  github: { name: "GitHub", url: "https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement" },
 };
 const EFFECTIVE = "October 23, 2026";
 
@@ -68,15 +69,78 @@ function aboutPage() {
       h("img.about-icon", { src: "/assets/icon.png", alt: "", width: 128, height: 128 }),
       h("div.about-info",
         h("h2", { id: "about-title", tabindex: "-1", autofocus: true }, "TunesBack"),
-        h("p.about-version", `Version ${state.info?.version ?? ""}`),
+        h("p.about-version", `Version ${state.info?.version_label ?? state.info?.version ?? ""}`),
         h("p.about-desc", "Year-in-review statistics for your music library."),
         h("p.about-promise", icon("shield"), h("span", h("b", "Collects no data."), " Your music and listening history stay on this computer.")),
         h("p.about-legal", "© Peter Jin and contributors", h("br"), "Free software under the GNU General Public License v3"),
         h("div.about-buttons",
+          h("button.btn", { onclick: (e) => checkForUpdates(e.currentTarget) }, "Check for Updates…"),
           h("button.btn", { onclick: () => show(privacyPage({ back: true }), "forward") }, "Privacy Policy"),
           h("button.btn", {
             onclick: () => (state.info?.desktop ? call("open_website") : window.open(WEBSITE, "_blank", "noreferrer")),
-          }, "Website", icon("external"))))));
+          }, "Website", icon("external"))),
+        h("div.about-update", { "aria-live": "polite" }))));
+}
+
+// ---------- updates ----------
+
+/** Check now, from About (or the menu), and say what was found under the buttons. */
+export async function checkForUpdates(button = null) {
+  if (!dialog().open) openAbout();
+  const out = dialog().querySelector(".about-update");
+  if (!out) return;
+  if (button) button.disabled = true;
+  out.replaceChildren(h("span.muted.update-checking", h("span.spinner.small"), "Checking GitHub…"));
+  const result = await call("check_updates");
+  if (button) button.disabled = false;
+  if (result.error) {
+    out.replaceChildren(h("span.update-error", result.error));
+  } else if (!result.available) {
+    out.replaceChildren(h("span.update-ok", icon("check"), `You're up to date. ${state.info?.version_label ?? ""} is the newest version.`));
+  } else {
+    out.replaceChildren(updateCard(result));
+  }
+}
+
+/** Open About on the update found by the start-up check. */
+export function showUpdate(result) {
+  openAbout();
+  dialog().querySelector(".about-update")?.replaceChildren(updateCard(result, { skippable: true }));
+}
+
+/** What's new, and where to get it. */
+export function updateCard(result, { skippable = false } = {}) {
+  const published = result.published ? new Date(result.published).toLocaleDateString(undefined, { dateStyle: "medium" }) : "";
+  return h("div.update-card",
+    h("div.update-head",
+      h("b", `TunesBack ${result.version} is available`),
+      h("small.muted", [result.prerelease ? "Beta" : "", published].filter(Boolean).join(" · "))),
+    result.notes && h("div.update-notes", notesLines(result.notes)),
+    h("div.update-actions",
+      result.download && h("button.btn.btn-primary", { onclick: () => openLink(result.download) }, icon("download"), "Download"),
+      h(`button.btn${result.download ? "" : ".btn-primary"}`, { onclick: () => openLink(result.url) }, "Release notes", icon("external")),
+      skippable && result.tag && h("button.btn.btn-ghost", {
+        onclick: (e) => {
+          call("update_settings", { changes: { update_skipped: result.tag } });
+          e.currentTarget.closest(".update-card").replaceChildren(h("span.muted", `TunesBack won't remind you about ${result.version}.`));
+        },
+      }, "Skip this version")));
+}
+
+/** Release notes are Markdown: headings and list items get their own lines, the rest stays text. */
+function notesLines(text) {
+  const plain = (s) => s.replace(/\*\*|__|`/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+  return text.split("\n").filter((line) => line.trim()).map((line) => {
+    const heading = line.match(/^#{1,6}\s+(.*)/);
+    if (heading) return h("b", plain(heading[1]));
+    const item = line.match(/^\s*[-*]\s+(.*)/);
+    return h("p", item ? `• ${plain(item[1])}` : plain(line));
+  });
+}
+
+function openLink(url) {
+  if (state.info?.desktop) call("open_url", { url });
+  else window.open(url, "_blank", "noreferrer");
 }
 
 function privacyPage({ back }) {
@@ -112,11 +176,13 @@ export function privacyPolicy() {
       "TunesBack goes online only when you use a feature that needs to:",
       h("ul",
         h("li", h("b", "Last.fm"), ": to read your scrobbles with the user name (and API key) you give it, and to fetch album covers."),
-        h("li", h("b", "ListenBrainz"), ": to read your listens, with album covers from the Cover Art Archive.")),
+        h("li", h("b", "ListenBrainz"), ": to read your listens, with album covers from the Cover Art Archive."),
+        h("li", h("b", "GitHub"), ": to see whether there's a newer TunesBack, once a day and when you press Check for Updates. "
+          + "Nothing about you is sent; turn the daily check off in Settings.")),
       h("p", "These requests go straight from your computer to those services. Like any website, they can see things such as your IP address "
         + "and what was asked for, and their own privacy policies decide what happens next. ",
       h("b", "TunesBack can't control what they collect"), ", so please read their policies before you connect:"),
-      h("ul.privacy-links", link("lastfm"), link("listenbrainz"), link("spotify")),
+      h("ul.privacy-links", link("lastfm"), link("listenbrainz"), link("spotify"), link("github")),
       h("p.muted", "Spotify is different: TunesBack never connects to it, and only reads the download you choose. "
         + "Spotify's policy covers what it keeps and what it put in that download.")),
     section("Sharing is your call",

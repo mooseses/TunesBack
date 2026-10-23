@@ -60,6 +60,7 @@ MENU: list[tuple[str, list[Entry]]] = [
         Item("open_logs", "Open Log Folder"),
         Item("website", "TunesBack on GitHub"),
         SEPARATOR,
+        Item("check_updates", "Check for Updates…"),
         Item("about", "About TunesBack"),
     ]),
 ]

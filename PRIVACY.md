@@ -20,12 +20,14 @@ TunesBack goes online only when you use a feature that needs to:
 
 - **Last.fm**: to read your scrobbles with the user name (and API key) you give it, and to fetch album covers.
 - **ListenBrainz**: to read your listens, with album covers from the Cover Art Archive.
+- **GitHub**: to see whether there's a newer TunesBack, once a day and when you press Check for Updates. Nothing about you is sent; turn the daily check off in Settings.
 
 These requests go straight from your computer to those services. Like any website, they can see things such as your IP address and what was asked for, and their own privacy policies decide what happens next. **TunesBack can't control what they collect**, so please read their policies before you connect:
 
 - [Last.fm Privacy Policy](https://www.last.fm/legal/privacy)
 - [MetaBrainz Privacy Policy](https://metabrainz.org/privacy) (ListenBrainz and the Cover Art Archive)
 - [Spotify Privacy Policy](https://www.spotify.com/legal/privacy-policy/)
+- [GitHub General Privacy Statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement) (update checks)
 
 Spotify is different: TunesBack never connects to it, and only reads the download you choose. Spotify's policy covers what it keeps and what it put in that download.
 

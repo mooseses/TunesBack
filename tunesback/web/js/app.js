@@ -1,6 +1,6 @@
 import { call, setCardFlags } from "./api.js";
 import { h, icon, number, segmented, shortDate, showMessage, toast } from "./util.js";
-import { openAbout } from "./about.js";
+import { checkForUpdates, openAbout, showUpdate } from "./about.js";
 import { initSidebar, setNativeSidebar, toggleSidebar } from "./sidebar.js";
 import { initWindow, setTitleBarMenu } from "./window.js";
 import * as setup from "./views/setup.js";
@@ -238,6 +238,7 @@ export function openSettings() {
           onchange: (e) => { saveSettings({ title_bar_menu: e.target.checked }); setTitleBarMenu(e.target.checked); } })),
       toggle("show_art", "Album artwork in lists", "Read from your music files. Can be slow on network drives."),
       toggle("sync_on_launch", "Check for new listens on start-up", "Fetches from Last.fm and ListenBrainz each time TunesBack opens."),
+      toggle("update_check", "Check for updates automatically", "Asks GitHub once a day whether there's a newer TunesBack. Like any website, GitHub sees your IP address."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Set-up"),
         h("div.desc", "Go through the welcome steps again, for example to add another source.")),
         h("button.btn", { onclick: () => { dialog.close(); openSetup({ start: "welcome", cancellable: true }); } }, "Run set-up")),
@@ -323,6 +324,7 @@ export function runCommand(id) {
       else window.open("https://github.com/mooseses/TunesBack", "_blank", "noreferrer");
       break;
     case "about": openAbout(); break;
+    case "check_updates": checkForUpdates(); break;
   }
 }
 
@@ -438,6 +440,15 @@ async function init() {
   }
   await showLibrary({ recap: true });
   syncInBackground();
+  checkUpdatesInBackground();
+}
+
+/** Once a day (if turned on): say so when there's a newer TunesBack on GitHub. */
+async function checkUpdatesInBackground() {
+  const result = await call("check_updates", { automatic: true });
+  if (result.available) {
+    toast(`TunesBack ${result.version} is available`, { action: { label: "What's new", run: () => showUpdate(result) } });
+  }
 }
 
 /** Fetch new listens from online accounts after start-up, without holding anything up. */

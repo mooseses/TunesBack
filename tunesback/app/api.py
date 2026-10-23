@@ -22,7 +22,8 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import urlsplit
 
-from .. import __version__
+from .. import __version__, updates
+from ..version import parse as parse_version
 from ..art import artwork
 from ..art.artwork import ThumbnailCache
 from ..cards import CardChoice, CardData, build_data, catalog, draw, normalize, plan, resolve_theme
@@ -48,6 +49,12 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 WEBSITE = "https://github.com/mooseses/TunesBack"
+
+
+def version_label() -> str:
+    """For people: "2.0.0 Beta 1"."""
+    version = parse_version(__version__)
+    return version.display() if version else __version__
 
 
 def relaunch_command() -> list[str]:
@@ -98,7 +105,7 @@ class Api:
         "catalog", "discover", "add_library", "import_exports", "refresh_readings", "library", "remove_library",
         "add_account", "import_history", "sync_sources", "set_lastfm_key",
         "dev_info", "dev_log", "dry_run_sync", "reset_sync", "forget_plays", "clear_caches",
-        "window_set_controls_visible", "window_sidebar", "window_toggle_sidebar", "window_theme_changed", "reset_all",
+        "window_set_controls_visible", "window_sidebar", "window_toggle_sidebar", "window_theme_changed", "reset_all", "check_updates",
         "analyze", "artwork", "card_options", "cards", "save_cards", "restart",
         "window_info", "window_minimize", "window_toggle_maximize", "window_close",
         "window_start_move", "window_start_resize",
@@ -130,6 +137,7 @@ class Api:
     def state(self) -> dict:
         return {
             "version": __version__,
+            "version_label": version_label(),
             "platform": platform.system(),
             "desktop": self.window is not None,
             "window": self.window.info() if self.window else None,
@@ -758,6 +766,25 @@ class Api:
             self.window.set_theme(self.settings["theme"])
         log.info("Reset all settings%s", " and forgot the library" if forget_library else "")
         return {"ok": True}
+
+    UPDATE_EVERY = 20 * 3600  # automatic checks: about once a day
+
+    def check_updates(self, automatic: bool = False) -> dict:
+        """Ask GitHub for a newer release. Automatic checks (on start-up) happen at most once a
+        day, only when turned on, keep quiet about errors and about a release you skipped."""
+        if automatic and (not self.settings["update_check"]
+                          or time.time() - self.settings["update_last"] < self.UPDATE_EVERY):
+            return {"checked": False}
+        try:
+            result = updates.check()
+        except SourceError as e:
+            log.info("Update check: %s", e)
+            return {"checked": False} if automatic else {"error": str(e)}
+        self.settings.update({"update_last": time.time()})
+        log.info("Update check: %s", f"{result['version']} available" if result["available"] else "up to date")
+        if automatic and result.get("tag") and result["tag"] == self.settings["update_skipped"]:
+            return {"checked": True, **result, "available": False}
+        return {"checked": True, **result}
 
     def window_theme_changed(self) -> dict:
         """The system switched between light and dark (matters while the theme is "system")."""
