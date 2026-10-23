@@ -295,8 +295,12 @@ jobs:
           tunesback --selftest cards.jpg
           test -s cards.jpg
           ls /usr/share/applications/io.github.mooseses.tunesback.desktop /usr/share/metainfo/io.github.mooseses.tunesback.metainfo.xml
+      # Fails on a missing library, except PulseAudio's: only Qt Multimedia and text to
+      # speech use it, and TunesBack loads neither.
       - name: Libraries the system doesn't have
-        run: sh ldd-scan.sh /opt/tunesback
+        run: |
+          sh ldd-scan.sh /opt/tunesback | tee missing.txt
+          if grep -v 'libpulse' missing.txt; then echo "::error::The package needs libraries it doesn't depend on"; exit 1; fi
 
   flatpak:
     name: Flatpak

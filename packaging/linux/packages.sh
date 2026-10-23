@@ -48,16 +48,18 @@ fpm "${COMMON[@]}" -t deb -v "$V_DEB" -a amd64 --category sound -p "$OUT/$BASE.d
   -d libxcb-keysyms1 -d libxcb-randr0 -d libxcb-render-util0 -d libxcb-shape0 -d libxcb-xinerama0 \
   -d libxcb-xkb1 -d libnss3 -d libxcomposite1 -d libxdamage1 -d libxrandr2 -d libxtst6 -d libxkbfile1 \
   -d "libasound2t64 | libasound2" -d libdbus-1-3 \
+  -d libwayland-client0 -d libwayland-cursor0 -d libwayland-egl1 -d libwayland-server0 \
   opt usr
 fpm "${COMMON[@]}" -t rpm -v "$V_RPM" -a x86_64 --rpm-os linux -p "$OUT/$BASE.rpm" \
   -d mesa-libEGL -d mesa-libGL -d libxkbcommon-x11 -d xcb-util-cursor -d xcb-util-wm -d xcb-util-image \
   -d xcb-util-keysyms -d xcb-util-renderutil -d nss -d libXcomposite -d libXdamage -d libXrandr -d libXtst \
   -d libxkbfile -d alsa-lib -d dbus-libs \
+  -d libwayland-client -d libwayland-cursor -d libwayland-egl -d libwayland-server \
   opt usr
 fpm "${COMMON[@]}" -t pacman -v "$V_PACMAN" -a x86_64 --pacman-compression zstd -p "$OUT/$BASE.pkg.tar.zst" \
   -d libglvnd -d libxkbcommon-x11 -d xcb-util-cursor -d xcb-util-wm -d xcb-util-image -d xcb-util-keysyms \
   -d xcb-util-renderutil -d nss -d libxcomposite -d libxdamage -d libxrandr -d libxtst -d libxkbfile \
-  -d alsa-lib -d dbus \
+  -d alsa-lib -d dbus -d wayland \
   opt usr
 
 # ---------- AppImage ----------
