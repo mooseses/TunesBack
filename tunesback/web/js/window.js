@@ -54,6 +54,8 @@ export function initWindow(windowInfo, appHooks) {
 function applyWindow() {
   const custom = !!(info && info.custom_title_bar);
   document.documentElement.classList.toggle("material-mica", !!info && info.material === "mica");
+  // With the native macOS sidebar, the page's controls take on Liquid Glass to match it.
+  document.documentElement.classList.toggle("material-glass", !!info && info.platform === "macos" && info.sidebar === "native");
   document.body.classList.toggle("custom-titlebar", custom && info.platform !== "macos");
   document.body.classList.toggle("mac-inset-titlebar", custom && info.platform === "macos");
   document.body.classList.toggle("maximized", !!(info && info.maximized));

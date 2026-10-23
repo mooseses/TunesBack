@@ -245,7 +245,7 @@ export function openSettings() {
       toggle("dev_mode", "Dev space", "Adds a page with dry runs, feature flags and diagnostics to the sidebar."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Log files"), h("div.desc", state.info.log_dir)),
         h("button.btn", { onclick: async () => { const r = await call("open_logs"); if (r.error) toast(r.error, { error: true }); } }, "Open folder")),
-      h("div.about", h("span", `TunesBack ${state.info.version}`),
+      h("div.about", h("span", `TunesBack ${state.info.version_label ?? state.info.version}`),
         h("button.btn.btn-ghost.btn-small", { onclick: () => { dialog.close(); openAbout(); } }, "About TunesBack")),
     ),
   );

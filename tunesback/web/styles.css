@@ -996,3 +996,107 @@ body[data-platform="windows"] .nav-item.active::before {
 .dev-danger .dev-check { margin-top: 8px; font-size: 13px; color: var(--muted); }
 .btn-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
 .btn-danger:hover:not(:disabled) { background: rgba(198, 40, 40, 0.1); }
+
+/* ---------- Liquid Glass controls (macOS, with the native sidebar) ----------
+   AppKit draws the real material; the page's controls follow its look: translucent
+   capsules over a blurred backdrop, a bright rim along the top edge, soft depth, and
+   a glass lens that slides between the options of a segmented control. */
+:root.material-glass {
+  --glass-fill: rgba(255, 255, 255, 0.58);
+  --glass-fill-hover: rgba(255, 255, 255, 0.78);
+  --glass-rim: rgba(255, 255, 255, 0.9);
+  --glass-edge: rgba(0, 0, 0, 0.08);
+  --glass-depth: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 14px rgba(0, 0, 0, 0.07);
+  --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%);
+  --glass-track: rgba(120, 120, 128, 0.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root.material-glass:not([data-theme="light"]) {
+    --glass-fill: rgba(255, 255, 255, 0.08);
+    --glass-fill-hover: rgba(255, 255, 255, 0.14);
+    --glass-rim: rgba(255, 255, 255, 0.22);
+    --glass-edge: rgba(255, 255, 255, 0.06);
+    --glass-depth: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.28);
+    --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 55%);
+    --glass-track: rgba(120, 120, 128, 0.28);
+  }
+}
+:root.material-glass[data-theme="dark"] {
+  --glass-fill: rgba(255, 255, 255, 0.08);
+  --glass-fill-hover: rgba(255, 255, 255, 0.14);
+  --glass-rim: rgba(255, 255, 255, 0.22);
+  --glass-edge: rgba(255, 255, 255, 0.06);
+  --glass-depth: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.28);
+  --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 55%);
+  --glass-track: rgba(120, 120, 128, 0.28);
+}
+
+.material-glass .btn,
+.material-glass .period-chip,
+.material-glass .segmented,
+.material-glass .input,
+.material-glass .select {
+  background: var(--glass-sheen), var(--glass-fill);
+  border: 0.5px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-rim), inset 0 0 0 0.5px var(--glass-edge), var(--glass-depth);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
+}
+.material-glass .btn,
+.material-glass .period-chip,
+.material-glass .segmented { border-radius: 999px; }
+.material-glass .input, .material-glass .select { border-radius: 12px; }
+.material-glass .btn { transition: background 160ms ease, box-shadow 160ms ease, transform 160ms cubic-bezier(0.3, 0.7, 0.2, 1); }
+.material-glass .btn:hover:not(:disabled),
+.material-glass .period-chip:hover { background: var(--glass-sheen), var(--glass-fill-hover); }
+.material-glass .btn:active:not(:disabled) { transform: scale(0.96); }
+
+/* Tinted glass for the main action */
+.material-glass .btn-primary {
+  background: var(--glass-sheen), var(--accent);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 2px rgba(0, 0, 0, 0.1), 0 6px 16px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.material-glass .btn-primary:hover:not(:disabled) { background: var(--glass-sheen), var(--accent); filter: brightness(1.07); }
+.material-glass .btn-danger { color: var(--danger); }
+
+/* Ghost buttons stay bare until you point at them */
+.material-glass .btn-ghost { background: none; border-color: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.material-glass .btn-ghost:hover:not(:disabled) { background: var(--glass-sheen), var(--glass-fill); box-shadow: inset 0 1px 0 var(--glass-rim), var(--glass-depth); }
+
+/* Segmented controls: a sunken track and a glass lens over the chosen option */
+.material-glass .segmented { background: var(--glass-track); box-shadow: inset 0 0.5px 1px rgba(0, 0, 0, 0.08); -webkit-backdrop-filter: none; backdrop-filter: none; padding: 3px; }
+.material-glass .segmented button { border-radius: 999px; }
+.material-glass .segmented-indicator {
+  border-radius: 999px;
+  background: var(--glass-sheen), var(--glass-fill-hover);
+  box-shadow: inset 0 1px 0 var(--glass-rim), inset 0 0 0 0.5px var(--glass-edge), 0 1px 2px rgba(0, 0, 0, 0.12), 0 3px 10px rgba(0, 0, 0, 0.1);
+}
+.material-glass .segmented.animate .segmented-indicator {
+  transition: transform 300ms cubic-bezier(0.25, 1.3, 0.4, 1), width 300ms cubic-bezier(0.25, 1.3, 0.4, 1);
+}
+
+/* Switches: a wider track and a capsule knob, as on macOS Tahoe */
+.material-glass .switch input { width: 46px; height: 26px; background: var(--glass-track); box-shadow: inset 0 0.5px 1.5px rgba(0, 0, 0, 0.12); }
+.material-glass .switch input::after {
+  top: 3px; left: 3px; width: 26px; height: 20px; border-radius: 999px;
+  background: linear-gradient(180deg, #fff, #f4f4f6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12);
+  transition: transform 260ms cubic-bezier(0.25, 1.3, 0.4, 1), width 160ms ease;
+}
+.material-glass .switch input:active::after { width: 30px; }
+.material-glass .switch input:checked { background: var(--accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.material-glass .switch input:checked::after { transform: translateX(14px); }
+.material-glass .switch input:checked:active::after { transform: translateX(10px); }
+
+/* The edit toolbar on Overview tiles, and other small floating bars */
+.material-glass .widget-edit {
+  border-radius: 999px; background: var(--glass-sheen), var(--glass-fill-hover);
+  box-shadow: inset 0 1px 0 var(--glass-rim), inset 0 0 0 0.5px var(--glass-edge), var(--glass-depth);
+  -webkit-backdrop-filter: blur(16px) saturate(180%); backdrop-filter: blur(16px) saturate(180%);
+}
+.material-glass .widget-sizes button, .material-glass .widget-remove { border-radius: 999px; }
+
+@media (prefers-reduced-transparency: reduce) {
+  .material-glass .btn, .material-glass .period-chip, .material-glass .widget-edit { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}

@@ -67,6 +67,8 @@ export function render(root) {
     grid.append(card);
   }
   root.append(grid, live);
+  sizeWatch.disconnect();
+  sizeWatch.observe(grid);
   if (editing) root.prepend(editBar());
   // Spans before the first paint (from the page's width), then again once the grid is in place.
   const content = document.getElementById("content");
@@ -107,14 +109,15 @@ function contentHeight(card) {
   return bottom + parseFloat(style.paddingBottom) + parseFloat(style.borderBottomWidth);
 }
 
-let resizeTimer = null;
+// The grid's width changes with the window and with the sidebar (shown, hidden or resized).
 let lastWidth = 0;
-window.addEventListener("resize", () => {
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => {
-    const grid = document.querySelector(".widgets");
-    if (grid && grid.clientWidth !== lastWidth) relayout(grid);
-  }, 60);
+let resizeFrame = 0;
+const sizeWatch = new ResizeObserver(([entry]) => {
+  cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => {
+    const grid = entry.target;
+    if (grid.isConnected && grid.clientWidth !== lastWidth) relayout(grid);
+  });
 });
 
 // ---------- smooth changes ----------
