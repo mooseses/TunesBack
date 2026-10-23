@@ -1,5 +1,6 @@
 import { call, setCardFlags } from "./api.js";
 import { h, icon, number, segmented, shortDate, showMessage, toast } from "./util.js";
+import { openAbout } from "./about.js";
 import { initSidebar, toggleSidebar } from "./sidebar.js";
 import { initWindow } from "./window.js";
 import * as setup from "./views/setup.js";
@@ -167,6 +168,14 @@ export function saveSettings(changes) {
   }, 250);
 }
 
+/** Save now and wait for it, for changes the server needs before the next request (e.g. what goes in the deck). */
+export async function saveSettingsNow(changes) {
+  Object.assign(state.settings, changes);
+  const result = await call("update_settings", { changes });
+  if (result.error) toast(result.error, { error: true });
+  return result;
+}
+
 function applyTheme() {
   const theme = state.settings.theme;
   if (theme === "system") document.documentElement.removeAttribute("data-theme");
@@ -202,8 +211,8 @@ export function openSettings() {
       toggle("dev_mode", "Dev space", "Adds a page with dry runs, feature flags and diagnostics to the sidebar."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Log files"), h("div.desc", state.info.log_dir)),
         h("button.btn", { onclick: async () => { const r = await call("open_logs"); if (r.error) toast(r.error, { error: true }); } }, "Open folder")),
-      h("div.about", `TunesBack ${state.info.version} · `,
-        h("a", { href: "https://github.com/mooseses/TunesBack", target: "_blank", rel: "noreferrer", style: { color: "inherit" } }, "github.com/mooseses/TunesBack")),
+      h("div.about", h("span", `TunesBack ${state.info.version}`),
+        h("button.btn.btn-ghost.btn-small", { onclick: () => { dialog.close(); openAbout(); } }, "About TunesBack")),
     ),
   );
   dialog.showModal();
@@ -258,9 +267,7 @@ export function runCommand(id) {
       if (state.info.desktop) call("open_website");
       else window.open("https://github.com/mooseses/TunesBack", "_blank", "noreferrer");
       break;
-    case "about":
-      showMessage("About TunesBack", `Version ${state.info.version}. Year-in-review statistics for your music library.`);
-      break;
+    case "about": openAbout(); break;
   }
 }
 

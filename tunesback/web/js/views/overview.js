@@ -1,5 +1,5 @@
-import { navigate, state } from "../app.js";
-import { duration, h, icon, number, plural, unitInfo } from "../util.js";
+import { navigate, reducedMotion, render as renderApp, saveSettingsNow, state } from "../app.js";
+import { duration, h, icon, number, plural, toast, unitInfo } from "../util.js";
 import { artBox, rankedCached } from "./shared.js";
 
 export function render(root) {
@@ -179,11 +179,41 @@ function decades(report, by) {
       : h("p.muted", "None of the songs played in this period have a release year."));
 }
 
+// Listening age is opt-in: a greyed teaser until it's been worked out on its own
+// page, then shown here only if you say so.
 function listeningAge(report) {
   const age = report.listening_age;
-  return h("div.card",
+  const { age_calculated: calculated, age_overview: onOverview } = state.settings;
+  if (!calculated) {
+    return h("div.card.age-locked",
+      h("div.card-title", "Listening age", h("span.age-lock", icon("age"), "Not worked out yet")),
+      h("div.age",
+        h("div.big", { "aria-hidden": "true" }, "??"),
+        h("div",
+          h("div", { style: { fontWeight: 700, fontSize: "17px" } }, "How old is your taste?"),
+          h("p.muted", { style: { fontSize: "14px", margin: "4px 0 12px" } },
+            "Find the era of music you keep coming back to, on its own page."),
+          h("button.btn.btn-small", { onclick: () => navigate("age") }, "Work it out", icon("arrow")))));
+  }
+  if (onOverview === false) return null;
+  if (onOverview == null) {
+    const card = h("div.card.age-ask",
+      h("div.card-title", "Listening age"),
+      h("p", { style: { margin: "0 0 4px", fontWeight: 600 } }, "Show your listening age on the Overview?"),
+      h("p.muted", { style: { fontSize: "14px", margin: "0 0 14px" } }, "You can change your mind on the Listening age page."),
+      h("div.age-ask-actions",
+        h("button.btn.btn-primary.btn-small", { onclick: () => chooseAge(card, true) }, "Show it here"),
+        h("button.btn.btn-ghost.btn-small", { onclick: () => chooseAge(card, false) }, "Not on the Overview")));
+    return card;
+  }
+  const pop = ageJustShown;
+  ageJustShown = false;
+  return h(`div.card.age-card${pop ? ".pop" : ""}`,
     h("div.card-title", "Listening age",
-      age && h("button.btn.btn-ghost.btn-small", { onclick: () => navigate("age") }, "See how", icon("arrow"))),
+      h("div.age-card-actions",
+        h("button.btn.btn-ghost.btn-small", { title: "Hide from the Overview", "aria-label": "Hide from the Overview",
+          onclick: (e) => chooseAge(e.currentTarget.closest(".card"), false) }, icon("hidden")),
+        age && h("button.btn.btn-ghost.btn-small", { onclick: () => navigate("age") }, "See how", icon("arrow")))),
     age ? h("div.age",
       h("div.big", age.age),
       h("div",
@@ -192,4 +222,21 @@ function listeningAge(report) {
           `You played the most music released between ${age.era_start} and ${age.era_end}. `
           + "Your listening age is how old you'd be if you were 18 in the middle of that era.")))
       : h("p.muted", "Needs release years on the songs you played."));
+}
+
+let ageJustShown = false; // pop the card in once after "Show it here"
+
+/** Keep or drop the card, letting it pop in or fold away instead of jumping. */
+async function chooseAge(card, show) {
+  let finished = false;
+  const done = () => { if (!finished) { finished = true; renderApp(); } };
+  saveSettingsNow({ age_overview: show });
+  ageJustShown = show;
+  if (show || reducedMotion()) return done();
+  card.style.height = `${card.offsetHeight}px`;
+  card.classList.add("folding");
+  card.addEventListener("transitionend", done, { once: true });
+  setTimeout(done, 400); // in case the transition doesn't run
+  requestAnimationFrame(() => { card.style.height = "0px"; });
+  toast("Hidden from the Overview", { action: { label: "Undo", run: () => { saveSettingsNow({ age_overview: true }); renderApp(); } } });
 }

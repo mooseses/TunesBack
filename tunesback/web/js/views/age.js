@@ -2,7 +2,7 @@
 // five-year window across the release years you played until it lands on your
 // era, counting the age as it goes.
 
-import { navigate, reducedMotion, state } from "../app.js";
+import { navigate, reducedMotion, saveSettingsNow, state } from "../app.js";
 import { h, icon, number } from "../util.js";
 import { editCard } from "./wrapped.js";
 
@@ -26,10 +26,11 @@ export function render(root) {
   if (shownFor !== report) {
     root.append(intro(() => {
       shownFor = report;
+      if (!state.settings.age_calculated) saveSettingsNow({ age_calculated: true });
       const stage = result(report, data);
       root.replaceChildren(stage);
       play(stage, report, data);
-    }));
+    }), methodology());
     return;
   }
   root.append(result(report, data));
@@ -94,12 +95,67 @@ function result(report, data) {
       fact("Share of your plays", `${pct}%`, "came out in those five years"),
       fact("Most played year", String(data.peak), `${number(data.counts.get(data.peak) || 0)} plays`),
       fact("Musically born in", String(born), `18 in ${born + FORMATIVE_AGE}, the middle of your era`)),
-    h("div.age-explain",
-      h("p.muted", `Your listening age is ${age.age}: in ${reference(report)}, someone who was 18 in ${born + FORMATIVE_AGE} is ${age.age}. `
-        + "Songs without a release year don't count."),
-      h("div.age-actions",
-        h("button.btn", { onclick: (e) => replay(e.target.closest(".age-stage"), report, data) }, icon("refresh"), "Replay"),
-        h("button.btn.btn-primary", { onclick: () => { navigate("wrapped"); editCard("listening_age"); } }, icon("wrapped"), "Make a card"))));
+    choices(report, data),
+    methodology(report, data));
+}
+
+/** Where else the age may appear: nowhere until you say so. */
+function choices(report, data) {
+  const s = state.settings;
+  const toggle = (key, title, desc, after) => h("label.switch.setting",
+    h("div", h("div", { style: { fontWeight: 600 } }, title), h("div.desc", desc)),
+    h("input", {
+      type: "checkbox", role: "switch", checked: s[key] === true,
+      onchange: async (e) => { await saveSettingsNow({ [key]: e.target.checked }); after?.(); },
+    }));
+  return h("div.card.age-choices",
+    h("div.card-title", "Use your listening age", h("span.muted", "only where you want it")),
+    toggle("age_overview", "Show on the Overview", "A card with your age and era, next to Genres."),
+    toggle("age_cards", "Listening age cards in Wrapped", "Two designs to share: Big number and Timeline.",
+      () => { state.deck = null; }),
+    h("div.age-actions",
+      h("button.btn", { onclick: (e) => replay(e.target.closest(".age-stage"), report, data) }, icon("refresh"), "Replay"),
+      h("button.btn.btn-primary", {
+        onclick: async () => {
+          if (!state.settings.age_cards) await saveSettingsNow({ age_cards: true });
+          state.deck = null;
+          navigate("wrapped");
+          editCard("listening_age");
+        },
+      }, icon("wrapped"), "Make a card")));
+}
+
+/** How the number comes about, with your own numbers once it's been worked out. */
+function methodology(report = null, data = null) {
+  const age = report?.listening_age;
+  let examples = [];
+  if (age && data) {
+    const years = [...data.counts.keys()];
+    const windows = years.length ? Math.max(...years) - Math.min(...years) + 1 : 0;
+    const middle = age.era_start + Math.floor(WINDOW / 2);
+    const pct = data.total ? Math.round((data.inEra / data.total) * 100) : 0;
+    examples = [
+      `You: ${number(data.total)} plays across ${data.counts.size} release years`,
+      `You: ${number(windows)} windows, from ${Math.min(...years)} onwards`,
+      `You: ${age.era_start}–${age.era_end}, with ${pct}% of those plays`,
+      `You: ${reference(report)} − (${middle} − ${FORMATIVE_AGE}) = ${age.age}`,
+    ];
+  }
+  const steps = [
+    ["Count your plays by release year", "Every play of a song counts toward the year it came out. Songs without a release year are left out."],
+    ["Slide a five-year window", "A five-year window moves along those years one year at a time, adding up the plays inside it."],
+    ["Find the busiest five years", "The window with the most plays is your era. If two windows tie, the earlier one wins."],
+    ["Work out the age", "The middle year of your era is when you'd have been 18. Your listening age is how old that person is in the last year of the recap."],
+  ];
+  return h("div.card.age-method",
+    h("div.card-title", "How it's calculated"),
+    h("p.muted.age-method-lead", "Psychologists call it the reminiscence bump: the music of our teens and early twenties stays with us more than any other. "
+      + "Listening age runs that backwards. From the music you play, it guesses when you were 18."),
+    h("ol.age-steps", steps.map(([title, text], i) => h("li",
+      h("span.age-step-num", i + 1),
+      h("div", h("b", title), h("p.muted", text), examples[i] && h("div.age-step-example", examples[i]))))),
+    h("p.hint", "Only the recap's period counts, and re-releases and compilations count in the year of the copy you played. "
+      + "It's a bit of fun, not a diagnosis."));
 }
 
 function fact(label, value, note) {

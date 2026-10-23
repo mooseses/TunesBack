@@ -1,6 +1,15 @@
 # Research and plan: a native sidebar on Windows and macOS
 
-Status: research done, proposal.
+Status: decided (October 23, 2026). Windows: a Fluent-styled HTML sidebar on Mica, gated on a
+prototype. macOS: a real AppKit sidebar, aiming at Tahoe's floating Liquid Glass.
+
+## Decisions
+
+1. **macOS: the Tahoe floating glass sidebar is the target.** That means option A below (a real
+   `NSSplitViewController` sidebar), no longer just an experiment. It's built behind a Dev space
+   flag first, then becomes the default on macOS once it holds up on 15 and 26.
+2. **Windows: a Fluent-styled HTML sidebar on Mica comes first** (option C). The scope comparison
+   below explains why. A native WinUI sidebar is reconsidered only if the Mica prototype fails.
 
 ## The question
 
@@ -92,23 +101,46 @@ Windows 7-era look, a step down from the current sidebar. **No.**
 `WM_NCHITTEST` with `HTMAXBUTTON` over that button (in the form's `WndProc`)
 brings it back.
 
+## Windows: native WinUI versus Fluent HTML on Mica
+
+Both put Mica behind the sidebar. The difference is who draws the sidebar itself.
+
+| | Truly native (WinUI 3 `NavigationView`) | Fluent-styled HTML on Mica |
+|---|---|---|
+| What gets built | Either a WinUI island (`DesktopWindowXamlSource`) inside today's WinForms window, or a second window backend: a WinUI 3 window holding its own WebView2, with title bar, drag, resize, menus and file dialogs reimplemented | One window attribute (`DWMWA_SYSTEMBACKDROP_TYPE`), the frame extended into the client area, a transparent WebView2 background, and CSS for the sidebar |
+| New dependencies | The Windows App Runtime, installed separately or bundled self-contained, plus PyWinRT's `winui3-*` packages | None |
+| Python support | PyWinRT's WinUI 3 bindings are community-maintained. Unpackaged apps must call the bootstrapper at start-up, and that call fails on Microsoft Store Python ([PyWinRT docs](https://pywinrt.readthedocs.io/en/stable/api/winui3/index.html)) | Plain `ctypes` calls, the same way the custom title bar already reaches past pywebview |
+| Known risks | XAML Islands were tested only with C++ apps when they arrived in Windows App SDK 1.4 ([release notes](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/release-notes/windows-app-sdk-1-4)). Focus and keyboard routing between the island and WebView2. PyInstaller packaging of the runtime | Whether Mica shows through a transparent WebView2 in our borderless form. Community reports go both ways: it works when the frame is extended with margins of -1 and the client area painted black, and fails without that. That's what the prototype settles |
+| Windows versions | Windows 10 1809+ for WinUI; Mica on 11 only | Mica on Windows 11 22H2+; earlier versions keep today's solid sidebar |
+| Linux and macOS | Windows-only code, a third sidebar to keep in step | The same HTML sidebar everywhere, restyled per platform |
+| Rough size | Weeks: a window backend or an island host, model syncing, packaging and CI | Days: about 100 lines of Python, CSS, and CI screenshots |
+| What users get | The exact Windows 11 Settings look, including system animations and accessibility for free | Very close to it: Mica, 40 px items, the accent pill, Segoe UI Variable and Segoe Fluent Icons; keyboard and screen reader support stays ours to keep right |
+
+**Decision: Fluent HTML on Mica.** It delivers almost all of the native look for a small fraction of
+the work, adds no runtime to install, keeps one sidebar for every platform, and can be switched off
+at once if something goes wrong. Native WinUI would buy the last few percent of authenticity at the
+cost of a second window stack and a dependency we'd have to ship and support.
+
+**The gate:** a CI prototype on the Windows runner (screenshots of Mica behind a transparent WebView2
+in the borderless form). If Mica can't be made to show through, the options are a solid Fluent
+sidebar (still option C, without the material), or reopening the WinUI route with that evidence.
+
 ## Linux
 
 Stays HTML. GTK and Qt sidebars look different on every desktop, and Kirigami
 (KDE) can't be embedded in a pywebview window.
 
-## Recommendation
+## Plan
 
-1. **First, materials on both platforms (macOS B, Windows C).**
-   - Most of the visual gain at little risk.
-   - Each is behind a check: if the effect can't be applied (Windows 10, older
-     macOS, an error), the current solid sidebar stays.
-   - Ship it as an experimental flag in the Dev space first.
-2. **Then, macOS A as an experiment.** A native sidebar behind the flag
-   "Native sidebar (macOS)", tried on macOS 15 and 26. If it holds up on Tahoe,
-   make it the default on macOS.
-3. **Windows: no native NavigationView.** C plus Snap Layouts is the practical
-   ceiling.
+1. **Windows: Mica prototype (the gate).** Mica behind a transparent WebView2 in the borderless
+   form, behind the Dev space flag "Mica (Windows)", with CI screenshots on Windows 11.
+2. **Windows: the Fluent sidebar.** NavigationView's metrics and accent pill in CSS, Segoe UI
+   Variable and Segoe Fluent Icons, plus Snap Layouts on the maximize button.
+3. **macOS: the native sidebar** (option A), aiming at Tahoe's floating glass, behind the flag
+   "Native sidebar (macOS)", tried on macOS 15 and 26; then the default on macOS.
+4. **macOS before 26 or if A misbehaves:** option B (the sidebar material behind the HTML sidebar)
+   is the fallback.
+5. Linux keeps the HTML sidebar.
 
 ## How it would fit the app
 
@@ -125,20 +157,9 @@ Stays HTML. GTK and Qt sidebars look different on every desktop, and Kirigami
 
 ## Steps
 
-1. Prototype on CI:
-   - Windows: Mica plus transparent WebView2 on the borderless window, with
-     screenshots. Check that the Windows runner supports system backdrops at all.
-   - macOS: the effect view behind a transparent sidebar.
-2. Ship the materials behind a Dev space flag. Collect screenshots on Windows 11
-   and macOS 14/15/26.
-3. Snap Layouts on the custom maximize button (Windows).
-4. macOS native split view behind its own flag: view-tree surgery, sidebar
-   model sync, SF Symbols, toolbar toggle, VoiceOver check.
-5. Decide defaults per platform from what the screenshots and testing show.
-
-## Questions for you
-
-1. Is Tahoe's floating glass the look you're after on macOS? If so, step 4 is
-   the one that matters.
-2. On Windows, is Mica behind a Fluent-styled HTML sidebar close enough to
-   "native", given that NavigationView itself isn't practical?
+1. Windows Mica prototype on CI, with screenshots. Check that the Windows runner supports system
+   backdrops at all (a Windows Server image may not; if not, a manual check on Windows 11).
+2. Windows Fluent sidebar styles and Snap Layouts.
+3. macOS native split view behind its flag: view-tree surgery, sidebar model sync, SF Symbols,
+   toolbar toggle, VoiceOver check; screenshots on the macOS 15 and 26 runners.
+4. Defaults per platform from what the screenshots and testing show.

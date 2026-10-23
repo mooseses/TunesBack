@@ -587,7 +587,7 @@ h1, h2, h3, p { margin: 0; }
 .dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 0 20px 18px; }
 .setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .setting .desc { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
-.about { font-size: 13px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 14px; }
+.about { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 14px; }
 
 .overlay { z-index: 25; }
 .toasts { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 30; align-items: center; }
@@ -700,9 +700,36 @@ h1, h2, h3, p { margin: 0; }
 .age-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .age-fact { display: flex; flex-direction: column; gap: 4px; }
 .age-fact b { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
-.age-explain { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.age-explain p { margin: 0; max-width: 640px; font-size: 14px; }
-.age-actions { display: flex; gap: 8px; }
+.age-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; flex-wrap: wrap; }
+.age-choices { display: flex; flex-direction: column; gap: 14px; }
+.age-choices .card-title { margin-bottom: 0; }
+.age-method .card-title { margin-bottom: 6px; }
+.age-method-lead { margin: 0 0 18px; max-width: 760px; font-size: 14px; }
+.age-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; counter-reset: none; }
+.age-steps li { display: flex; gap: 12px; align-items: flex-start; }
+.age-steps b { display: block; margin-bottom: 4px; }
+.age-steps p { margin: 0; font-size: 13px; }
+.age-step-num {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent); font-weight: 800; font-size: 14px;
+}
+.age-step-example {
+  margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: var(--surface-2);
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.age-method .hint { margin-top: 16px; }
+.age-intro + .age-method { margin-top: 16px; }
+
+/* The Overview card: greyed until worked out, a question until you choose, then the age. */
+.age-locked { background: var(--surface-2); box-shadow: none; }
+.age-locked .big { color: var(--faint); filter: blur(1.5px); opacity: 0.7; }
+.age-lock { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--faint); }
+.age-lock .icon { width: 14px; height: 14px; }
+.age-ask-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.age-card-actions { display: flex; gap: 2px; align-items: center; }
+.age-card.pop { animation: pop-in 320ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+.card.folding { overflow: hidden; opacity: 0; padding-top: 0; padding-bottom: 0; margin: 0; border-width: 0;
+  transition: height 260ms ease, opacity 200ms ease, padding 260ms ease; }
 
 /* The reveal: bars grow, the window sweeps, then the rest rises in. */
 .age-stage.playing .age-bar span { height: 0; }
@@ -710,7 +737,7 @@ h1, h2, h3, p { margin: 0; }
 .age-stage.playing .age-window { opacity: 0; transition: opacity 200ms ease; }
 .age-stage.playing.sweeping .age-window { opacity: 1; }
 .age-stage.playing .age-value { color: var(--muted); }
-.age-stage.playing .age-era, .age-stage.playing .age-facts, .age-stage.playing .age-explain { opacity: 0; }
+.age-stage.playing .age-era, .age-stage.playing .age-facts, .age-stage.playing .age-choices, .age-stage.playing .age-method { opacity: 0; }
 .age-stage.done .age-value { animation: age-pop 650ms cubic-bezier(0.3, 1.5, 0.5, 1); }
 .age-stage.done .age-era { animation: age-rise 500ms 150ms both cubic-bezier(0.2, 0.7, 0.3, 1); }
 .age-stage.done .age-fact { animation: age-rise 500ms both cubic-bezier(0.2, 0.7, 0.3, 1); }
@@ -718,7 +745,8 @@ h1, h2, h3, p { margin: 0; }
 .age-stage.done .age-fact:nth-child(2) { animation-delay: 380ms; }
 .age-stage.done .age-fact:nth-child(3) { animation-delay: 460ms; }
 .age-stage.done .age-fact:nth-child(4) { animation-delay: 540ms; }
-.age-stage.done .age-explain { animation: age-rise 500ms 640ms both cubic-bezier(0.2, 0.7, 0.3, 1); }
+.age-stage.done .age-choices { animation: age-rise 500ms 640ms both cubic-bezier(0.2, 0.7, 0.3, 1); }
+.age-stage.done .age-method { animation: age-rise 500ms 760ms both cubic-bezier(0.2, 0.7, 0.3, 1); }
 .age-stage.done .age-window { animation: age-glow 900ms ease-out; }
 @keyframes age-pop { 0% { transform: scale(0.9); color: var(--muted); } 45% { transform: scale(1.08); } 100% { transform: none; } }
 @keyframes age-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -775,4 +803,55 @@ h1, h2, h3, p { margin: 0; }
   .dev-grid { grid-template-columns: minmax(0, 1fr); }
   .age-hero { grid-template-columns: minmax(0, 1fr); }
   .age-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .age-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---------- About (like a Mac app's About window) and the privacy policy ---------- */
+.dialog.dialog-about { width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: hidden; }
+.about-page { position: relative; }
+.about-page.enter-forward { animation: oobe-in-forward 260ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+.about-page.enter-back { animation: oobe-in-back 260ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+.about-close { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; padding: 0; justify-content: center; }
+.about-mac { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 28px; align-items: start; padding: 36px 36px 30px; }
+.about-icon { width: 148px; height: 148px; filter: drop-shadow(0 14px 26px rgba(224, 40, 79, 0.3)); }
+.about-info h2 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; outline: none; }
+.about-version { margin-top: 4px; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.about-desc { margin-top: 14px; font-size: 15px; }
+.about-promise { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; font-size: 14px; color: var(--muted); }
+.about-promise .icon { color: #22c55e; flex: none; margin-top: 1px; }
+.about-promise b { color: var(--text); }
+.about-legal { margin-top: 14px; font-size: 12px; color: var(--faint); line-height: 1.55; }
+.about-buttons { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+.about-buttons .btn { height: 34px; padding: 0 14px; font-size: 14px; }
+.privacy-page { display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
+.privacy-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 12px 12px 12px 14px; border-bottom: 1px solid var(--border); }
+.privacy-head h2 { font-size: 16px; font-weight: 800; outline: none; text-align: center; }
+.privacy-head .about-close { position: static; justify-self: end; }
+.privacy-head > :first-child { justify-self: start; }
+.privacy-body { overflow-y: auto; padding: 22px 26px 26px; display: flex; flex-direction: column; gap: 16px; font-size: 14px; }
+.privacy-body p { margin: 0; }
+.privacy-body ul { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.privacy-hero { display: flex; gap: 16px; align-items: center; padding: 18px; border-radius: var(--radius); background: linear-gradient(135deg, var(--accent-soft), rgba(34, 197, 94, 0.1)); }
+.privacy-hero h3 { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 6px; }
+.privacy-shield { flex: none; width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; background: var(--surface); color: #22c55e; box-shadow: var(--shadow); }
+.privacy-shield .icon { width: 28px; height: 28px; }
+.privacy-section h4 { margin: 0 0 4px; font-size: 15px; font-weight: 800; }
+.privacy-section p + p, .privacy-section ul + p { margin-top: 8px; }
+.privacy-links a, .privacy-body a, .privacy-note a, .services-privacy a { color: var(--accent); font-weight: 600; }
+.privacy-date { color: var(--faint); font-size: 12px; }
+.privacy-note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--muted); font-size: 13px; line-height: 1.5; }
+.privacy-note .icon { color: #22c55e; flex: none; margin-top: 1px; }
+.oobe-privacy { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--muted); }
+.oobe-privacy .icon { color: #22c55e; width: 16px; height: 16px; }
+.oobe-privacy b { color: var(--text); }
+.oobe-privacy-link, .link-button { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); font-weight: 700; cursor: pointer; }
+.oobe-privacy-link:hover, .link-button:hover { text-decoration: underline; }
+.services-privacy { display: flex; gap: 14px; align-items: flex-start; font-size: 14px; color: var(--muted); }
+.services-privacy > .icon { color: #22c55e; flex: none; margin-top: 2px; }
+.services-privacy b { color: var(--text); }
+.services-privacy p { margin: 0; }
+.services-privacy-links { margin-top: 8px !important; }
+@media (max-width: 560px) {
+  .about-mac { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; }
+  .about-promise, .about-buttons { justify-content: center; }
 }

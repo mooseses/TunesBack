@@ -14,25 +14,35 @@ def _pct(share: float) -> str:
 
 @layout("genres", "bars", "Bars")
 def genres_bars(ctx: Ctx) -> None:
+    """Each genre with its share and a bar, as a compact block centred in the card."""
     c, t, d = ctx.c, ctx.t, ctx.d
     ctx.background()
     y = ctx.header("My top genres")
     bottom = ctx.footer()
     genres = d.genres[: ctx.s(6, 5)]
     biggest = max((g.share for g in genres), default=1) or 1
-    row = (bottom - y - ctx.s(40, 20)) / max(len(genres), ctx.s(4, 3))
     colors = t.palette
-    for i, genre in enumerate(genres):
-        top = y + ctx.s(40, 20) + i * row
-        size = min(ctx.s(52, 38), row * 0.3)
-        pct = fit(_pct(genre.share), t.number(size, fill=t.fg), 200)
+    area = y + ctx.s(48, 28)
+    room = bottom - area
+    size = ctx.s(60, 44)
+    while True:  # shrink only if the list doesn't fit
+        pcts = [fit(_pct(g.share), t.number(size, fill=t.fg), 220) for g in genres]
+        names = [fit(g.title, t.title(size), ctx.inner - p.width - 30) for g, p in zip(genres, pcts)]
+        bar_h, gap, space = size * 0.62, size * 0.5, size * ctx.s(1.0, 0.9)
+        steps = [n.height + gap + bar_h for n in names]
+        total = sum(steps) + space * (len(steps) - 1)
+        if total <= room or size <= ctx.s(36, 26):
+            break
+        size *= 0.92
+    top = area + max(0, (room - total) * 0.45)  # a little above the middle
+    for i, (genre, pct, name, step) in enumerate(zip(genres, pcts, names, steps)):
         c.draw_block(pct, ctx.W - ctx.m, top, align="right")
-        name = c.text(genre.title, ctx.m, top, t.title(size), ctx.inner - pct.width - 30)
-        bar_y = top + name.height + size * 0.55
-        bar_h = size * 0.62
+        c.draw_block(name, ctx.m, top)
+        bar_y = top + name.height + gap
         c.rect(ctx.m, bar_y, ctx.inner, bar_h, fill=t.fg, radius=bar_h / 2, opacity=0.1)
         c.rect(ctx.m, bar_y, max(bar_h, ctx.inner * genre.share / biggest), bar_h, fill=colors[i % len(colors)],
                radius=bar_h / 2)
+        top += step + space
 
 
 @layout("genres", "words", "Words")

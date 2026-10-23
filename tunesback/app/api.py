@@ -5,6 +5,7 @@ dict. Expected failures are returned as {"error": message}.
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 import os
 import platform
@@ -572,10 +573,13 @@ class Api:
             report, version = self._report, self._report_version
         if report is None:
             raise UserError("Generate a recap first.")
-        key = (version, "time" if (rank_by or self.settings["rank_by"]) == "time" else "plays")
+        key = (version, "time" if (rank_by or self.settings["rank_by"]) == "time" else "plays",
+               bool(self.settings["age_cards"]))
         with self._card_lock:
             if self._card_data_key != key:
-                self._card_data = build_data(report, key[1])
+                data = build_data(report, key[1])
+                # Listening age cards only once you've chosen to have them.
+                self._card_data = data if key[2] else dataclasses.replace(data, listening_age=None)
                 self._card_data_key = key
                 self._card_cache.clear()
             return self._card_data, key
@@ -610,6 +614,8 @@ class Api:
             data, key = sample_data(sample), ("sample", sample)
         else:
             data, key = self._data_for_cards(rank_by)
+        if not CARD_TYPES[card_type].applies(data):
+            return None
         cache_key = (key, card_type, layout, theme, fmt, size, seed)
         with self._card_lock:
             if cache_key in self._card_cache:

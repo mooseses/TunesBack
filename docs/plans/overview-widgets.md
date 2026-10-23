@@ -1,6 +1,19 @@
 # Plan: an Overview you can arrange
 
-Status: proposal.
+Status: decided (October 23, 2026), ready to build.
+
+## Decisions
+
+1. **One By plays / By time switch for the whole page**, as today. Every widget follows it, and the
+   time unit; a widget that only makes sense one way (Skips) says so in
+   its subtitle. Per-widget switches would add a control to every card for little gain, and the
+   rest of the app (Top charts, Wrapped) works the same way.
+2. **The "When you listen" widgets mix freely with the rest.** The grid has no group headings; each
+   of those widgets already names what it shows. The default layout keeps them together at the end,
+   in today's order, so nothing moves until you move it.
+3. **Listening age stays opt-in.** Its widget is a greyed teaser until you've worked it out on its
+   own page, then asks once whether to stay. Removing it in edit mode and the "Show on the
+   Overview" switch on the Listening age page are the same setting (`age_overview`).
 
 ## Goal
 
@@ -18,7 +31,7 @@ Everything on today's Overview becomes a widget, and a few new ones join:
 | Top artist / Top album / Top song | S, M | – |
 | Top artists (bars) | M, L | – |
 | Genres | M, L | genres in the library |
-| Listening age (teaser, links to its tab) | S, M | release years |
+| Listening age (opt-in: teaser until worked out, see Decisions) | S, M | release years |
 | Release decades | M, L | release years |
 | Longest streak, Days with music, Busiest day, New artists, Peak time | S | a source with listening dates |
 | Time of day, Day of the week | M, L | listening dates |
@@ -92,10 +105,3 @@ export default {
 
 Several saved dashboards, widgets on other pages, free-form (pixel) placement, and
 custom widgets.
-
-## Questions for you
-
-1. Should the Overview's charts follow the **By plays / By time** switch as now,
-   or should each widget have its own?
-2. Keep the "When you listen" heading as a group, or let those widgets mix freely
-   with the rest (this plan assumes they mix)?

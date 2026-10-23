@@ -47,14 +47,14 @@ Works on **Windows, macOS, and Linux** with:
 - **Album art** displayed alongside track details, loaded as you scroll
 - **Network share support**: seamlessly works with UNC paths (Windows) and GVFS/CIFS mounts (Linux)
 - **Wrapped cards:** shareable story or square images, with several layouts and themes per card, and a Shuffle button
-- **Listening Age:** calculates the "era" of music you gravitate toward, with its own page: press Calculate and watch a five-year window sweep across your release years to your era
+- **Listening Age:** calculates the "era" of music you gravitate toward, with its own page: press Calculate and watch a five-year window sweep across your release years to your era. It's opt-in: it appears on the Overview and in Wrapped only if you choose
 - **Services page:** your Last.fm and ListenBrainz accounts and Spotify downloads at a glance: sync status, how much history is imported, recent syncs, Sync now / Stop, and the Last.fm API key
 - **Resizable sidebar:** drag its edge to resize it, drag it narrow (or press Ctrl/⌘+B) to hide it
 - **Dev space** (turn it on in Settings): sync dry runs that fetch but store nothing, feature flags (offline, slow network, card guides, reduced motion…), a card lab, request log and diagnostics
 - **Flexible display:** switch between hours, minutes and days; rank by plays or listening time
 - **Dark and light mode**, or follow the system
 - **Native-feeling window:** TunesBack's own title bar by default (or your system's, in Settings), a File/View/Help menu bar with keyboard shortcuts, the macOS menu bar on Macs and the global menu on KDE Plasma
-- **Private:** your listening history is kept and analysed on your machine. TunesBack only goes online to read your Last.fm or ListenBrainz profile and album covers for them
+- **Private:** TunesBack collects no data. Your listening history is kept and analysed on your machine; TunesBack only goes online to read your Last.fm or ListenBrainz profile and album covers for them. See the [Privacy Policy](PRIVACY.md)
 
 ## Wrapped Cards
 
@@ -77,6 +77,8 @@ Shareable images of your listening, made in the Wrapped view.
 Rankings follow the "By plays / By time" switch at the top right. Long titles shrink, wrap and only then get cut short, and titles in other scripts (Japanese, Korean, Cyrillic, Arabic…) are drawn with a font installed on your computer.
 
 ## Listening Age
+
+Listening Age has its own page. It stays out of the way until you work it out there; then you choose whether it also appears on the Overview and as Wrapped cards. The page also explains the calculation step by step, with your own numbers.
 
 TunesBack computes a single-number summary called the "Listening Age" to describe the era that most strongly characterizes your listening habits. The metric is inspired by the psychological "reminiscence bump", which is the tendency for music encountered during one's formative years to retain stronger emotional significance.
 
@@ -377,3 +379,7 @@ Found a bug or have a suggestion? [Open an issue](https://github.com/mooseses/Tu
 ## License
 
 GPL-3.0. See `LICENSE` for details.
+
+## Privacy
+
+TunesBack collects no data. Online services you connect (Last.fm, ListenBrainz) have their own privacy policies, which TunesBack can't control. Read the full [Privacy Policy](PRIVACY.md).

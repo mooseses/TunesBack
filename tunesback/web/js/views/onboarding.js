@@ -5,6 +5,7 @@
 // steps: iTunes looks for the library on this computer or a network drive,
 // Last.fm and ListenBrainz ask for a user name, Spotify for its download.
 
+import { openPrivacy, serviceNote } from "../about.js";
 import { call } from "../api.js";
 import { state } from "../app.js";
 import { h, icon, number, relativeTime, shortDate } from "../util.js";
@@ -124,7 +125,10 @@ function welcome() {
     h("p.oobe-lead", "Your year in music, from the apps you already use."),
     h("button.btn.btn-primary.btn-large.oobe-cta", { onclick: () => go("apps") },
       "Get started", icon("arrow")),
-    h("p.oobe-fine", "Your listening history stays on this computer."));
+    h("div.oobe-privacy",
+      icon("shield"),
+      h("span", h("b", "TunesBack collects no data."), " Your music and listening history stay on this computer."),
+      h("button.oobe-privacy-link", { type: "button", onclick: openPrivacy }, "Privacy policy")));
 }
 
 function apps() {
@@ -449,6 +453,7 @@ function account(kind) {
           h("a", { href: flow.lastfmKeyUrl, target: "_blank", rel: "noreferrer", onclick: (e) => openLink(e, flow.lastfmKeyUrl) }, "Create one here"),
           " (any app name works), then paste the “API key” it shows. TunesBack remembers it."),
       ]),
+    serviceNote(kind),
     a.error && h("p.oobe-result.error", a.error),
     footer(back(), h("div.oobe-footer-group",
       !flow.only && h("button.btn.btn-ghost", { onclick: () => go(next()) }, "Skip"),
@@ -518,6 +523,7 @@ function spotify() {
         h("button.oobe-option", { type: "button", onclick: async () => importFrom((await call("pick_folder")).path) },
           h("span.oobe-option-icon", icon("folder")), h("b", "Choose a folder"), h("small", "If you've already unzipped it")))
       : h("div.folder-row", pathInput, h("button.btn.btn-primary", { onclick: () => importFrom(pathInput.value.trim()) }, "Import")),
+    serviceNote("spotify"),
     s.error && h("p.oobe-result.error", s.error),
     footer(back(), flow.only ? h("span") : h("button.btn.btn-ghost", { onclick: () => go(next()) }, "Skip for now")),
   ];

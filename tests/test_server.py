@@ -90,6 +90,16 @@ def test_setup_reading_analysis_and_cards(server, library, tmp_path):
     assert request(server, "GET", f"{path}?token=nope")[0] == 403
     assert request(server, "GET", f"/api/card/top_songs/nope/midnight/story/preview.jpg?token={server.token}")[0] == 404
 
+    # Listening age cards only once you've chosen to have them.
+    assert report["listening_age"] and "listening_age" not in {c["type"] for c in deck["cards"]}
+    age_card = "/api/card/listening_age/big/midnight/story/preview.jpg"
+    assert request(server, "GET", f"{age_card}?s=0&r=plays&token={server.token}")[0] == 404
+    api(server, "update_settings", changes={"age_calculated": True, "age_cards": True, "age_overview": "yes"})
+    assert api(server, "state")["settings"]["age_overview"] is True
+    assert "listening_age" in {c["type"] for c in api(server, "cards", rank_by="plays")["cards"]}
+    assert request(server, "GET", f"{age_card}?s=0&r=plays&token={server.token}")[0] == 200
+    api(server, "update_settings", changes={"age_cards": False})
+
     # Changing the design is saved with the settings.
     designed = api(server, "cards", deck={"format": "square", "theme": "paper", "seed": 3,
                                           "cards": {"top_songs": {"hidden": True}}})

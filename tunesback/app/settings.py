@@ -32,6 +32,10 @@ DEFAULTS = {
     "sync_on_launch": True,  # fetch new listens from online accounts when TunesBack opens
     "dev_mode": False,  # show the Dev space
     "flags": {},  # Dev space feature flags (see FLAGS)
+    # Listening age is opt-in: worked out on its own page, then shown elsewhere only if you choose.
+    "age_calculated": False,
+    "age_overview": None,  # on the Overview: None until you choose, then True or False
+    "age_cards": False,  # listening age cards in Wrapped
 }
 
 # Feature flags for trying things out and tracking down problems, set in the Dev space.
@@ -150,7 +154,9 @@ class Settings:
                 if not isinstance(value, (int, float)):
                     continue
                 value = int(min(max(value, SIDEBAR_WIDTH[0]), SIDEBAR_WIDTH[1]))
-            if key in ("sidebar_hidden", "sync_on_launch", "dev_mode"):
+            if key in ("sidebar_hidden", "sync_on_launch", "dev_mode", "age_calculated", "age_cards"):
+                value = bool(value)
+            if key == "age_overview" and value is not None:
                 value = bool(value)
             if key == "flags":
                 if not isinstance(value, dict):

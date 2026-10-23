@@ -37,6 +37,9 @@ def sample_data(variant: str = "scripts") -> CardData:
     return data
 
 
+GENRES = [("Indie Pop", 0.32), ("Synth-pop", 0.21), ("Rock", 0.15), ("Electronic", 0.11), ("R&B/Soul", 0.08), ("Folk", 0.05)]
+
+
 def _data(songs=None) -> CardData:
     songs = songs or VARIANTS["scripts"]
     items = [Item(t, a, 300 - i * 40, (300 - i * 40) * 200_000, f"art{i}", 0.3 - i * 0.04) for i, (t, a) in enumerate(songs)]
@@ -44,7 +47,7 @@ def _data(songs=None) -> CardData:
     art = {f"art{i}": Image.new("RGB", (300, 300), tuple(rnd.randrange(40, 220) for _ in range(3))) for i in range(5)}
     return CardData(rank_by="plays", period="2025", period_long="1 Jan 2025 – 31 Dec 2025", lifetime=False,
                     songs=items, albums=items, artists=[Item(a, None, i.plays, i.ms) for (t, a), i in zip(songs, items)],
-                    genres=[Item("Indie Pop", None, 10, 0, share=0.4)], new_finds=[], total_ms=12_345 * 60_000,
+                    genres=[Item(g, None, 10, 0, share=share) for g, share in GENRES], new_finds=[], total_ms=12_345 * 60_000,
                     total_plays=1234, song_count=500, artist_count=120, album_count=200,
                     listening_age={"age": 34, "era_label": "Mid 00s", "era_start": 2003, "era_end": 2007},
                     load_art=art.get)

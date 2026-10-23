@@ -1,6 +1,7 @@
 // Services: online accounts (Last.fm, ListenBrainz) and downloaded histories
 // (Spotify), with how each one is doing: syncing, up to date, or in trouble.
 
+import { POLICIES, externalLink, openPrivacy } from "../about.js";
 import { call } from "../api.js";
 import { render as renderApp, renderNav, saveSettings, state } from "../app.js";
 import { confirmAction, h, icon, number, relativeTime, shortDate, toast } from "../util.js";
@@ -91,7 +92,19 @@ export function render(root) {
     files.map(downloadCard),
     (list.length > 0 || files.length > 0) && !files.length && h("div.card.service-empty",
       h("span", "Import the listening history Spotify lets you download."), connectButton("spotify")),
-    settingsCard()));
+    settingsCard(),
+    privacyCard()));
+}
+
+function privacyCard() {
+  const kinds = ["lastfm", "listenbrainz", "spotify"];
+  return h("div.card.services-privacy",
+    icon("shield"),
+    h("div",
+      h("p", h("b", "TunesBack collects nothing."), " But the services you connect have their own privacy policies, "
+        + "and TunesBack can't control what they collect, such as your IP address. Worth a read:"),
+      h("p.services-privacy-links", kinds.map((kind, i) => [i ? " · " : "", externalLink(POLICIES[kind].url, POLICIES[kind].name)]),
+        " · ", h("button.link-button", { type: "button", onclick: openPrivacy }, "TunesBack's privacy policy"))));
 }
 
 /** Set-up, just for this service; afterwards, back here. */
