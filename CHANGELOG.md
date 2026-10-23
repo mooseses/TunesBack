@@ -10,7 +10,7 @@ Each release's section here becomes its notes on GitHub (`packaging/release_note
 
 - **More sources:** Last.fm and ListenBrainz (every scrobble, with when you played it) and Spotify's listening history download, alongside iTunes / Apple Music. Use them on their own or together, without counting the same listen twice.
 - **When you listen:** listening by hour and weekday, month by month, your longest streak, busiest day and the artists you discovered (for sources with listening times).
-- **Overview widgets:** add, remove, resize and rearrange them, iPhone-style.
+- **Overview tiles:** widgets arranged like the Windows Phone Start screen (Medium, Wide and Large tiles); add, remove, resize and rearrange them.
 - **Wrapped cards:** story or square images in several layouts and nine themes, with Shuffle, Mix and per-card editing.
 - **Listening Age** has its own page, with the calculation explained using your own numbers. It's opt-in for the Overview and Wrapped.
 - **Services page:** sync status, history imported and recent syncs for your accounts.

@@ -1,15 +1,16 @@
-// Overview: a dashboard of widgets (views/widgets.js) you can arrange.
+// Overview: a dashboard of widgets (views/widgets.js) arranged like tiles on the
+// Windows Phone Start screen.
 //
-// Widgets flow left to right on a 12-column grid. Rows are worked out from the
-// whole layout, including widgets with nothing to show for this recap, so every
-// widget keeps its place. Then the widgets shown in each row share its full
-// width: when one is missing, the rest of its row closes the gap (and cards in a
-// row share its height). Nothing jumps up from the next row. Customize turns on edit mode: drag to move, pick a size,
-// remove, add from the panel, or reset. The layout is saved in settings.
+// The grid is made of square cells, as many columns as fit. Each widget is a tile
+// of a fixed size (Medium 2×2, Wide 4×2, Large 4×4 cells) that never stretches
+// sideways; one whose content needs more room grows by whole rows. Tiles go in
+// order, each into the first space it fits, so a later, smaller tile fills a gap
+// left earlier. Customize turns on edit mode: drag to move, pick a size, remove,
+// add from the panel, or reset. The order and sizes are saved in settings.
 
 import { reducedMotion, render as renderApp, saveSettings, saveSettingsNow, state } from "../app.js";
 import { h, icon, toast } from "../util.js";
-import { DEFAULT_LAYOUT, shows, SIZE_NAMES, SIZES, WIDGETS } from "./widgets.js";
+import { DEFAULT_LAYOUT, shows, SIZE_LABELS, SIZE_NAMES, TILES, WIDGETS } from "./widgets.js";
 
 let editing = false;
 let flipFrom = null; // widget positions before the next redraw, to animate from
@@ -19,59 +20,30 @@ export const isEditing = () => editing;
 
 /** The saved layout, cleaned up: known widgets, allowed sizes, no repeats. */
 function layout() {
-  const saved = Array.isArray(state.settings.overview_layout) ? state.settings.overview_layout : DEFAULT_LAYOUT;
+  const saved = Array.isArray(state.settings.overview_tiles) ? state.settings.overview_tiles : DEFAULT_LAYOUT;
   const seen = new Set();
   return saved.filter((w) => WIDGETS[w?.id] && !seen.has(w.id) && seen.add(w.id))
     .map((w) => ({ id: w.id, size: WIDGETS[w.id].sizes.includes(w.size) ? w.size : WIDGETS[w.id].size }));
 }
 
 function save(next) {
-  saveSettings({ overview_layout: next });
+  saveSettings({ overview_tiles: next });
 }
 
-// ---------- packing ----------
+// ---------- the tile grid ----------
 
-function columnsFor(width) {
-  return width >= 840 ? 12 : width >= 560 ? 6 : 1;
+const CELL = 104; // the smallest a cell gets before a column is dropped (px)
+const GAP = 14;
+
+/** Columns and cell size for a grid this wide: at least four columns, so every tile fits. */
+export function gridFor(width) {
+  const cols = Math.max(4, Math.min(16, Math.floor((width + GAP) / (CELL + GAP))));
+  return { cols, cell: Math.floor((width - GAP * (cols - 1)) / cols) };
 }
 
-function spanFor(size, cols) {
-  if (cols === 12) return SIZES[size];
-  if (cols === 6) return size === "S" || size === "M" ? 3 : 6;
-  return 1;
-}
-
-/**
- * Column spans for the widgets in `visible`. Rows come from every item in the layout, in
- * order; then each row's visible widgets are stretched to fill it, in proportion to their size.
- */
-export function pack(items, cols, visible) {
-  const rows = [];
-  let row = [];
-  let used = 0;
-  for (const item of items) {
-    const span = Math.min(cols, spanFor(item.size, cols));
-    if (row.length && used + span > cols) {
-      rows.push(row);
-      row = [];
-      used = 0;
-    }
-    row.push({ id: item.id, span });
-    used += span;
-  }
-  if (row.length) rows.push(row);
-  const spans = new Map();
-  for (const all of rows) {
-    const shown = all.filter((w) => visible.has(w.id));
-    const total = shown.reduce((sum, w) => sum + w.span, 0);
-    let given = 0;
-    shown.forEach((w, i) => {
-      const extra = i === shown.length - 1 ? cols - total - given : Math.round(((cols - total) * w.span) / total);
-      given += extra;
-      spans.set(w.id, w.span + extra);
-    });
-  }
-  return spans;
+/** Rows a tile takes: its size's, or more (whole rows) when its content is taller. */
+export function rowsFor(size, contentHeight, cell, gap = GAP) {
+  return Math.max(TILES[size][1], Math.ceil((contentHeight + gap) / (cell + gap)));
 }
 
 // ---------- the page ----------
@@ -105,26 +77,44 @@ export function render(root) {
   });
 }
 
-/** Spans for the grid (its width decides the number of columns). */
+/** Size every tile for the grid's width: columns from its size, rows from its size and content. */
 function relayout(grid, width = grid.clientWidth) {
-  const cols = columnsFor(width);
-  lastCols = cols;
+  const { cols, cell } = gridFor(width);
+  lastWidth = width;
   grid.style.setProperty("--cols", cols);
+  grid.style.setProperty("--cell", `${cell}px`);
   const cards = [...grid.children];
-  const spans = pack(layout(), cols, new Set(cards.map((c) => c.dataset.id)));
-  for (const card of cards) card.style.gridColumn = `span ${spans.get(card.dataset.id) || cols}`;
+  for (const card of cards) {
+    const [w, rows] = TILES[card.dataset.size] || TILES.M;
+    card.style.gridColumn = `span ${Math.min(w, cols)}`;
+    card.style.gridRow = `span ${rows}`;
+  }
+  // A tile's content keeps its own height; a tile it overflows gets more rows.
+  const gap = parseFloat(getComputedStyle(grid).rowGap) || GAP;
+  const heights = cards.map(contentHeight);
+  cards.forEach((card, i) => { card.style.gridRow = `span ${rowsFor(card.dataset.size, heights[i], cell, gap)}`; });
+}
+
+/** How tall a tile's content is (scrollHeight would leave out the padding below it). */
+function contentHeight(card) {
+  const top = card.getBoundingClientRect().top;
+  const style = getComputedStyle(card);
+  let bottom = 0;
+  for (const child of card.children) {
+    if (getComputedStyle(child).position === "absolute") continue; // the edit toolbar
+    bottom = Math.max(bottom, child.getBoundingClientRect().bottom - top);
+  }
+  return bottom + parseFloat(style.paddingBottom) + parseFloat(style.borderBottomWidth);
 }
 
 let resizeTimer = null;
-let lastCols = 0;
+let lastWidth = 0;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     const grid = document.querySelector(".widgets");
-    if (!grid) return;
-    const cols = columnsFor(grid.clientWidth);
-    if (cols !== lastCols) { lastCols = cols; relayout(grid); }
-  }, 80);
+    if (grid && grid.clientWidth !== lastWidth) relayout(grid);
+  }, 60);
 });
 
 // ---------- smooth changes ----------
@@ -213,7 +203,7 @@ function editBar() {
 }
 
 function reset() {
-  const before = state.settings.overview_layout ?? null;
+  const before = state.settings.overview_tiles ?? null;
   animateNext();
   save(null);
   renderApp();
@@ -230,7 +220,7 @@ function decorate(card, item, widget) {
       widget.sizes.map((size) => h("button", {
         type: "button", "data-size": size, "aria-pressed": String(size === item.size), title: SIZE_NAMES[size],
         onclick: () => resize(item.id, size),
-      }, size))),
+      }, SIZE_LABELS[size]))),
     h("button.widget-remove", { type: "button", "aria-label": `Remove ${widget.title}`, title: "Remove", onclick: () => remove(item.id, card) }, icon("close"))));
   card.addEventListener("pointerdown", (e) => startDrag(e, card));
   card.addEventListener("keydown", (e) => keys(e, item.id));

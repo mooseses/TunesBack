@@ -6,9 +6,10 @@ import { navigate, reducedMotion, render as renderApp, saveSettingsNow, state } 
 import { duration, h, icon, number, plural, toast, unitInfo } from "../util.js";
 import { artBox, rankedCached } from "./shared.js";
 
-/** Column spans on the 12-column grid. */
-export const SIZES = { S: 3, M: 4, L: 6, XL: 12 };
-export const SIZE_NAMES = { S: "Small", M: "Medium", L: "Large", XL: "Full width" };
+/** Tile sizes in grid cells, [columns, rows], as on the Windows Phone Start screen. */
+export const TILES = { M: [2, 2], L: [4, 2], XL: [4, 4] };
+export const SIZE_NAMES = { M: "Medium", L: "Wide", XL: "Large" };
+export const SIZE_LABELS = { M: "M", L: "W", XL: "L" };
 
 const timeline = (r) => !!r.timeline;
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -23,35 +24,35 @@ const amount = (v, by, unit) => (by === "time" ? `${duration(v, unit)} ${unitInf
  */
 export const WIDGETS = {
   "listening-time": {
-    title: "Listening time", description: "How long you listened.", sizes: ["S", "M"], size: "S",
+    title: "Listening time", description: "How long you listened.", sizes: ["M", "L", "XL"], size: "M",
     render: (r, { unit }) => kpi("Listening time", `${r.estimated_time ? "≈ " : ""}${duration(r.total_ms, unit)}`, unitInfo(unit).long,
       r.estimated_time ? "partly estimated from song lengths" : r.mode === "compare" ? "in this period" : "all time"),
   },
   plays: {
-    title: "Plays", description: "How many times you pressed play.", sizes: ["S", "M"], size: "S",
+    title: "Plays", description: "How many times you pressed play.", sizes: ["M", "L", "XL"], size: "M",
     render: (r) => kpi(r.mode === "compare" && !r.timeline ? "New plays" : "Plays", number(r.total_plays), null, plural(r.songs.length, "song")),
   },
   "new-finds": {
     title: "New finds", description: "Songs you played for the first time; for all-time recaps, how many artists you played.",
-    sizes: ["S", "M"], size: "S",
+    sizes: ["M", "L", "XL"], size: "M",
     render: (r) => (r.mode === "compare"
       ? kpi("New finds", number(r.new_finds.length), null, r.timeline ? "songs played for the first time" : "songs added and played")
       : kpi("Artists", number(r.artists.length), null, plural(r.albums.length, "album"))),
   },
   skips: {
-    title: "Skips", description: "Songs you skipped.", sizes: ["S", "M"], size: "S",
+    title: "Skips", description: "Songs you skipped.", sizes: ["M", "L", "XL"], size: "M",
     render: (r) => kpi("Skips", number(r.total_skips), null, r.skipped.length ? `across ${plural(r.skipped.length, "song")}` : "nothing skipped"),
   },
   "top-artist": {
-    title: "Top artist", description: "Your #1 artist.", sizes: ["S", "M", "L"], size: "M",
+    title: "Top artist", description: "Your #1 artist.", sizes: ["M", "L", "XL"], size: "L",
     render: (r, { by }) => highlight("Top artist", rankedCached(r, "artists", by)[0], { round: true, fallback: "artist" }),
   },
   "top-album": {
-    title: "Top album", description: "Your #1 album.", sizes: ["S", "M", "L"], size: "M",
+    title: "Top album", description: "Your #1 album.", sizes: ["M", "L", "XL"], size: "L",
     render: (r, { by }) => highlight("Top album", rankedCached(r, "albums", by)[0], { fallback: "album" }),
   },
   "top-song": {
-    title: "Top song", description: "Your #1 song.", sizes: ["S", "M", "L"], size: "M",
+    title: "Top song", description: "Your #1 song.", sizes: ["M", "L", "XL"], size: "L",
     render: (r, { by }) => highlight("Top song", rankedCached(r, "songs", by)[0], { fallback: "song" }),
   },
   "top-artists": {
@@ -72,7 +73,7 @@ export const WIDGETS = {
     render: (r, { by }) => genres(r, by),
   },
   age: {
-    title: "Listening age", description: "How old your taste is. Shown once you've worked it out.", sizes: ["M", "L"], size: "L",
+    title: "Listening age", description: "How old your taste is. Shown once you've worked it out.", sizes: ["M", "L", "XL"], size: "L",
     render: (r) => listeningAge(r),
   },
   decades: {
@@ -86,12 +87,12 @@ export const WIDGETS = {
     render: (r, { by, unit }) => rows("Most skipped", "skipped", rankedCached(r, "skipped", by).slice(0, 5), by, unit),
   },
   "listen-invite": {
-    title: "See when you listen", description: "Add a source that logs every listen.", sizes: ["XL"], size: "XL",
+    title: "See when you listen", description: "Add a source that logs every listen.", sizes: ["L", "XL"], size: "L",
     available: (r) => !r.timeline && state.sources.every((s) => s.counter), needs: "Shown until you add Last.fm, ListenBrainz or Spotify.",
     render: () => invite(),
   },
   streak: {
-    title: "Longest streak", description: "The most days in a row you listened.", sizes: ["S", "M"], size: "S",
+    title: "Longest streak", description: "The most days in a row you listened.", sizes: ["M", "L", "XL"], size: "M",
     available: timeline, needs: "Needs a source with listening dates.",
     render: (r) => {
       const s = r.timeline.longest_streak;
@@ -99,17 +100,17 @@ export const WIDGETS = {
     },
   },
   "days-active": {
-    title: "Days with music", description: "How many days you listened at all.", sizes: ["S", "M"], size: "S",
+    title: "Days with music", description: "How many days you listened at all.", sizes: ["M", "L", "XL"], size: "M",
     available: timeline, needs: "Needs a source with listening dates.",
     render: (r) => kpi("Days with music", number(r.timeline.days_active), null, `of ${plural(r.timeline.days, "day")}`),
   },
   "busiest-day": {
-    title: "Busiest day", description: "The day you played the most.", sizes: ["S", "M"], size: "S",
+    title: "Busiest day", description: "The day you played the most.", sizes: ["M", "L", "XL"], size: "M",
     available: timeline, needs: "Needs a source with listening dates.",
     render: (r) => kpi("Busiest day", dayName(r.timeline.busiest_day.date), null, plural(r.timeline.busiest_day.plays, "play")),
   },
   "new-artists": {
-    title: "New artists", description: "Artists you heard for the first time.", sizes: ["S", "M"], size: "S",
+    title: "New artists", description: "Artists you heard for the first time.", sizes: ["M", "L", "XL"], size: "M",
     available: (r) => !!r.timeline?.discoveries, needs: "Needs a long enough listening history.",
     render: (r) => {
       const found = r.timeline.discoveries;
@@ -117,12 +118,12 @@ export const WIDGETS = {
     },
   },
   "peak-time": {
-    title: "Peak time", description: "The hour and day you listen most.", sizes: ["S", "M"], size: "S",
+    title: "Peak time", description: "The hour and day you listen most.", sizes: ["M", "L", "XL"], size: "M",
     available: timeline, needs: "Needs a source with listening dates.",
     render: (r) => kpi("Peak time", hourName(r.timeline.peak_hour), null, `busiest on ${WEEKDAYS[r.timeline.peak_weekday]}s`),
   },
   discoveries: {
-    title: "Discoveries", description: "The new artists you played most.", sizes: ["M", "L"], size: "M",
+    title: "Discoveries", description: "The new artists you played most.", sizes: ["M", "L", "XL"], size: "M",
     available: (r) => !!r.timeline?.discoveries?.top?.length, needs: "Needs a long enough listening history.",
     render: (r) => discoveries(r),
   },
@@ -168,14 +169,15 @@ export const WIDGETS = {
   },
 };
 
-/** Today's Overview, as a layout. Widgets that can't show anything for a recap are skipped. */
+/** Today's Overview, as tiles in order. Tiles that can't show anything for a recap are skipped. */
 export const DEFAULT_LAYOUT = [
-  ["listening-time", "S"], ["plays", "S"], ["new-finds", "S"], ["skips", "S"],
-  ["top-artist", "M"], ["top-album", "M"], ["top-song", "M"],
-  ["top-artists", "L"], ["genres", "L"], ["age", "L"], ["decades", "L"],
-  ["listen-invite", "XL"],
-  ["streak", "S"], ["days-active", "S"], ["busiest-day", "S"], ["new-artists", "S"],
-  ["time-of-day", "L"], ["weekdays", "L"], ["months", "XL"],
+  ["listening-time", "M"], ["plays", "M"], ["top-artist", "L"],
+  ["new-finds", "M"], ["skips", "M"], ["top-song", "L"],
+  ["top-artists", "XL"], ["top-album", "L"], ["age", "L"],
+  ["genres", "L"], ["decades", "L"],
+  ["listen-invite", "L"], ["streak", "M"], ["days-active", "M"],
+  ["busiest-day", "M"], ["new-artists", "M"], ["time-of-day", "L"],
+  ["weekdays", "L"], ["months", "XL"],
 ].map(([id, size]) => ({ id, size }));
 
 /** Whether a widget is in the page for this recap (the age widget also follows its opt-in). */
@@ -364,7 +366,7 @@ function listeningAge(report) {
       : h("p.muted", "Needs release years on the songs you played."));
 }
 
-/** Keep or drop the card, letting it pop in or fold away (the rest of its row closes up). */
+/** Keep or drop the card, letting it pop in or fold away (the tiles after it move up). */
 export function chooseAge(card, show) {
   let finished = false;
   const done = () => { if (!finished) { finished = true; renderApp(); } };

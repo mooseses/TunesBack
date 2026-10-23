@@ -42,7 +42,7 @@ Works on **Windows, macOS, and Linux** with:
 - **Several sources at once**: iTunes, Last.fm, ListenBrainz and Spotify, on their own or combined, without counting the same listen twice
 - **Any period**: this year, last year, the last 12 months, all time or your own dates; for iTunes, compare two readings
 - **When you listen** (sources with timestamps): listening by hour and weekday, month by month with your top artist, longest streak, busiest day and the artists you discovered
-- **Overview dashboard you can arrange**: listening time, plays, new finds, skips, top artist/album/song, top artists, top songs, top albums, genres, release decades, Listening Age and more. Press **Customize** to drag widgets around, pick their size, remove them or add others; rows close up around whatever isn't there
+- **Overview dashboard you can arrange**: listening time, plays, new finds, skips, top artist/album/song, top artists, top songs, top albums, genres, release decades, Listening Age and more. Widgets are tiles, arranged like the Windows Phone Start screen: Medium, Wide or Large, packed in order with smaller tiles filling the gaps. Press **Customize** to drag them around, change their size, remove them or add others
 - **Top charts** for Songs, Albums, Artists, Genres, Release Years, New Finds and Skipped tracks, with filtering and 10–100 rows
 - **Album art** displayed alongside track details, loaded as you scroll
 - **Network share support**: seamlessly works with UNC paths (Windows) and GVFS/CIFS mounts (Linux)

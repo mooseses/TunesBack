@@ -38,7 +38,9 @@ DEFAULTS = {
     "age_cards": False,  # listening age cards in Wrapped
     "native_sidebar": True,  # macOS: an AppKit sidebar (Liquid Glass on macOS 26) instead of the page's
     "mica": True,  # Windows 11: Mica behind the window
-    "overview_layout": None,  # the Overview's widgets, [{"id", "size"}] in order; None for the standard layout
+    # The Overview's tiles, [{"id", "size"}] in order; None for the standard layout. (Builds before
+    # the tile grid saved a row layout as "overview_layout"; unknown keys are dropped on load.)
+    "overview_tiles": None,
     "title_bar_menu": True,  # show the menu bar in TunesBack's title bar (Alt shows it when hidden)
 }
 
@@ -163,13 +165,13 @@ class Settings:
                 value = bool(value)
             if key == "age_overview" and value is not None:
                 value = bool(value)
-            if key == "overview_layout" and value is not None:
+            if key == "overview_tiles" and value is not None:
                 if not isinstance(value, list):
                     continue
                 seen, layout = set(), []
                 for item in value[:60]:
                     if (isinstance(item, dict) and isinstance(item.get("id"), str) and len(item["id"]) <= 40
-                            and item.get("size") in ("S", "M", "L", "XL") and item["id"] not in seen):
+                            and item.get("size") in ("M", "L", "XL") and item["id"] not in seen):
                         seen.add(item["id"])
                         layout.append({"id": item["id"], "size": item["size"]})
                 value = layout
