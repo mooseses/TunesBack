@@ -13,8 +13,6 @@ from .app.settings import Settings, configure_logging
 
 log = logging.getLogger("tunesback")
 
-_BACKGROUNDS = {"light": "#F6F7F9", "dark": "#0F1115"}
-
 
 def _run_browser(settings: Settings, port: int, open_browser: bool) -> None:
     server = AppServer(Api(settings), port)
@@ -33,26 +31,17 @@ def _run_window(settings: Settings, debug: bool) -> bool:
     """Returns False if no native webview is available on this system."""
     try:
         import webview
+        from .app.window import DesktopWindow, preferred_gui
     except ImportError as e:
         log.warning("pywebview is not installed (%s)", e)
         return False
 
-    holder: dict = {}
-
-    def pick_folder() -> str | None:
-        dialog = getattr(getattr(webview, "FileDialog", None), "FOLDER", None) or webview.FOLDER_DIALOG
-        result = holder["window"].create_file_dialog(dialog)
-        return result[0] if result else None
-
-    server = AppServer(Api(settings, pick_folder=pick_folder))
+    api = Api(settings)
+    server = AppServer(api)
     server.start_background()
-    theme = settings["theme"] if settings["theme"] != "system" else "dark"
-    holder["window"] = webview.create_window(
-        APP_NAME, server.url, width=1280, height=840, min_size=(980, 660),
-        background_color=_BACKGROUNDS[theme], text_select=True,
-    )
+    api.window = DesktopWindow(server.url, settings["title_bar"], settings["theme"])
     try:
-        webview.start(debug=debug)
+        webview.start(debug=debug, gui=preferred_gui())
     except Exception as e:  # no GTK/Qt/WebView2 backend on this machine
         log.warning("Could not open a native window: %s", e)
         server.shutdown()

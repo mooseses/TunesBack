@@ -55,3 +55,18 @@ def test_missing_artwork_is_none(tmp_path):
     song.write_bytes(b"")
     assert load_artwork("file://" + str(song)) is None
     assert load_artwork(None) is None
+
+
+def test_thumbnail_disk_cache(tmp_path):
+    song = tmp_path / "music" / "track.m4a"
+    song.parent.mkdir()
+    song.write_bytes(b"")
+    Image.new("RGB", (1200, 1200), "blue").save(song.parent / "cover.jpg")
+    uri = "file://" + urllib.parse.quote(str(song))
+
+    first = ThumbnailCache(size=64, cache_dir=tmp_path / "thumbs").get_many([uri, "file:///missing.mp3"])
+    assert first[uri].startswith("data:image/jpeg") and first["file:///missing.mp3"] is None
+    assert len(list((tmp_path / "thumbs").glob("*.jpg"))) == 1
+
+    (song.parent / "cover.jpg").unlink()  # a fresh cache must now read the stored thumbnail
+    assert ThumbnailCache(size=64, cache_dir=tmp_path / "thumbs").get(uri) == first[uri]

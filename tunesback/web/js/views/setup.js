@@ -20,6 +20,16 @@ export async function scan(folder, { quiet = false } = {}) {
   if (state.view === "setup") renderApp();
 }
 
+export async function browse() {
+  const result = await call("pick_folder");
+  if (result.path) scan(result.path);
+}
+
+export function canGenerate() {
+  if (state.mode === "compare") return state.snapshots.length > 1 && !!state.startId && !!state.endId && state.startId !== state.endId;
+  return !!state.endId;
+}
+
 function pickDefaults() {
   const ids = state.snapshots.map((s) => s.id);
   if (!ids.includes(state.endId)) state.endId = ids.at(-1) ?? null;
@@ -41,11 +51,6 @@ export function render(root) {
     "aria-label": "Snapshot folder", spellcheck: "false",
     onkeydown: (e) => { if (e.key === "Enter") scan(e.target.value); },
   });
-
-  const browse = async () => {
-    const result = await call("pick_folder");
-    if (result.path) scan(result.path);
-  };
 
   const folderRow = h("div.folder-row", pathInput,
     desktop && h("button.btn", { onclick: browse }, icon("folder"), "Browse…"),
@@ -90,7 +95,7 @@ function periodCard() {
   const snapshots = state.snapshots;
   const canCompare = snapshots.length > 1;
   if (!canCompare) state.mode = "single";
-  const ready = state.mode === "compare" ? canCompare && state.startId && state.endId && state.startId !== state.endId : !!state.endId;
+  const ready = canGenerate();
 
   const select = (label, key, options) => h("div.field",
     h("label", { for: `select-${key}` }, label),

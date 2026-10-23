@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import logging
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
+from pathlib import Path
 from typing import Optional
 
 import mutagen
@@ -48,11 +51,19 @@ def _folder_art(path: str) -> Optional[bytes]:
     return None
 
 
-def load_artwork(location: Optional[str]) -> Optional[Image.Image]:
-    """Full-size artwork for a library location, or None."""
+def load_artwork(location: Optional[str], max_size: Optional[int] = None) -> Optional[Image.Image]:
+    """Artwork for a library location, or None.
+
+    With `max_size`, JPEGs are decoded at a reduced scale, which is several
+    times faster than decoding a large cover and shrinking it afterwards.
+    """
     path = resolve_location(location)
     if not path:
         return None
+    return _load_from_path(path, max_size)
+
+
+def _load_from_path(path: str, max_size: Optional[int]) -> Optional[Image.Image]:
     try:
         data = _embedded_art(path)
     except Exception as e:  # unreadable tags: fall back to a cover image next to the file
@@ -62,6 +73,8 @@ def load_artwork(location: Optional[str]) -> Optional[Image.Image]:
         data = data or _folder_art(path)
         if data:
             image = Image.open(BytesIO(data))
+            if max_size:
+                image.draft("RGB", (max_size, max_size))
             image.load()
             return image.convert("RGB")
     except Exception as e:  # corrupt tags or images should never break a run
@@ -70,28 +83,74 @@ def load_artwork(location: Optional[str]) -> Optional[Image.Image]:
 
 
 class ThumbnailCache:
-    """Thread-safe cache of small JPEG thumbnails as data URIs."""
+    """Small JPEG thumbnails as data URIs, cached in memory and on disk.
 
-    def __init__(self, size: int = 160):
+    Disk entries are keyed by file path, size and modification time, so a
+    changed file gets a fresh thumbnail and the cache never needs clearing.
+    """
+
+    _VERSION = 1
+
+    def __init__(self, size: int = 160, cache_dir: Optional[Path] = None, workers: int = 4):
         self._size = size
-        self._cache: dict[str, Optional[str]] = {}
+        self._dir = cache_dir
+        self._memory: dict[str, Optional[str]] = {}
         self._lock = threading.Lock()
+        self._pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="artwork")
+        if cache_dir is not None:
+            try:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                log.warning("Thumbnail cache disabled: %s", e)
+                self._dir = None
 
     def get(self, location: str) -> Optional[str]:
         with self._lock:
-            if location in self._cache:
-                return self._cache[location]
-        image = load_artwork(location)
-        uri = None
-        if image is not None:
-            image.thumbnail((self._size, self._size))
-            buf = BytesIO()
-            image.save(buf, format="JPEG", quality=85)
-            uri = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+            if location in self._memory:
+                return self._memory[location]
+        uri = self._load(location)
         with self._lock:
-            self._cache[location] = uri
+            self._memory[location] = uri
         return uri
 
-    def clear(self) -> None:
-        with self._lock:
-            self._cache.clear()
+    def get_many(self, locations: list[str]) -> dict[str, Optional[str]]:
+        """Thumbnails for several locations, decoded in parallel."""
+        return dict(zip(locations, self._pool.map(self.get, locations)))
+
+    def _disk_path(self, path: str) -> Optional[Path]:
+        if self._dir is None:
+            return None
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        key = f"{self._VERSION}|{self._size}|{path}|{st.st_size}|{st.st_mtime_ns}"
+        return self._dir / (hashlib.sha1(key.encode("utf-8", "surrogatepass")).hexdigest() + ".jpg")
+
+    def _load(self, location: str) -> Optional[str]:
+        path = resolve_location(location)
+        if not path:
+            return None
+        disk = self._disk_path(path)
+        if disk is not None:
+            try:
+                return _data_uri(disk.read_bytes())
+            except OSError:
+                pass
+        image = _load_from_path(path, self._size * 2)
+        if image is None:
+            return None
+        image.thumbnail((self._size, self._size))
+        buf = BytesIO()
+        image.save(buf, format="JPEG", quality=85)
+        data = buf.getvalue()
+        if disk is not None:
+            try:
+                disk.write_bytes(data)
+            except OSError as e:
+                log.debug("Could not cache thumbnail: %s", e)
+        return _data_uri(data)
+
+
+def _data_uri(jpeg: bytes) -> str:
+    return "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()

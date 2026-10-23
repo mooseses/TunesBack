@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 
 DEFAULTS = {
     "theme": "system",  # system | light | dark
+    "title_bar": "custom",  # custom | native (applies after a restart)
     "unit": "hours",  # hours | minutes | days
     "rank_by": "plays",  # plays | time
     "show_art": True,
@@ -25,6 +26,7 @@ DEFAULTS = {
 
 _CHOICES = {
     "theme": {"system", "light", "dark"},
+    "title_bar": {"custom", "native"},
     "unit": {"hours", "minutes", "days"},
     "rank_by": {"plays", "time"},
 }
@@ -48,6 +50,15 @@ def log_dir() -> Path:
     if system == "Darwin":
         return Path.home() / "Library" / "Logs" / APP_NAME
     return Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / APP_NAME / "logs"
+
+
+def cache_dir() -> Path:
+    system = platform.system()
+    if system == "Windows":
+        return Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP_NAME / "Cache"
+    if system == "Darwin":
+        return Path.home() / "Library" / "Caches" / APP_NAME
+    return Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / APP_NAME
 
 
 def configure_logging(debug: bool) -> None:

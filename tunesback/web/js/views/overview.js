@@ -1,6 +1,6 @@
 import { navigate, state } from "../app.js";
 import { duration, h, number, plural, unitInfo } from "../util.js";
-import { artBox, ranked } from "./shared.js";
+import { artBox, rankedCached } from "./shared.js";
 
 export function render(root) {
   const report = state.report;
@@ -18,9 +18,9 @@ export function render(root) {
       kpi("Skips", number(report.total_skips), null, report.skipped.length ? `across ${plural(report.skipped.length, "song")}` : "nothing skipped")),
 
     h("div.grid.highlights.section",
-      highlight("Top artist", ranked(report.artists, by)[0], { round: true, fallback: "artist" }),
-      highlight("Top album", ranked(report.albums, by)[0], { fallback: "album" }),
-      highlight("Top song", ranked(report.songs, by)[0], { fallback: "song" })),
+      highlight("Top artist", rankedCached(report, "artists", by)[0], { round: true, fallback: "artist" }),
+      highlight("Top album", rankedCached(report, "albums", by)[0], { fallback: "album" }),
+      highlight("Top song", rankedCached(report, "songs", by)[0], { fallback: "song" })),
 
     h("div.grid.charts.section",
       topArtists(report, by, unit),
@@ -55,7 +55,7 @@ function value(entry, by) {
 }
 
 function topArtists(report, by, unit) {
-  const top = ranked(report.artists, by).slice(0, 10);
+  const top = rankedCached(report, "artists", by).slice(0, 10);
   const max = Math.max(1, ...top.map((e) => value(e, by)));
   return h("div.card",
     h("div.card-title", "Top artists",
@@ -72,7 +72,7 @@ function topArtists(report, by, unit) {
 const GENRE_COLORS = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5", "--chart-6"];
 
 function genres(report, by) {
-  const all = ranked(report.genres, by);
+  const all = rankedCached(report, "genres", by);
   const total = all.reduce((sum, e) => sum + value(e, by), 0);
   const parts = all.slice(0, 6).map((e, i) => ({ title: e.title, value: value(e, by), color: `var(${GENRE_COLORS[i]})` }));
   const rest = total - parts.reduce((sum, p) => sum + p.value, 0);

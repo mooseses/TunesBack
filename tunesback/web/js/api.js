@@ -19,35 +19,54 @@ export async function call(method, args = {}) {
 
 export const cardUrl = (index) => `/api/card/${index}.jpg?token=${encodeURIComponent(token)}`;
 
-// Artwork is requested lazily, in small batches, as rows scroll into view.
-const artCache = new Map();
-const waiting = new Map();
+// ---------- artwork ----------
+// Thumbnails load lazily as tiles scroll into view, a batch at a time.
+// Anything already fetched is applied synchronously, so redraws never flash.
+
+const artCache = new Map(); // location -> data URI, or null when there is none
+const queue = new Map(); // location -> Set of tiles waiting for it
+const BATCH = 16;
+const PARALLEL = 2;
+let inFlight = 0;
 let flushTimer = null;
 
-export function artwork(location) {
-  if (!location) return Promise.resolve(null);
-  if (artCache.has(location)) return Promise.resolve(artCache.get(location));
-  return new Promise((resolve) => {
-    if (!waiting.has(location)) waiting.set(location, []);
-    waiting.get(location).push(resolve);
-    clearTimeout(flushTimer);
-    flushTimer = setTimeout(flushArtwork, 40);
-  });
+export function cachedArtwork(location) {
+  return artCache.get(location);
 }
 
-async function flushArtwork() {
-  const batch = [...waiting.keys()].slice(0, 24);
-  if (!batch.length) return;
-  const result = await call("artwork", { locations: batch });
-  for (const location of batch) {
-    const uri = result.art ? result.art[location] ?? null : null;
-    artCache.set(location, uri);
-    for (const resolve of waiting.get(location) || []) resolve(uri);
-    waiting.delete(location);
+export function requestArtwork(location, tile) {
+  if (!queue.has(location)) queue.set(location, new Set());
+  queue.get(location).add(tile);
+  if (!flushTimer) flushTimer = setTimeout(flush, 16);
+}
+
+function flush() {
+  flushTimer = null;
+  while (inFlight < PARALLEL && queue.size) {
+    const batch = [];
+    for (const [location, tiles] of queue) {
+      queue.delete(location);
+      const live = [...tiles].filter((t) => t.isConnected);
+      if (!live.length) continue; // scrolled away or view changed
+      batch.push([location, live]);
+      if (batch.length === BATCH) break;
+    }
+    if (!batch.length) return;
+    inFlight++;
+    call("artwork", { locations: batch.map(([location]) => location) }).then((result) => {
+      inFlight--;
+      for (const [location, tiles] of batch) {
+        const uri = result.art ? result.art[location] ?? null : undefined;
+        if (uri !== undefined) artCache.set(location, uri);
+        if (uri) tiles.forEach((tile) => paintArtwork(tile, uri, true));
+      }
+      if (queue.size) flush();
+    });
   }
-  if (waiting.size) flushTimer = setTimeout(flushArtwork, 0);
 }
 
-export function clearArtwork() {
-  artCache.clear();
+export function paintArtwork(tile, uri, animate) {
+  tile.style.backgroundImage = `url("${uri}")`;
+  tile.classList.add("loaded");
+  if (animate) tile.classList.add("fade-in");
 }

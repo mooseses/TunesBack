@@ -14,7 +14,7 @@ from .conftest import track
 
 @pytest.fixture
 def server(tmp_path):
-    srv = AppServer(Api(Settings(tmp_path / "settings.json")))
+    srv = AppServer(Api(Settings(tmp_path / "settings.json"), thumbnail_dir=tmp_path / "thumbs"))
     srv.start_background()
     yield srv
     srv.shutdown()

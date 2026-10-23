@@ -56,7 +56,7 @@ async function generate() {
   renderApp();
 }
 
-async function save(indices) {
+export async function save(indices) {
   if (!state.info.desktop) {
     // In a browser, hand the full-size images to the browser's own downloads.
     for (const index of indices ?? state.cards.map((c) => c.index)) {

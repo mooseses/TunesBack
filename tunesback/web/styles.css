@@ -55,6 +55,8 @@ body {
   font: 15px/1.45 "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 button, input, select { font: inherit; color: inherit; }
 h1, h2, h3, p { margin: 0; }
@@ -63,7 +65,7 @@ h1, h2, h3, p { margin: 0; }
 .icon { width: 18px; height: 18px; flex: none; }
 
 /* ---------- shell ---------- */
-.shell { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
+.shell { display: grid; grid-template-columns: 220px 1fr; flex: 1; min-height: 0; }
 .nav {
   display: flex; flex-direction: column; gap: 4px;
   padding: 18px 12px; border-right: 1px solid var(--border); background: var(--surface);
@@ -81,7 +83,7 @@ h1, h2, h3, p { margin: 0; }
 .nav-item.active { background: var(--accent-soft); color: var(--accent); }
 .nav-item:disabled { opacity: 0.4; cursor: default; }
 
-.main { display: flex; flex-direction: column; min-width: 0; height: 100vh; }
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 18px 32px 14px; min-height: 72px; flex-wrap: wrap; row-gap: 12px;
@@ -97,6 +99,59 @@ h1, h2, h3, p { margin: 0; }
   color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
 }
 .period-chip:hover { color: var(--text); border-color: var(--faint); }
+
+/* ---------- window chrome ---------- */
+.titlebar {
+  display: flex; align-items: stretch; height: 38px; flex: none; user-select: none; -webkit-user-select: none;
+  background: var(--surface); border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.titlebar.menu-only { height: 32px; padding-left: 8px; }
+.titlebar-brand { display: flex; align-items: center; gap: 8px; padding: 0 14px 0 14px; font-weight: 700; }
+.titlebar-brand img { border-radius: 4px; }
+.titlebar-drag { flex: 1; }
+.titlebar-controls { display: flex; }
+.titlebar-button {
+  width: 46px; border: 0; background: none; color: var(--muted); display: grid; place-items: center; cursor: default;
+}
+.titlebar-button:hover { background: var(--surface-2); color: var(--text); }
+.titlebar-button.close:hover { background: #e81123; color: #fff; }
+.custom-titlebar .nav .brand { display: none; }
+.custom-titlebar .nav { padding-top: 12px; }
+
+.menubar { display: flex; align-items: center; gap: 2px; }
+.menu-trigger {
+  height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 13px; cursor: default;
+}
+.menu-trigger:hover, .menu-trigger.open, .menu-trigger:focus-visible { background: var(--surface-2); color: var(--text); outline: none; }
+.menu-popup {
+  position: fixed; z-index: 40; min-width: 240px; padding: 5px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  animation: pop-in 110ms cubic-bezier(0.2, 0.7, 0.3, 1); transform-origin: top left;
+}
+.menu-item {
+  display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 10px 6px 6px; border: 0; border-radius: 6px; background: none; font-size: 13px; text-align: left; cursor: default;
+}
+.menu-item:hover:not(:disabled), .menu-item:focus-visible { background: var(--accent); color: var(--accent-text); outline: none; }
+.menu-item:disabled { opacity: 0.4; }
+.menu-check { display: grid; place-items: center; }
+.menu-shortcut { color: var(--faint); font-size: 12px; padding-left: 24px; }
+.menu-item:hover:not(:disabled) .menu-shortcut, .menu-item:focus-visible .menu-shortcut { color: inherit; opacity: 0.8; }
+.menu-separator { height: 1px; margin: 5px 8px; background: var(--border); }
+
+.resize-handle { position: fixed; z-index: 50; }
+.resize-handle.n, .resize-handle.s { left: 10px; right: 10px; height: 5px; cursor: ns-resize; }
+.resize-handle.e, .resize-handle.w { top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
+.resize-handle.n { top: 0; } .resize-handle.s { bottom: 0; } .resize-handle.e { right: 0; } .resize-handle.w { left: 0; }
+.resize-handle.ne, .resize-handle.nw, .resize-handle.se, .resize-handle.sw { width: 10px; height: 10px; }
+.resize-handle.ne { top: 0; right: 0; cursor: nesw-resize; } .resize-handle.sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.resize-handle.nw { top: 0; left: 0; cursor: nwse-resize; } .resize-handle.se { bottom: 0; right: 0; cursor: nwse-resize; }
+
+/* macOS: the page runs under a transparent title bar; leave room for the traffic lights. */
+.mac-inset-titlebar .nav { padding-top: 44px; }
+.mac-inset-titlebar .topbar { padding-top: 32px; }
+
+.setting-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--accent-soft); font-size: 13px; }
 
 /* ---------- controls ---------- */
 .btn {
@@ -217,6 +272,7 @@ h1, h2, h3, p { margin: 0; }
 .tab .count { font-size: 12px; opacity: 0.7; }
 
 .rows { display: flex; flex-direction: column; }
+.list-card { padding: 8px; }
 .row {
   display: grid; grid-template-columns: 34px auto minmax(0, 1fr) minmax(80px, 200px) 150px;
   align-items: center; gap: 14px; padding: 8px 12px; border-radius: var(--radius-sm);
@@ -258,19 +314,36 @@ h1, h2, h3, p { margin: 0; }
 .card-tile .name { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 10px 8px; font-size: 13px; font-weight: 700; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,0.6)); text-align: left; }
 .save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 14px 0 0; background: linear-gradient(transparent, var(--bg) 30%); }
 
+/* ---------- motion ---------- */
+.btn, .tab, .nav-item, .segmented button, .period-chip, .card-tile, .row, .menu-item, .titlebar-button {
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 80ms ease;
+}
+.btn:active:not(:disabled), .tab:active, .nav-item:active:not(:disabled), .segmented button:active:not(:disabled) { transform: scale(0.97); }
+.page.entering { animation: page-in 180ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+.rows.swap { animation: fade-in 140ms ease-out; }
+.art.fade-in { animation: fade-in 220ms ease-out; }
+.dialog[open] { animation: pop-in 160ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+.overlay:not([hidden]) { animation: fade-in 120ms ease-out; }
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  .spinner { animation-duration: 2.4s !important; }
+}
+
 /* ---------- overlays ---------- */
 .overlay { position: fixed; inset: 0; background: rgba(8, 10, 14, 0.45); display: grid; place-items: center; z-index: 20; backdrop-filter: blur(2px); }
 .busy-card { background: var(--surface); border-radius: var(--radius); padding: 28px 36px; display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 300px; box-shadow: var(--shadow); }
 .busy-card p { font-weight: 600; }
 .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid var(--surface-3); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
 
 .dialog { border: 1px solid var(--border); border-radius: var(--radius); padding: 0; width: min(520px, calc(100vw - 32px)); background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 .dialog-small { width: min(420px, calc(100vw - 32px)); }
 .dialog::backdrop { background: rgba(8, 10, 14, 0.45); }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 0; }
-.dialog-head h2 { font-size: 18px; font-weight: 800; }
+.dialog-head h2 { font-size: 18px; font-weight: 800; outline: none; }
 .dialog-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 18px; }
 .dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 0 20px 18px; }
 .setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; }

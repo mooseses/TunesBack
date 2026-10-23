@@ -7,6 +7,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      screenshots:
+        description: "Print smoke-test screenshots to the log"
+        type: boolean
+        default: false
 
 env:
   PYTHON_VERSION: "3.12"
@@ -71,6 +76,16 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: 1
+
+      # Launch the built app and drive its title bar with real mouse input.
+      - name: Smoke test (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: ./packaging/smoke/windows.ps1 -Exe dist\TunesBack\tunesback.exe -Fixtures tests\fixtures -Screenshots "${{ inputs.screenshots || 'false' }}"
+
+      - name: Smoke test (macOS)
+        if: matrix.platform == 'macos'
+        run: python packaging/smoke/macos.py dist/TunesBack.app/Contents/MacOS/tunesback tests/fixtures "${{ inputs.screenshots || 'false' }}"
 
       # ========== macOS: Create DMG ==========
       - name: Create macOS DMG

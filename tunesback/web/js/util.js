@@ -94,7 +94,7 @@ export function toast(message, { error = false, timeout = 3200 } = {}) {
 export function showMessage(title, message) {
   const dialog = document.getElementById("message-dialog");
   dialog.replaceChildren(
-    h("div.dialog-head", h("h2", { id: "message-title" }, title)),
+    h("div.dialog-head", h("h2", { id: "message-title", tabindex: "-1", autofocus: true }, title)),
     h("div.dialog-body", h("p", message)),
     h("div.dialog-foot", h("button.btn.btn-primary", { onclick: () => dialog.close() }, "OK")),
   );

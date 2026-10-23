@@ -10,9 +10,12 @@ import logging
 import os
 import platform
 import subprocess
+import sys
 import threading
+import webbrowser
 from io import BytesIO
-from typing import Any, Callable, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional
 
 from PIL import Image
 
@@ -22,9 +25,20 @@ from ..cards import render_cards, save_card_stack
 from ..model import Snapshot
 from ..sources import itunes_xml
 from ..stats.report import Report, build_report
-from .settings import Settings, configure_logging, log_dir
+from .settings import Settings, cache_dir, configure_logging, log_dir
+
+if TYPE_CHECKING:
+    from .window import DesktopWindow
 
 log = logging.getLogger(__name__)
+
+WEBSITE = "https://github.com/mooseses/TunesBack"
+
+
+def relaunch_command() -> list[str]:
+    if getattr(sys, "frozen", False):
+        return [sys.executable, *sys.argv[1:]]
+    return [sys.executable, "-m", "tunesback", *sys.argv[1:]]
 
 
 class UserError(Exception):
@@ -36,9 +50,9 @@ class Cancelled(Exception):
 
 
 class Api:
-    def __init__(self, settings: Settings, pick_folder: Optional[Callable[[], Optional[str]]] = None):
+    def __init__(self, settings: Settings, thumbnail_dir: Optional[Path] = None):
         self.settings = settings
-        self._pick_folder = pick_folder  # None when running in a plain browser
+        self.window: Optional["DesktopWindow"] = None  # None when running in a plain browser
         self._lock = threading.Lock()
         self._analysis_lock = threading.Lock()
         self._snapshots: dict[str, itunes_xml.SnapshotInfo] = {}
@@ -47,13 +61,15 @@ class Api:
         self._cards: list[Image.Image] = []
         self._progress = {"running": False, "stage": ""}
         self._cancel = threading.Event()
-        self._thumbs = ThumbnailCache()
+        self._thumbs = ThumbnailCache(cache_dir=thumbnail_dir or cache_dir() / "thumbnails")
 
     # --- dispatch ---
 
     ACTIONS = frozenset({
-        "state", "update_settings", "open_logs", "pick_folder", "scan", "progress", "cancel",
-        "analyze", "artwork", "generate_cards", "save_cards",
+        "state", "update_settings", "open_logs", "open_website", "pick_folder", "scan", "progress", "cancel",
+        "analyze", "artwork", "generate_cards", "save_cards", "restart",
+        "window_info", "window_minimize", "window_toggle_maximize", "window_close",
+        "window_start_move", "window_start_resize",
     })
 
     def call(self, method: str, args: dict[str, Any]) -> dict:
@@ -77,7 +93,8 @@ class Api:
         return {
             "version": __version__,
             "platform": platform.system(),
-            "desktop": self._pick_folder is not None,
+            "desktop": self.window is not None,
+            "window": self.window.info() if self.window else None,
             "settings": self.settings.as_dict(),
             "log_dir": str(log_dir()),
         }
@@ -88,6 +105,53 @@ class Api:
         if values["debug_logging"] != before:
             configure_logging(values["debug_logging"])
         return {"settings": values}
+
+    def open_website(self) -> dict:
+        webbrowser.open(WEBSITE)
+        return {"ok": True}
+
+    def restart(self) -> dict:
+        """Start a fresh copy of the app, then close this one (e.g. to apply the title bar setting)."""
+        if self.window is None:
+            raise UserError("Restart TunesBack to apply this change.")
+        kwargs: dict[str, Any] = {"close_fds": True}
+        if platform.system() == "Windows":
+            kwargs["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            kwargs["start_new_session"] = True
+        subprocess.Popen(relaunch_command(), **kwargs)
+        self.window.close()
+        return {"ok": True}
+
+    # --- window controls (custom title bar) ---
+
+    def _window(self) -> "DesktopWindow":
+        if self.window is None:
+            raise UserError("Not available in the browser.")
+        return self.window
+
+    def window_info(self) -> dict:
+        return {"window": self.window.info() if self.window else None}
+
+    def window_minimize(self) -> dict:
+        self._window().minimize()
+        return {"ok": True}
+
+    def window_toggle_maximize(self) -> dict:
+        self._window().toggle_maximize()
+        return {"ok": True}
+
+    def window_close(self) -> dict:
+        self._window().close()
+        return {"ok": True}
+
+    def window_start_move(self) -> dict:
+        self._window().start_move()
+        return {"ok": True}
+
+    def window_start_resize(self, edge: str) -> dict:
+        self._window().start_resize(edge)
+        return {"ok": True}
 
     def open_logs(self) -> dict:
         path = log_dir()
@@ -102,9 +166,9 @@ class Api:
     # --- snapshots ---
 
     def pick_folder(self) -> dict:
-        if self._pick_folder is None:
+        if self.window is None:
             return {"path": None, "unsupported": True}
-        return {"path": self._pick_folder()}
+        return {"path": self.window.pick_folder()}
 
     def scan(self, folder: str) -> dict:
         folder = os.path.expanduser((folder or "").strip())
@@ -194,7 +258,8 @@ class Api:
             self._analysis_lock.release()
 
     def artwork(self, locations: list) -> dict:
-        return {"art": {loc: self._thumbs.get(loc) for loc in locations[:200] if isinstance(loc, str)}}
+        wanted = [loc for loc in locations[:200] if isinstance(loc, str)]
+        return {"art": self._thumbs.get_many(wanted)}
 
     # --- wrapped cards ---
 
@@ -222,9 +287,9 @@ class Api:
         if not cards:
             raise UserError("Generate the cards first.")
         if folder is None:
-            if self._pick_folder is None:
+            if self.window is None:
                 raise UserError("Choose where to save the cards.")
-            folder = self._pick_folder()
+            folder = self.window.pick_folder()
             if not folder:
                 return {"saved": 0, "cancelled": True}
         chosen = None if indices is None else {int(i) for i in indices}
