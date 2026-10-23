@@ -121,22 +121,26 @@ def merge(activities: Sequence[list[TrackActivity]], combine: str = "same") -> l
         return list(activities[0])
     merged: dict[tuple[str, str], TrackActivity] = {}
     for items in activities:
+        # One source can list a song more than once (under two albums, say): those plays add up
+        # before the sources are compared.
+        own: dict[tuple[str, str], TrackActivity] = {}
         for item in items:
             key = song_key(item.track.name, item.track.artist)
-            have = merged.get(key)
-            if have is None:
-                merged[key] = item
-                continue
-            # Keep the richer track details (a library track has genre, year and a file).
-            track = have.track if (have.track.location and have.track.genre) or not item.track.location else item.track
-            if combine == "separate":
-                merged[key] = replace(have, track=track, plays=have.plays + item.plays, skips=have.skips + item.skips,
-                                      is_new=have.is_new and item.is_new, listened_ms=have.ms + item.ms)
-            else:
-                best = item if (item.plays, item.ms) > (have.plays, have.ms) else have
-                merged[key] = replace(best, track=track, is_new=have.is_new and item.is_new,
-                                      listened_ms=best.ms, skips=max(have.skips, item.skips))
+            own[key] = _combine(own[key], item, "separate") if key in own else item
+        for key, item in own.items():
+            merged[key] = _combine(merged[key], item, combine) if key in merged else item
     return list(merged.values())
+
+
+def _combine(have: TrackActivity, item: TrackActivity, combine: str) -> TrackActivity:
+    # Keep the richer track details (a library track has genre, year and a file).
+    track = have.track if (have.track.location and have.track.genre) or not item.track.location else item.track
+    if combine == "separate":
+        return replace(have, track=track, plays=have.plays + item.plays, skips=have.skips + item.skips,
+                       is_new=have.is_new and item.is_new, listened_ms=have.ms + item.ms)
+    best = item if (item.plays, item.ms) > (have.plays, have.ms) else have
+    return replace(best, track=track, is_new=have.is_new and item.is_new,
+                   listened_ms=best.ms, skips=max(have.skips, item.skips))
 
 
 def timeline(listens: Sequence[Listen], start: Optional[datetime], end: Optional[datetime],

@@ -92,6 +92,22 @@ def test_merging_sources(store):
     assert both.ms == 8 * AVERAGE_SONG_MS
 
 
+def test_merging_counts_each_source_in_full(store):
+    """A source that logged a song under two albums still counts all of its plays."""
+    a_src = store.add_source("lastfm", "account", "a", "online")
+    b_src = store.add_source("listenbrainz", "account", "b", "online")
+    store.add_plays(a_src["id"], [Play.make("Song", "Artist", "Album", ts(2025, 1, d)) for d in range(1, 4)]
+                    + [Play.make("Song", "Artist feat. Guest", "Album (Deluxe)", ts(2025, 2, d)) for d in range(1, 4)])
+    store.add_plays(b_src["id"], [Play.make("Song", "Artist", "Album", ts(2025, 1, d, 1)) for d in range(1, 6)])
+    a, _, _ = activity_from_plays(store.plays([a_src["id"]]), Enricher())
+    b, _, _ = activity_from_plays(store.plays([b_src["id"]]), Enricher())
+    assert len(a) == 2
+    [same] = merge([a, b], "same")
+    [both] = merge([a, b], "separate")
+    assert same.plays == 6 and same.ms == 6 * AVERAGE_SONG_MS
+    assert both.plays == 11
+
+
 def test_timeline():
     listens = [Listen(ts(2025, 1, d, 22), 180_000, "A", "S1") for d in (1, 2, 3, 4)]
     listens += [Listen(ts(2025, 1, 10, 8), 180_000, "B", "S2"), Listen(ts(2025, 3, 5, 8), 180_000, "B", "S2")]
