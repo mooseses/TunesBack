@@ -89,11 +89,13 @@ if not bounds:
 
 time.sleep(12)
 x, y, w, h = window_bounds()
+click(x + w // 2, y + h // 2)  # bring the app to the front; the first click only activates it
+time.sleep(1)
 show("start", (x, y, w, h)); shot("start")
-drag(x + 600, y + 12, 150, 100)
+drag(x + 600, y + 12, 80, 40)
 b = window_bounds(); show("dragged", b)
 x, y, w, h = b
-drag(x + w - 2, y + h - 2, -120, -80)
+drag(x + w - 2, y + h - 2, 60, 30)
 b = window_bounds(); show("resized", b)
 x, y, w, h = b
 click(x + 600, y + 12, clicks=2); time.sleep(1.5)

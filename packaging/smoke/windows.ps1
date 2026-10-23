@@ -72,12 +72,14 @@ if ($hwnd -eq [IntPtr]::Zero) {
 Start-Sleep -Seconds 12
 [Win]::SetForegroundWindow($hwnd) | Out-Null; Start-Sleep -Milliseconds 500
 
+# Runner screens are small (1024x768), so keep every point we touch on screen:
+# move a little, then resize from the top-left corner (the taskbar covers the bottom).
 $r = Rect $hwnd; Show "start" $r; Shot "start"
-Drag ($r.Left + 700) ($r.Top + 19) 150 100
+Drag ($r.Left + 600) ($r.Top + 19) (-10) 30
 $r2 = Rect $hwnd; Show "dragged" $r2
-Drag ($r2.Right - 3) ($r2.Bottom - 3) (-120) (-80)
+Drag ($r2.Left + 3) ($r2.Top + 3) (-8) (-50)
 $r3 = Rect $hwnd; Show "resized" $r3
-Click ($r3.Left + 160) ($r3.Top + 19); Start-Sleep -Milliseconds 600; Shot "menu"
+Click ($r3.Left + 152) ($r3.Top + 19); Start-Sleep -Milliseconds 600; Shot "menu"
 Click ($r3.Left + 700) ($r3.Top + 300); Start-Sleep -Milliseconds 400   # dismiss the menu
 Click ($r3.Left + 700) ($r3.Top + 19); Click ($r3.Left + 700) ($r3.Top + 19); Start-Sleep -Seconds 1
 $r4 = Rect $hwnd; Show "dblclick" $r4; "maximized: $([Win]::IsZoomed($hwnd))"; Shot "maximized"

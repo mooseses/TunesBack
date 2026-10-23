@@ -117,9 +117,28 @@ class DesktopWindow:
                 setup()
         except Exception:
             log.exception("Window integration failed; falling back to basic behaviour")
+        try:
+            self._fit_to_screen()
+        except Exception:
+            log.exception("Could not fit the window to the screen")
         if self._menu_mode == "pending":
             self._menu_mode = "native"
         self._push_state()
+
+    def _fit_to_screen(self) -> None:
+        """Shrink and centre the window if it opened larger than the screen."""
+        screens = getattr(self._webview, "screens", None) or []
+        if not screens:
+            return
+        screen = screens[0]
+        width, height = self.window.width, self.window.height
+        if width <= screen.width * 0.95 and height <= screen.height * 0.9:
+            return
+        width = max(980, min(width, int(screen.width * 0.9)))
+        height = max(660, min(height, int(screen.height * 0.85)))
+        self.window.resize(width, height)
+        self.window.move(screen.x + (screen.width - width) // 2, screen.y + max(0, (screen.height - height) // 2))
+        log.info("Resized window to %dx%d to fit a %dx%d screen", width, height, screen.width, screen.height)
 
     # --- backends ---
 
@@ -200,8 +219,22 @@ class DesktopWindow:
         from PyObjCTools import AppHelper
 
         self._invoke = AppHelper.callAfter
-        if self.custom:
-            AppHelper.callAfter(_cocoa_transparent_titlebar, self.window.native)
+        native = self.window.native
+
+        def setup():
+            # Runs on the main thread, where exceptions would otherwise go unseen.
+            try:
+                _cocoa_arrange_menu()
+            except Exception:
+                log.exception("Could not arrange the macOS menu bar")
+            if self.custom:
+                try:
+                    _cocoa_transparent_titlebar(native)
+                    log.info("Transparent title bar applied")
+                except Exception:
+                    log.exception("Could not make the title bar transparent")
+
+        AppHelper.callAfter(setup)
 
     # --- state for the interface ---
 
@@ -360,6 +393,76 @@ def _global_menu_reliable() -> bool:
         return any(themes.glob("KDEPlasmaPlatformTheme*"))
     except Exception:
         return False
+
+
+def _cocoa_arrange_menu() -> None:
+    """Make pywebview's menu bar look like a Mac app's.
+
+    pywebview adds its own Edit and View menus; merge our View into its View,
+    order the menus TunesBack, File, Edit, View, Help, move Settings into the
+    app menu and give items their Command-key shortcuts.
+    """
+    import AppKit
+
+    main = AppKit.NSApp.mainMenu()
+    if main is None:
+        return
+    shortcuts = {e.label: e.shortcut for _, entries in menu_for("macos") for e in entries if e and e.shortcut}
+    ours = {title for title, _ in menu_for("macos")}
+
+    def items(menu):
+        return [menu.itemAtIndex_(i) for i in range(menu.numberOfItems())]
+
+    def titled(title):
+        return [i for i in items(main) if i.submenu() is not None and i.submenu().title() == title]
+
+    # Two "View" menus: ours contains "Library". Keep ours, append pywebview's items to it.
+    views = titled("View")
+    our_view = next((v for v in views if v.submenu().itemWithTitle_("Library") is not None), None)
+    for other in views:
+        if other is our_view or our_view is None:
+            continue
+        extra = items(other.submenu())
+        if extra:
+            our_view.submenu().addItem_(AppKit.NSMenuItem.separatorItem())
+        for item in extra:
+            other.submenu().removeItem_(item)
+            our_view.submenu().addItem_(item)
+        main.removeItem_(other)
+
+    # Settings belongs in the app menu, after About.
+    files = titled("File")
+    app_menu = main.itemAtIndex_(0).submenu()
+    if files and app_menu is not None:
+        settings = files[0].submenu().itemWithTitle_("Settings…")
+        if settings is not None:
+            files[0].submenu().removeItem_(settings)
+            app_menu.insertItem_atIndex_(AppKit.NSMenuItem.separatorItem(), 1)
+            app_menu.insertItem_atIndex_(settings, 2)
+
+    # Conventional order after the app menu.
+    for position, title in enumerate(("File", "Edit", "View", "Help"), start=1):
+        found = titled(title)
+        if found and position < main.numberOfItems():
+            main.removeItem_(found[0])
+            main.insertItem_atIndex_(found[0], position)
+
+    # Shortcuts, and no stray separators left behind.
+    key_names = {"Enter": "\r"}
+    for top in items(main):
+        menu = top.submenu()
+        if menu is None:
+            continue
+        for item in items(menu):
+            shortcut = shortcuts.get(item.title())
+            if shortcut and (menu.title() in ours or menu is app_menu):
+                key = shortcut.split("+")[-1]
+                item.setKeyEquivalent_(key_names.get(key, key.lower()))
+                item.setKeyEquivalentModifierMask_(AppKit.NSCommandKeyMask)
+        entries = items(menu)
+        for i, item in enumerate(entries):
+            if item.isSeparatorItem() and (i == 0 or i == len(entries) - 1 or entries[i - 1].isSeparatorItem()):
+                menu.removeItem_(item)
 
 
 _drag_view_class = None

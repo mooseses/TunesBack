@@ -212,6 +212,7 @@ window.addEventListener("blur", closeMenu);
 // ---------- keyboard shortcuts ----------
 
 function onShortcut(event) {
+  if (info && info.platform === "macos" && info.menu === "native") return; // the menu bar owns ⌘ shortcuts
   const mod = isMac() ? event.metaKey : event.ctrlKey;
   if (!mod || event.altKey) return;
   const key = event.key === "Enter" ? "Enter" : event.key.length === 1 ? event.key.toUpperCase() : event.key;
