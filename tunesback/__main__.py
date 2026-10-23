@@ -54,13 +54,18 @@ def _run_window(settings: Settings, debug: bool) -> bool:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(prog="tunesback", description="Year-in-review statistics for iTunes and Apple Music.")
+    parser = argparse.ArgumentParser(prog="tunesback", description="Year-in-review statistics for your music library.")
     parser.add_argument("--browser", action="store_true", help="open in your web browser instead of a window")
     parser.add_argument("--no-open", action="store_true", help="with --browser: don't open a browser tab")
     parser.add_argument("--port", type=int, default=0, help="with --browser: port to listen on (default: any free port)")
     parser.add_argument("--debug", action="store_true", help="verbose logging and web inspector")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
+    parser.add_argument("--selftest", metavar="IMAGE", help=argparse.SUPPRESS)  # draw sample cards (used by CI)
     args = parser.parse_args(argv)
+
+    if args.selftest:
+        from .cards.selftest import run
+        sys.exit(run(args.selftest))
 
     settings = Settings()
     configure_logging(args.debug or settings["debug_logging"])

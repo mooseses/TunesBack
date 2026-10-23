@@ -5,7 +5,7 @@
 
 **The replay statistics for the rest of us.**
 
-*Year-in-review for iTunes and iPod users.*
+*Year-in-review for your music library: iTunes, Last.fm, ListenBrainz and Spotify.*
 
   [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
   ![Build Status](https://github.com/mooseses/TunesBack/actions/workflows/build.yml/badge.svg?branch=main)
@@ -27,54 +27,51 @@
 
 ## Why TunesBack?
 
-Spotify has Wrapped. Apple Music has Replay. But what about iTunes and iPod users?
+Spotify has Wrapped. Apple Music has Replay. But what about iTunes and iPod users, or anyone whose listening is spread over several apps?
 
-TunesBack brings year-end analytics to your local music library. Track your listening habits, see your top artists, albums and songs, and discover how your taste evolves over time.
+TunesBack brings year-end analytics to the music you already have. Track your listening habits, see your top artists, albums and songs, see *when* you listen, and discover how your taste evolves over time.
 
-Works with iTunes and Apple Music libraries on **Windows, macOS, and Linux**.
+Works on **Windows, macOS, and Linux** with:
+
+- **iTunes / Apple Music** libraries (TunesBack keeps its own readings of the library over time)
+- **Last.fm** and **ListenBrainz** profiles (every scrobble, with the time you played it)
+- **Spotify** listening history downloads
 
 ## Features
 
-- **Compare periods** or analyze a single snapshot. Snapshot dates are read from the export itself, so file names don't matter
+- **Several sources at once**: iTunes, Last.fm, ListenBrainz and Spotify, on their own or combined, without counting the same listen twice
+- **Any period**: this year, last year, the last 12 months, all time or your own dates; for iTunes, compare two readings
+- **When you listen** (sources with timestamps): listening by hour and weekday, month by month with your top artist, longest streak, busiest day and the artists you discovered
 - **Overview dashboard**: listening time, plays, new finds, skips, top artist/album/song, top artists chart, genre share, release decades and Listening Age
 - **Top charts** for Songs, Albums, Artists, Genres, Release Years, New Finds and Skipped tracks, with filtering and 10–100 rows
 - **Album art** displayed alongside track details, loaded as you scroll
 - **Network share support**: seamlessly works with UNC paths (Windows) and GVFS/CIFS mounts (Linux)
-- **Wrapped cards:** shareable Spotify-style visual summaries
+- **Wrapped cards:** shareable story or square images, with several layouts and themes per card, and a Shuffle button
 - **Listening Age:** calculates the "era" of music you gravitate toward
 - **Flexible display:** switch between hours, minutes and days; rank by plays or listening time
 - **Dark and light mode**, or follow the system
 - **Native-feeling window:** TunesBack's own title bar by default (or your system's, in Settings), a File/View/Help menu bar with keyboard shortcuts, the macOS menu bar on Macs and the global menu on KDE Plasma
-- **Fully offline:** all processing happens on your machine
+- **Private:** your listening history is kept and analysed on your machine. TunesBack only goes online to read your Last.fm or ListenBrainz profile and album covers for them
 
 ## Wrapped Cards
 
-Generate shareable images summarizing your listening habits.
+Shareable images of your listening, made in the Wrapped view.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/43982e15-f82d-4ff7-9051-757a6fef3f39" width="200" />
-  <img src="https://github.com/user-attachments/assets/2f61c61d-2023-4648-bac9-c9a0f8472265" width="200" />
-  <img src="https://github.com/user-attachments/assets/e58681b5-e08b-48bf-91f0-2dfac3260cf7" width="200" />
-  <img src="https://github.com/user-attachments/assets/38774d82-aa37-41a4-a5d4-9a78edb78536" width="200" />
+  <img src="./docs/screenshots/cards.jpg" alt="Six Wrapped cards in different layouts and themes" width="100%" />
 </p>
 
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/fd0a398e-1e4e-4799-ba78-42b18c0ba1bb" width="200" />
-  <img src="https://github.com/user-attachments/assets/cc03c1df-b0f3-4ac3-adcc-f96489e5f4d4" width="200" />
-  <img src="https://github.com/user-attachments/assets/bda24ff6-6f8a-4d7b-a3e7-0f464293a4f9" width="200" />
-</p>
+**Cards:** Top songs, #1 song, Top albums, Top artists, Top genres, Minutes listened, Listening age and a Summary. Sources with timestamps add the Listening clock, Year in months, Streak and Discoveries.
 
-**Available cards:**
-- **Top Songs & Albums**: ranked lists with album artwork
-- **Top Genres**: typographic genre tiles
-- **Top Song**: hero card with large cover art
-- **Minutes Listened**: total listening time
-- **Listening Age**: your calculated musical age
-- **Summary**: overview combining top artist, stats, and genres
+**Designs:** each card has two or three **layouts** (a list, a spotlight, a receipt, a vinyl record, a calendar…) and comes in nine **themes**: Midnight, Sunset, Paper, Poster, Mint, Mono, Neon, Classic (the TunesBack 1.x look), and **Cover**, which takes its colours from your top album's artwork.
 
-The order of items follows the "By plays / By time" setting at the top right. Re-generate after changing the ranking.
+- Pick a theme for the whole deck, or **Mix** for a different one on every card.
+- **Shuffle** gives every card a new layout (and theme, with Mix). The same shuffle always gives the same deck, and **Undo** takes it back.
+- Click a card to choose its layout and theme, hide it from the deck, or save just that one.
+- **Story** (1080×1920) or **Square** (1080×1080).
+- Your design is remembered, so next year's cards look the same until you change them.
 
-> More card types to come!
+Rankings follow the "By plays / By time" switch at the top right. Long titles shrink, wrap and only then get cut short, and titles in other scripts (Japanese, Korean, Cyrillic, Arabic…) are drawn with a font installed on your computer.
 
 ## Listening Age
 
@@ -131,6 +128,8 @@ A track in the end snapshot is a **New Find** only if **all** of the following a
 
 New Finds are only shown when comparing two snapshots.
 
+For **Last.fm, ListenBrainz and Spotify**, a New Find is a song whose first play ever (in that source's whole history) falls in the period. The **Discoveries** stats and card do the same for artists, as long as the history goes back at least a month before the period, so a brand-new account doesn't make everything look new.
+
 ### Why Persistent ID?
 
 iTunes assigns each track a unique **Persistent ID** that remains constant even if the file is renamed, moved, or re-tagged. Matching by ID first means edited metadata doesn't turn an old favourite into a "new" track.
@@ -151,6 +150,36 @@ flowchart TD
 ```
 
 Implementation details: see `period_activity()` in `tunesback/stats/period.py`.
+
+## Sources
+
+### iTunes / Apple Music
+
+iTunes only keeps a running play count per song, so TunesBack reads your library **each time it opens** and keeps those readings. Comparing two readings gives the plays in between. Older exports can be imported as extra readings (Library page, or File → Import Older iTunes Exports…).
+
+When a recap uses dates (or mixes iTunes with other sources), TunesBack uses the readings closest to the start and end of the period, and the recap shows which dates they actually cover.
+
+### Last.fm
+
+Set-up asks for your user name. Reading scrobbles needs a free **API key**: [create one](https://www.last.fm/api/account/create) (any app name works) and paste the "API key" it shows. TunesBack remembers it. Release builds can come with a key, in which case set-up doesn't ask.
+
+The first import fetches your whole history (200 scrobbles per request, a few per second, so a long history takes a few minutes). You can stop at any time: TunesBack keeps what it has and carries on the next time it opens. After that, each launch fetches only what's new. Your profile's recent listening must be public.
+
+Last.fm doesn't record song lengths, so listening time uses the length from your iTunes library when the song is in it, and an average song length otherwise. Those times are marked as estimated.
+
+### ListenBrainz
+
+Just your user name; no key needed. Works like Last.fm, and uses the song lengths ListenBrainz has.
+
+### Spotify
+
+In [Spotify's privacy settings](https://www.spotify.com/account/privacy/), request your **Extended streaming history** (it can take a few days), then choose the `.zip` Spotify sends you. The quicker "Account data" download works too, with your last year of listening. Like Spotify, a listen counts as a play from 30 seconds on; podcasts and audiobooks are left out. To update, add a newer download: listens already imported are skipped.
+
+### Combining sources
+
+On the Library page, the **Recap** card picks one source or **All sources**. With more than one, it asks whether they record the **same** listening (for example iTunes scrobbling to Last.fm: each song counts once, using the higher number) or **separate** listening (your phone and your computer: plays add up). Songs are matched by title and main artist.
+
+Sources that log listens also borrow genre, release year and artwork from your iTunes library when the song is in it, so genres and the Listening Age work for them too.
 
 ## Album Art & Network Share Support
 
@@ -211,10 +240,11 @@ If album art doesn't appear:
 |----------|--------|
 | Windows | Installer (`.exe`) |
 | macOS | Disk image (`.dmg`) |
+| Linux | AppImage, or a `.tar.gz` of the same app |
 
 > **macOS:** You may need to go to **System Settings → Privacy & Security** and click "Open Anyway" the first time.
 
-> **Linux:** there is no packaged build yet. Run from source (below).
+> **Linux:** the packaged app brings its own Qt, so it doesn't depend on your system's web view. Make the AppImage executable (`chmod +x`) and run it.
 
 ### Run from source (any platform)
 
@@ -244,15 +274,19 @@ If no web view is available, TunesBack opens in your default browser instead. Yo
 
 ### 2. Set up
 
-The first time you open TunesBack, a short set-up asks which music apps you use and whether your music is on this computer or a network drive. It then finds your iTunes library, takes a first reading of it, and remembers where it is.
+The first time you open TunesBack, a short set-up asks which music apps you use, then sets up each one:
 
-If it can't find the library, point it to the file or to a folder of exports. In iTunes or Music: **File → Library → Export Library**. On Windows you can also turn on *Edit → Preferences → Advanced → Share iTunes Library XML with other applications* so iTunes keeps the file up to date.
+- **iTunes / Apple Music:** on this computer or a network drive? TunesBack finds the library, takes a first reading, and remembers where it is. If it can't find it, point it to the file or to a folder of exports (in iTunes or Music: **File → Library → Export Library**). On Windows you can also turn on *Edit → Preferences → Advanced → Share iTunes Library XML with other applications* so iTunes keeps the file up to date.
+- **Last.fm / ListenBrainz:** your user name (and, for Last.fm, an API key). The history is imported right away.
+- **Spotify:** choose your downloaded listening history.
+
+Add more sources later from the Library page or File → Add Source….
 
 ### 3. Explore
 
-TunesBack reads your library again every time you open it, so each launch adds a point in time to compare. Older exports can be added from the Library page (or File → Import Older Exports…) to compare right away.
+Every time it opens, TunesBack reads your iTunes library again and fetches new listens from Last.fm and ListenBrainz (File → Check for New Listens does it on demand).
 
-- **Library**: your libraries, their readings, and the period to recap
+- **Library**: your sources, and the period (and sources) to recap
 - **Overview** and **Top charts**: your stats for that period
 - **Wrapped**: shareable cards
 
@@ -285,7 +319,9 @@ Copy-Item "$env:USERPROFILE\Music\iTunes\iTunes Library.xml" "$env:USERPROFILE\M
 - **Album art** is extracted from embedded tags. iTunes' "Get Album Art" feature stores artwork separately and won't be picked up.
 - **Moved libraries**: if your music files have moved and the XML paths are outdated, artwork won't load. Enable debug logging to investigate.
 - **Network shares**: path resolution works best when shares are already mounted.
-- **CJK text**: font fallback for Asian characters in Wrapped cards is limited.
+- **Music app on a Mac**: it doesn't write a library file by itself, so export the library (File → Library → Export Library) and add the export.
+- **Last.fm listening time** is estimated for songs that aren't in your iTunes library (Last.fm doesn't record song lengths).
+- **Card fonts**: titles in scripts the bundled fonts don't cover use a font installed on your computer, in its regular weight.
 - **Artist credits**: only explicit "feat." / "ft." / "featuring", `;` and ` / ` credits are split into separate artists, so duos like "Simon & Garfunkel" stay together.
 
 Turn on **Settings → Detailed logging** to see why artwork might be missing.
@@ -293,10 +329,11 @@ Turn on **Settings → Detailed logging** to see why artwork might be missing.
 ## Tech Stack
 
 - [pywebview](https://pywebview.flowrl.com/): native window around the HTML/CSS/JS interface
-- [Pillow](https://pillow.readthedocs.io/): image generation
+- [resvg](https://github.com/linebender/resvg) (via [resvg-py](https://github.com/baseplate-admin/resvg-py)): draws the Wrapped cards from SVG
+- [Pillow](https://pillow.readthedocs.io/): artwork, card backgrounds and image output
 - [mutagen](https://mutagen.readthedocs.io/): audio metadata extraction
 - [python-dateutil](https://dateutil.readthedocs.io/): date parsing
-- [Figtree](https://github.com/erikdkennedy/figtree): typeface (SIL Open Font License)
+- Typefaces, all under the SIL Open Font License: [Figtree](https://github.com/erikdkennedy/figtree), [Instrument Serif](https://github.com/Instrument/instrument-serif), [Space Mono](https://github.com/googlefonts/spacemono) and [Anton](https://github.com/googlefonts/AntonFont)
 
 ## Development
 
@@ -311,17 +348,20 @@ Project layout:
 
 ```
 tunesback/
-  sources/itunes_xml.py   reads and finds iTunes / Apple Music libraries
-  library.py              TunesBack's own readings of your libraries (SQLite)
+  sources/                iTunes libraries; Last.fm, ListenBrainz and Spotify listens
+  library.py              TunesBack's store: readings of libraries and every listen (SQLite)
+  recap.py                a report from any mix of sources over a period
   model.py                Track and Snapshot, shared by every source
-  stats/                  period activity, rankings, Listening Age
+  stats/                  period activity, rankings, Listening Age, timeline statistics
   art/                    file location resolution and artwork
-  cards/                  Wrapped card rendering
+  cards/                  Wrapped cards: SVG canvas, text fitting, fonts, themes, layouts/, deck
   app/                    local API server, settings, window and menu bar
   web/                    the interface (no build step)
 tests/
-packaging/                PyInstaller spec and icons
+packaging/                PyInstaller spec, icons, Linux AppImage files and smoke tests
 ```
+
+Release builds can include a Last.fm API key: set the `LASTFM_API_KEY` repository secret (CI writes it into `tunesback/_build.py`), or set `TUNESBACK_LASTFM_API_KEY` when running from source.
 
 The Python side serves the interface and a small JSON API on `127.0.0.1`. Requests need a per-launch token, so other websites can't talk to it.
 

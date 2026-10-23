@@ -1,8 +1,9 @@
 # Plan: TunesBack as a local music library analyzer
 
 Status: milestones 1–4 implemented for iTunes / Apple Music (set-up flow,
-library store, discovery, automatic readings). Other players are listed in
-set-up as "Coming Soon!".
+library store, discovery, automatic readings). Last.fm, ListenBrainz and
+Spotify downloads followed (see cards-and-sources.md). Other players are
+listed in set-up as "Coming Soon!".
 
 Decisions so far:
 - Every player is listed during set-up; unsupported ones show "Coming Soon!".

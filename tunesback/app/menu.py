@@ -23,9 +23,9 @@ Entry = Union[Item, None]
 
 MENU: list[tuple[str, list[Entry]]] = [
     ("File", [
-        Item("add_library", "Add Library…", "Mod+O"),
-        Item("import_exports", "Import Older Exports…"),
-        Item("refresh", "Read Libraries Now", "Mod+R"),
+        Item("add_library", "Add Source…", "Mod+O"),
+        Item("import_exports", "Import Older iTunes Exports…"),
+        Item("refresh", "Check for New Listens", "Mod+R"),
         SEPARATOR,
         Item("generate", "Generate Recap", "Mod+Enter"),
         SEPARATOR,

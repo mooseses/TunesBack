@@ -51,6 +51,10 @@ const ICONS = {
   server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  wave: '<path d="M2 12h2M6 8v8M10 5v14M14 9v6M18 7v10M22 12h-2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  flame: '<path d="M12 22c4 0 7-3 7-7 0-5-5-8-6-13-2 3-3 5-3 8-1-1-2-2-2-4-2 2-3 5-3 9 0 4 3 7 7 7z"/>',
   shuffle: '<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   hidden: '<path d="M9.9 4.2A10 10 0 0 1 12 4c7 0 10 8 10 8a17 17 0 0 1-2.2 3.2M6.6 6.6A17 17 0 0 0 2 12s3 8 10 8a9.7 9.7 0 0 0 5.4-1.6M3 3l18 18M14.1 14.1a3 3 0 0 1-4.2-4.2"/>',
@@ -81,8 +85,12 @@ export function duration(ms, unit) {
 
 export const number = (n) => Number(n).toLocaleString();
 
+/** "Mar 3, 2025" from an ISO date or date-time. The calendar date is shown as written, never shifted by time zone. */
 export function shortDate(iso) {
-  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+  const text = String(iso);
+  const date = /^\d{4}-\d{2}-\d{2}/.test(text) && !/(Z|[+-]\d{2}:\d{2})$/.test(text)
+    ? new Date(`${text.slice(0, 10)}T00:00:00Z`) : new Date(text);
+  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 export function fileSize(bytes) {

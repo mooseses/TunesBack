@@ -1,5 +1,5 @@
 import { call } from "./api.js";
-import { h, icon, segmented, shortDate, showMessage, toast } from "./util.js";
+import { h, icon, number, segmented, shortDate, showMessage, toast } from "./util.js";
 import { initWindow } from "./window.js";
 import * as setup from "./views/setup.js";
 import { openOnboarding } from "./views/onboarding.js";
@@ -150,7 +150,7 @@ export function openSettings() {
       state.info.desktop && titleBarSetting(),
       toggle("show_art", "Album artwork in lists", "Read from your music files. Can be slow on network drives."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Set-up"),
-        h("div.desc", "Go through the welcome steps again, for example to add another library.")),
+        h("div.desc", "Go through the welcome steps again, for example to add another source.")),
         h("button.btn", { onclick: () => { dialog.close(); openSetup({ start: "welcome", cancellable: true }); } }, "Run set-up")),
       toggle("debug_logging", "Detailed logging", "Writes extra detail to the log file to help track down problems."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Log files"), h("div.desc", state.info.log_dir)),
@@ -249,18 +249,22 @@ export function hideBusy() {
   busy.hidden = true;
 }
 
-export async function runAnalysis() {
-  const start = state.mode === "compare" ? state.startId : null;
+/** Build the recap chosen on the Library page. `quiet` (at start-up): on failure, stay on the Library page. */
+export async function runAnalysis({ quiet = false } = {}) {
   showBusy("Starting…", () => { busyText.textContent = "Cancelling…"; call("cancel"); });
   const poll = setInterval(async () => {
     const p = await call("progress");
     if (p.running && p.stage && !busy.hidden && busyText.textContent !== "Cancelling…") busyText.textContent = p.stage;
   }, 250);
-  const result = await call("analyze", { end: state.endId, start });
+  const result = await call("analyze", setup.analysisRequest());
   clearInterval(poll);
   hideBusy();
 
-  if (result.error) return showMessage("Couldn't build your recap", result.error);
+  if (result.error) {
+    if (!quiet) return showMessage("Couldn't build your recap", result.error);
+    toast(result.error, { timeout: 6000 });
+    return navigate("setup");
+  }
   if (result.cancelled) return toast("Cancelled");
   state.report = result.report;
   state.deck = null;
@@ -280,7 +284,7 @@ function openSetup(options = {}) {
 
 async function showLibrary({ recap }) {
   await setup.loadLibrary();
-  if (recap && setup.canGenerate()) await runAnalysis();
+  if (recap && setup.canGenerate()) await runAnalysis({ quiet: true });
   else navigate("setup");
   if (!state.report) render({ entering: true });
 }
@@ -317,6 +321,19 @@ async function init() {
     return;
   }
   await showLibrary({ recap: true });
+  syncInBackground();
+}
+
+/** Fetch new listens from online accounts after start-up, without holding anything up. */
+async function syncInBackground() {
+  if (!state.sources.some((s) => s.mode === "account")) return;
+  const result = await setup.sync({ quiet: true });
+  if (!result.new) return;
+  await setup.loadLibrary();
+  if (state.view === "setup") render();
+  const uses = state.report?.sources?.some((s) => state.sources.find((x) => x.id === s.id)?.mode === "account");
+  toast(`${number(result.new)} new listens from your accounts`,
+    uses ? { action: { label: "Update recap", run: runAnalysis } } : {});
 }
 
 init();

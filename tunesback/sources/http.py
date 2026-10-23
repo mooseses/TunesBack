@@ -60,6 +60,7 @@ class Client:
         query = urllib.parse.urlencode({k: v for k, v in (params or {}).items() if v is not None})
         url = self.base_url + path + ("?" + query if query else "")
         delay = 1.0
+        offline = 0
         for attempt in range(self.retries + 1):
             with self._lock:
                 self._wait(self._last + self.min_interval - time.monotonic())
@@ -67,7 +68,9 @@ class Client:
             status, body, wait = self._fetch(url)
             if status is not None and status not in RETRY_STATUS and not retry_if(status, body):
                 return status, body
-            if attempt == self.retries:
+            # No connection at all rarely fixes itself in seconds: give up sooner than on a busy server.
+            offline = offline + 1 if status is None else 0
+            if attempt == self.retries or offline > 2:
                 break
             log.debug("%s: retrying %s (status %s)", self.name, path, status)
             self._wait(max(delay, wait or 0))

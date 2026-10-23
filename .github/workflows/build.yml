@@ -41,6 +41,8 @@ jobs:
   build:
     name: Build ${{ matrix.name }}
     needs: test
+    env:
+      LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
     strategy:
       fail-fast: false
       matrix:
@@ -90,11 +92,34 @@ jobs:
             xvfb openbox xdotool imagemagick desktop-file-utils
           pip install ".[qt]" pyinstaller
 
+      # With a LASTFM_API_KEY repository secret, the app comes with a Last.fm key
+      # and set-up doesn't ask for one.
+      - name: Bundle a Last.fm API key
+        if: env.LASTFM_API_KEY != ''
+        shell: bash
+        run: printf 'LASTFM_API_KEY = "%s"\n' "$LASTFM_API_KEY" > tunesback/_build.py
+
       - name: Build app
         run: pyinstaller packaging/tunesback.spec --noconfirm
         env:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: 1
+
+      # The packaged app draws a few cards from made-up data: proves resvg, the
+      # bundled fonts and a system font for other scripts all work once frozen.
+      - name: Draw sample cards
+        shell: bash
+        run: |
+          case "${{ matrix.platform }}" in
+            windows) EXE=dist/TunesBack/tunesback.exe ;;
+            macos) EXE=dist/TunesBack.app/Contents/MacOS/tunesback ;;
+            *) EXE=dist/TunesBack/tunesback ;;
+          esac
+          "$EXE" --selftest cards.jpg
+          test -s cards.jpg
+          if [ "${{ inputs.screenshots || 'false' }}" = "true" ]; then
+            python -c "import base64; d = base64.b64encode(open('cards.jpg', 'rb').read()).decode(); [print('SHOT cards', d[i:i + 4000]) for i in range(0, len(d), 4000)]; print('SHOT cards END')"
+          fi
 
       # Launch the built app and drive its title bar with real mouse input.
       - name: Smoke test (Windows)

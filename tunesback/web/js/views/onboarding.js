@@ -1,29 +1,47 @@
-// First-run set-up: a few friendly steps that end with TunesBack knowing where
-// your library lives and holding its first reading of it.
+// First-run set-up: a few friendly steps that end with TunesBack knowing
+// where your music lives and holding its first reading or import of it.
+//
+// After "Which music apps do you use?", each app you picked adds its own
+// steps: iTunes looks for the library on this computer or a network drive,
+// Last.fm and ListenBrainz ask for a user name, Spotify for its download.
 
 import { call } from "../api.js";
 import { state } from "../app.js";
 import { h, icon, number, relativeTime, shortDate } from "../util.js";
 
-const STEPS = ["welcome", "apps", "location", "find", "history", "done"];
-const PROGRESS = ["apps", "location", "find", "history"];
-const TINTS = ["#e0284f", "#7b61ff", "#0ea5a4", "#f59e0b", "#3b82f6", "#ec4899", "#22c55e", "#8b5cf6", "#f97316"];
+const STEPS_FOR = {
+  itunes: ["location", "find", "history"],
+  lastfm: ["lastfm"],
+  listenbrainz: ["listenbrainz"],
+  spotify: ["spotify"],
+};
+const TINTS = { itunes: "#e0284f", lastfm: "#d51007", listenbrainz: "#eb743b", spotify: "#1db954" };
+const OTHER_TINTS = ["#7b61ff", "#0ea5a4", "#f59e0b", "#3b82f6", "#ec4899", "#22c55e", "#8b5cf6", "#f97316"];
+const LINKS = {
+  spotifyPrivacy: "https://www.spotify.com/account/privacy/",
+};
 
 let root = null;
 let flow = null;
 let onFinish = null;
 
-/** Show set-up. `start` skips the welcome (e.g. when adding another library). */
+/** Show set-up. `start` skips the welcome (e.g. when adding another source). */
 export function openOnboarding({ start = "welcome", finish, cancellable = false } = {}) {
   onFinish = finish;
   flow = {
-    step: start, apps: new Set(["itunes"]), location: "local", root: "", catalog: [],
-    search: "idle", candidates: [], selected: null, reading: null, error: null, imported: null, cancellable,
+    step: start, apps: new Set(["itunes"]), queue: [], location: "local", root: "", catalog: [], lastfmKey: true,
+    lastfmKeyUrl: "", search: "idle", candidates: [], selected: null, reading: null, error: null, imported: null,
+    accounts: {}, added: [], cancellable,
   };
   root = document.getElementById("onboarding");
   root.hidden = false;
   document.body.classList.add("onboarding-open");
-  call("catalog").then((r) => { flow.catalog = r.sources || []; if (flow.step === "apps") show(); });
+  call("catalog").then((r) => {
+    flow.catalog = r.sources || [];
+    flow.lastfmKey = !!r.lastfm_key;
+    flow.lastfmKeyUrl = r.lastfm_key_url || "";
+    if (flow.step === "apps") show("none");
+  });
   show();
 }
 
@@ -33,18 +51,27 @@ function close() {
   document.body.classList.remove("onboarding-open");
 }
 
+const order = () => ["welcome", "apps", ...flow.queue, "done"];
+
 function go(step) {
-  const forward = STEPS.indexOf(step) >= STEPS.indexOf(flow.step);
+  const steps = order();
+  const forward = steps.indexOf(step) >= steps.indexOf(flow.step);
   flow.step = step;
   show(forward ? "forward" : "back");
   if (step === "find" && flow.search === "idle") search();
 }
 
+/** The step after (or before) this one, in the order the picked apps set up. */
+const next = () => order()[order().indexOf(flow.step) + 1] ?? "done";
+const previous = () => order()[order().indexOf(flow.step) - 1] ?? "apps";
+
 function show(direction = "forward") {
-  const body = { welcome, apps, location, find, history, done }[flow.step]();
+  const body = { welcome, apps, location, find, history, lastfm: () => account("lastfm"),
+    listenbrainz: () => account("listenbrainz"), spotify, done }[flow.step]();
   const page = h(`div.oobe-step.enter-${direction}`, body);
-  const progress = PROGRESS.includes(flow.step) && h("div.oobe-progress", { "aria-label": `Step ${PROGRESS.indexOf(flow.step) + 1} of ${PROGRESS.length}` },
-    PROGRESS.map((s, i) => h(`span${i <= PROGRESS.indexOf(flow.step) ? ".on" : ""}`)));
+  const dots = ["apps", ...flow.queue];
+  const progress = dots.includes(flow.step) && h("div.oobe-progress", { "aria-label": `Step ${dots.indexOf(flow.step) + 1} of ${dots.length}` },
+    dots.map((s, i) => h(`span${i <= dots.indexOf(flow.step) ? ".on" : ""}`)));
   root.replaceChildren(...[
     flow.cancellable && h("button.oobe-close.btn.btn-ghost", { "aria-label": "Close set-up", onclick: close }, icon("close")),
     progress,
@@ -57,8 +84,12 @@ function footer(...buttons) {
   return h("div.oobe-footer", buttons);
 }
 
-function back(step) {
-  return h("button.btn.btn-ghost", { onclick: () => go(step) }, "Back");
+function back() {
+  return h("button.btn.btn-ghost", { onclick: () => go(previous()) }, "Back");
+}
+
+function monogram(source, i) {
+  return h("span.oobe-monogram", { style: { background: TINTS[source.id] || OTHER_TINTS[i % OTHER_TINTS.length] } }, source.name[0]);
 }
 
 // ---------- steps ----------
@@ -67,40 +98,47 @@ function welcome() {
   return h("div.oobe-center",
     h("img.oobe-logo", { src: "/assets/icon.png", alt: "" }),
     h("h1.oobe-title", "Welcome to TunesBack"),
-    h("p.oobe-lead", "Your year in music, from the library you already have."),
+    h("p.oobe-lead", "Your year in music, from the apps you already use."),
     h("button.btn.btn-primary.btn-large.oobe-cta", { onclick: () => go("apps") },
       "Get started", icon("arrow")),
-    h("p.oobe-fine", "Everything stays on this computer."));
+    h("p.oobe-fine", "Your listening history stays on this computer."));
 }
 
 function apps() {
-  const tiles = (flow.catalog.length ? flow.catalog : [{ id: "itunes", name: "iTunes / Apple Music", blurb: "", available: true }])
-    .map((source, i) => {
-      const picked = flow.apps.has(source.id);
-      const tile = h(`button.oobe-tile${picked ? ".picked" : ""}${source.available ? "" : ".soon"}`, {
-        type: "button", "aria-pressed": source.available ? String(picked) : null, disabled: !source.available,
-        title: source.available ? null : `${source.name} support is coming soon`,
-      },
-        h("span.oobe-monogram", { style: { background: TINTS[i % TINTS.length] } }, source.name[0]),
-        h("span.oobe-tile-text", h("b", source.name), source.blurb && h("small", source.blurb),
-          !source.available && h("span.oobe-soon", "Coming Soon!")),
-        source.available && h("span.oobe-check", icon("check")));
-      if (source.available) {
-        tile.addEventListener("click", () => {
-          if (flow.apps.has(source.id)) flow.apps.delete(source.id); else flow.apps.add(source.id);
-          tile.classList.toggle("picked");
-          tile.setAttribute("aria-pressed", String(flow.apps.has(source.id)));
-          next.disabled = !flow.apps.size;
-        });
-      }
-      return tile;
-    });
-  const next = h("button.btn.btn-primary", { disabled: !flow.apps.size, onclick: () => go("location") }, "Continue");
+  const catalog = flow.catalog.length ? flow.catalog : [{ id: "itunes", name: "iTunes / Apple Music", blurb: "", available: true }];
+  const tiles = catalog.map((source, i) => {
+    const picked = flow.apps.has(source.id);
+    const tile = h(`button.oobe-tile${picked ? ".picked" : ""}${source.available ? "" : ".soon"}`, {
+      type: "button", "aria-pressed": source.available ? String(picked) : null, disabled: !source.available,
+      title: source.available ? null : `${source.name} support is coming soon`,
+    },
+      monogram(source, i),
+      h("span.oobe-tile-text", h("b", source.name), source.blurb && h("small", source.blurb),
+        !source.available && h("span.oobe-soon", "Coming Soon!")),
+      source.available && h("span.oobe-check", icon("check")));
+    if (source.available) {
+      tile.addEventListener("click", () => {
+        if (flow.apps.has(source.id)) flow.apps.delete(source.id); else flow.apps.add(source.id);
+        tile.classList.toggle("picked");
+        tile.setAttribute("aria-pressed", String(flow.apps.has(source.id)));
+        cta.disabled = !flow.apps.size;
+      });
+    }
+    return tile;
+  });
+  const cta = h("button.btn.btn-primary", {
+    disabled: !flow.apps.size,
+    onclick: () => {
+      // Set up the picked apps in catalogue order.
+      flow.queue = catalog.filter((s) => flow.apps.has(s.id)).flatMap((s) => STEPS_FOR[s.id] || []);
+      go(flow.queue[0] || "done");
+    },
+  }, "Continue");
   return [
     h("h2.oobe-heading", "Which music apps do you use?"),
-    h("p.oobe-sub", "Pick the ones you listen with. More are on the way."),
+    h("p.oobe-sub", "Pick all that apply. Services that log every listen, like Last.fm, also show when you listen."),
     h("div.oobe-tiles", tiles),
-    footer(back("welcome"), next),
+    footer(back(), cta),
   ];
 }
 
@@ -115,21 +153,21 @@ function location() {
     : state.info.platform === "Darwin" ? "/Volumes/Music" : "/run/user/1000/gvfs/… or /mnt/music";
   const rootInput = h("input.input", {
     id: "oobe-root", type: "text", value: flow.root, placeholder: `Where the drive is mounted, e.g. ${example}`, spellcheck: "false",
-    oninput: (e) => { flow.root = e.target.value; next.disabled = !flow.root.trim(); },
+    oninput: (e) => { flow.root = e.target.value; cta.disabled = !flow.root.trim(); },
   });
   const browse = state.info.desktop && h("button.btn", {
     onclick: async () => {
       const r = await call("pick_folder");
-      if (r.path) { flow.root = rootInput.value = r.path; next.disabled = false; }
+      if (r.path) { flow.root = rootInput.value = r.path; cta.disabled = false; }
     },
   }, icon("folder"), "Browse…");
-  const next = h("button.btn.btn-primary", {
+  const cta = h("button.btn.btn-primary", {
     disabled: flow.location === "network" && !flow.root.trim(),
     onclick: () => { flow.search = "idle"; go("find"); },
   }, "Continue");
   return [
-    h("h2.oobe-heading", "Where does your music live?"),
-    h("p.oobe-sub", "TunesBack will look for your iTunes library there."),
+    h("h2.oobe-heading", "Where does your iTunes library live?"),
+    h("p.oobe-sub", "TunesBack will look for it there."),
     h("div.oobe-options",
       option("local", "computer", "On this computer", "In your Music folder or iTunes folder"),
       option("network", "server", "On a network drive", "A NAS or shared folder")),
@@ -137,7 +175,7 @@ function location() {
       h("label.label", { for: "oobe-root" }, "Network folder"),
       h("div.folder-row", rootInput, browse),
       h("p.hint", "Connect the drive first, then point TunesBack at it. It searches a few folders deep.")),
-    footer(back("apps"), next),
+    footer(back(), cta),
   ];
 }
 
@@ -172,6 +210,7 @@ async function useLibrary(path) {
   } else {
     flow.search = "read";
     flow.reading = result;
+    flow.added.push(`${number(result.tracks)} songs from iTunes`);
   }
   show("none");
 }
@@ -228,7 +267,7 @@ function find() {
       musicAppNote(),
       h("button.btn.btn-ghost.oobe-link", { onclick: () => { flow.search = "failed"; flow.error = null; show("none"); } },
         "Not here? Choose it yourself"),
-      footer(back("location"), h("button.btn.btn-primary", { disabled: !flow.selected, onclick: () => useLibrary(flow.selected) }, "Use this library")),
+      footer(back(), h("button.btn.btn-primary", { disabled: !flow.selected, onclick: () => useLibrary(flow.selected) }, "Use this library")),
     ];
   }
   // Nothing found or reading failed: set it up by hand.
@@ -245,7 +284,9 @@ function find() {
           h("span.oobe-option-icon", icon("folder")), h("b", "Choose a folder of exports"), h("small", "Every export in it becomes a reading")))
       : h("div.folder-row", pathInput, h("button.btn.btn-primary", { onclick: () => pathInput.value.trim() && useLibrary(pathInput.value) }, "Use this")),
     exportHelp(),
-    footer(back("location"), h("button.btn", { onclick: () => { flow.search = "idle"; search(); } }, icon("refresh"), "Search again")),
+    footer(back(), h("div.oobe-footer-group",
+      h("button.btn.btn-ghost", { onclick: () => go(next()) }, "Skip iTunes"),
+      h("button.btn", { onclick: () => { flow.search = "idle"; search(); } }, icon("refresh"), "Search again"))),
   ];
 }
 
@@ -292,17 +333,184 @@ function history() {
     result && h(`p.oobe-result${result.error ? ".error" : ""}`, result.error
       ? result.error
       : `Added ${result.imported} reading${result.imported === 1 ? "" : "s"}${result.skipped ? ` (${result.skipped} already there)` : ""}.`),
-    footer(h("span"), h("button.btn.btn-primary", { onclick: () => go("done") }, result && !result.error ? "Continue" : "Skip for now")),
+    footer(h("span"), h("button.btn.btn-primary", { onclick: () => go(next()) }, result && !result.error ? "Continue" : "Skip for now")),
   ];
 }
 
+// ---------- Last.fm and ListenBrainz ----------
+
+const ACCOUNTS = {
+  lastfm: {
+    name: "Last.fm",
+    lead: "TunesBack reads your scrobbles, every song with the time you played it. It never posts anything.",
+    placeholder: "Your Last.fm user name",
+  },
+  listenbrainz: {
+    name: "ListenBrainz",
+    lead: "TunesBack reads your listens, every song with the time you played it. It never posts anything.",
+    placeholder: "Your ListenBrainz user name",
+  },
+};
+
+function account(kind) {
+  const info = ACCOUNTS[kind];
+  const a = (flow.accounts[kind] ||= { status: "form", username: "", apiKey: "", error: null, result: null, stage: "" });
+  if (a.status === "syncing") {
+    return h("div.oobe-center",
+      h("div.spinner.oobe-spinner"),
+      h("h2.oobe-heading", `Importing your ${info.name} history…`),
+      h("p.oobe-sub.oobe-stage", a.stage || "Connecting…"),
+      h("p.oobe-fine", "Long histories take a few minutes. You can stop at any time: TunesBack keeps what it has and carries on next time."),
+      h("button.btn", { onclick: () => { a.stage = "Stopping…"; call("cancel", { channel: "sync" }); show("none"); } }, "Stop for now"));
+  }
+  if (a.status === "done") {
+    const r = a.result;
+    return h("div.oobe-center",
+      h("div.oobe-success", icon("check")),
+      h("h2.oobe-heading", r.stopped ? "Imported so far" : "Got it!"),
+      h("p.oobe-lead", h("b", number(r.source.play_count)), ` ${kind === "lastfm" ? "scrobbles" : "listens"}`,
+        r.source.first_play ? [" since ", h("b", shortDate(new Date(r.source.first_play * 1000).toISOString()))] : ""),
+      h("p.oobe-sub", r.stopped || !r.source.complete
+        ? "TunesBack will fetch the rest of your history the next time it opens."
+        : "New listens are fetched each time you open TunesBack."),
+      h("button.btn.btn-primary.btn-large.oobe-cta", { onclick: () => go(next()) }, "Continue", icon("arrow")));
+  }
+  const needsKey = kind === "lastfm" && !flow.lastfmKey;
+  const user = h("input.input", {
+    id: `oobe-${kind}-user`, type: "text", value: a.username, placeholder: info.placeholder, spellcheck: "false",
+    autocomplete: "username", "data-autofocus": true,
+    oninput: (e) => { a.username = e.target.value; update(); },
+  });
+  const key = needsKey && h("input.input", {
+    id: "oobe-lastfm-key", type: "text", value: a.apiKey, placeholder: "32 letters and numbers", spellcheck: "false",
+    oninput: (e) => { a.apiKey = e.target.value; update(); },
+  });
+  const connect = h("button.btn.btn-primary", {
+    onclick: async () => {
+      a.status = "syncing";
+      a.error = null;
+      a.stage = "";
+      show("none");
+      const poll = setInterval(async () => {
+        const p = await call("progress", { channel: "sync" });
+        if (p.running && p.stage && a.status === "syncing" && a.stage !== "Stopping…") {
+          a.stage = p.stage;
+          const line = root.querySelector(".oobe-stage");
+          if (line) line.textContent = p.stage;
+        }
+      }, 400);
+      const result = await call("add_account", { kind, username: a.username, api_key: needsKey ? a.apiKey : null });
+      clearInterval(poll);
+      if (!result.error && result.problems?.length && !result.source.play_count) result.error = result.problems[0].error;
+      if (result.error) {
+        a.status = "form";
+        a.error = result.error;
+      } else {
+        a.status = "done";
+        a.result = result;
+        flow.added.push(`${number(result.source.play_count)} listens from ${info.name}`);
+      }
+      if (flow.step === kind) show("none");
+    },
+  }, "Connect");
+  const update = () => { connect.disabled = !a.username.trim() || (needsKey && !a.apiKey.trim()); };
+  update();
+  return [
+    h("h2.oobe-heading", `Connect ${info.name}`),
+    h("p.oobe-sub", info.lead),
+    h("div.oobe-form",
+      h("label.label", { for: `oobe-${kind}-user` }, "User name"), user,
+      needsKey && [
+        h("label.label", { for: "oobe-lastfm-key" }, "API key"), key,
+        h("p.hint", "Last.fm asks apps for a free API key. ",
+          h("a", { href: flow.lastfmKeyUrl, target: "_blank", rel: "noreferrer", onclick: (e) => openLink(e, flow.lastfmKeyUrl) }, "Create one here"),
+          " (any app name works), then paste the “API key” it shows. TunesBack remembers it."),
+      ]),
+    a.error && h("p.oobe-result.error", a.error),
+    footer(back(), h("div.oobe-footer-group",
+      h("button.btn.btn-ghost", { onclick: () => go(next()) }, "Skip"),
+      connect)),
+  ];
+}
+
+/** Open a web page in the system browser (the desktop window can't navigate away). */
+function openLink(event, url) {
+  if (!state.info.desktop) return;
+  event.preventDefault();
+  call("open_url", { url });
+}
+
+// ---------- Spotify ----------
+
+function spotify() {
+  const s = (flow.accounts.spotify ||= { status: "form", error: null, result: null });
+  if (s.status === "importing") {
+    return h("div.oobe-center",
+      h("div.spinner.oobe-spinner"),
+      h("h2.oobe-heading", "Importing your Spotify history…"),
+      h("p.oobe-sub", "Reading every listen in the download."));
+  }
+  if (s.status === "done") {
+    const r = s.result;
+    return h("div.oobe-center",
+      h("div.oobe-success", icon("check")),
+      h("h2.oobe-heading", "Got it!"),
+      h("p.oobe-lead", h("b", number(r.source.play_count)), " listens",
+        r.source.first_play ? [" since ", h("b", shortDate(new Date(r.source.first_play * 1000).toISOString()))] : ""),
+      h("p.oobe-sub", "Request a new download from Spotify now and then and add it from the Library page to keep it current."),
+      h("button.btn.btn-primary.btn-large.oobe-cta", { onclick: () => go(next()) }, "Continue", icon("arrow")));
+  }
+  const importFrom = async (path) => {
+    if (!path) return;
+    s.status = "importing";
+    s.error = null;
+    show("none");
+    const result = await call("import_history", { kind: "spotify", path });
+    if (result.error) {
+      s.status = "form";
+      s.error = result.error;
+    } else {
+      s.status = "done";
+      s.result = result;
+      flow.added.push(`${number(result.source.play_count)} listens from Spotify`);
+    }
+    if (flow.step === "spotify") show("none");
+  };
+  const pathInput = h("input.input", { type: "text", placeholder: "Path to my_spotify_data.zip or its folder", spellcheck: "false", "aria-label": "Spotify download" });
+  return [
+    h("h2.oobe-heading", "Import your Spotify history"),
+    h("p.oobe-sub", "Spotify lets you download everything you've played. TunesBack reads that download."),
+    h("details.oobe-help", { open: true },
+      h("summary", "How do I get it?"),
+      h("ol",
+        h("li", "Open ", h("a", { href: LINKS.spotifyPrivacy, target: "_blank", rel: "noreferrer", onclick: (e) => openLink(e, LINKS.spotifyPrivacy) }, "Spotify's privacy settings"), " and sign in."),
+        h("li", "Under “Download your data”, tick “Extended streaming history” and request it."),
+        h("li", "Spotify emails you a link when it's ready. That can take a few days."),
+        h("li", "Download it and choose the file here. No need to unzip it.")),
+      h("p.hint", "Have the quicker “Account data” download instead? That works too, with your last year of listening.")),
+    state.info.desktop
+      ? h("div.oobe-options",
+        h("button.oobe-option", { type: "button", onclick: async () => importFrom((await call("pick_file", { kind: "spotify" })).path) },
+          h("span.oobe-option-icon", icon("download")), h("b", "Choose the download"), h("small", "The .zip file Spotify sent you")),
+        h("button.oobe-option", { type: "button", onclick: async () => importFrom((await call("pick_folder")).path) },
+          h("span.oobe-option-icon", icon("folder")), h("b", "Choose a folder"), h("small", "If you've already unzipped it")))
+      : h("div.folder-row", pathInput, h("button.btn.btn-primary", { onclick: () => importFrom(pathInput.value.trim()) }, "Import")),
+    s.error && h("p.oobe-result.error", s.error),
+    footer(back(), h("button.btn.btn-ghost", { onclick: () => go(next()) }, "Skip for now")),
+  ];
+}
+
+// ---------- done ----------
+
 function done() {
-  const r = flow.reading;
+  const added = flow.added;
   return h("div.oobe-center",
     h("div.oobe-success.big", icon("check")),
-    h("h1.oobe-title", "You're all set"),
-    h("p.oobe-lead", r ? `${number(r.tracks)} songs ready to explore.` : "Your library is ready."),
+    h("h1.oobe-title", added.length ? "You're all set" : "Almost there"),
+    added.length
+      ? h("ul.oobe-summary", added.map((line) => h("li", icon("check"), line)))
+      : h("p.oobe-lead", "Nothing was added yet. You can add your music any time from the Library page."),
     h("button.btn.btn-primary.btn-large.oobe-cta", {
       onclick: () => { close(); onFinish?.(); },
-    }, "See my stats", icon("arrow")));
+    }, added.length ? "See my stats" : "Go to TunesBack", icon("arrow")));
 }

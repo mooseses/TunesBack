@@ -18,6 +18,7 @@ from io import BytesIO
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Optional
+from urllib.parse import urlsplit
 
 from .. import __version__
 from ..art import artwork
@@ -83,7 +84,7 @@ class Api:
     # --- dispatch ---
 
     ACTIONS = frozenset({
-        "state", "update_settings", "open_logs", "open_website", "pick_folder", "pick_file", "progress", "cancel",
+        "state", "update_settings", "open_logs", "open_website", "open_url", "pick_folder", "pick_file", "progress", "cancel",
         "catalog", "discover", "add_library", "import_exports", "refresh_readings", "library", "remove_library",
         "add_account", "import_history", "sync_sources",
         "analyze", "artwork", "card_options", "cards", "save_cards", "restart",
@@ -127,6 +128,16 @@ class Api:
 
     def open_website(self) -> dict:
         webbrowser.open(WEBSITE)
+        return {"ok": True}
+
+    # Pages the interface may open in the system browser (help for setting up sources).
+    LINK_HOSTS = ("www.last.fm", "www.spotify.com", "listenbrainz.org", "github.com")
+
+    def open_url(self, url: str) -> dict:
+        parts = urlsplit(str(url))
+        if parts.scheme != "https" or parts.hostname not in self.LINK_HOSTS:
+            raise UserError("TunesBack only opens its help pages.")
+        webbrowser.open(parts.geturl())
         return {"ok": True}
 
     def restart(self) -> dict:
@@ -318,7 +329,13 @@ class Api:
             plays = spotify.read_export(path)
         except SourceError as e:
             raise UserError(str(e)) from e
-        source = self.store.add_source("spotify", "export", path, "local")
+        # A newer download of the same account goes into the same source; listens already there are skipped.
+        existing = next((s for s in self.store.sources() if s["kind"] == "spotify"), None)
+        if existing:
+            self.store.set_path(existing["id"], path)
+            source = existing
+        else:
+            source = self.store.add_source("spotify", "export", path, "local")
         new = self.store.add_plays(source["id"], plays)
         self.settings.update({"setup_done": True})
         return {"source": self._source_json(source["id"]), "plays": len(plays), "new": new}

@@ -1,6 +1,12 @@
 # Plan: card designs (phase 3) and listening history sources (phase 4)
 
-Status: in progress.
+Status: implemented. Two changes from the plan as first written:
+
+- **Shuffle** starts every card over (per-card layouts and themes are reset;
+  hidden cards stay hidden) rather than skipping cards you changed, so it
+  always visibly does something. Undo brings the previous design back.
+- A newer **Spotify download** goes into the existing Spotify source
+  (listens already there are skipped) instead of becoming a second source.
 
 ## Where this lands in the app
 

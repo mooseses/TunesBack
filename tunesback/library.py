@@ -173,6 +173,10 @@ class LibraryStore:
             row = self._db.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone()
         return _with_options(row) if row else None
 
+    def set_path(self, source_id: int, path: str) -> None:
+        with self._lock, self._db:
+            self._db.execute("UPDATE sources SET path = ? WHERE id = ?", (path, source_id))
+
     def set_options(self, source_id: int, **changes) -> dict:
         """Merge changes into a source's options (e.g. how far a sync got)."""
         with self._lock, self._db:

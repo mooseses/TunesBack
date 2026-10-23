@@ -1,5 +1,5 @@
 import { navigate, state } from "../app.js";
-import { duration, h, number, plural, unitInfo } from "../util.js";
+import { duration, h, icon, number, plural, unitInfo } from "../util.js";
 import { artBox, rankedCached } from "./shared.js";
 
 export function render(root) {
@@ -9,11 +9,11 @@ export function render(root) {
 
   root.append(
     h("div.grid.kpis",
-      kpi("Listening time", duration(report.total_ms, unit), unitInfo(unit).long,
-        compare ? "between the two snapshots" : "all time"),
-      kpi(compare ? "New plays" : "Plays", number(report.total_plays), null, plural(report.songs.length, "song")),
+      kpi("Listening time", `${report.estimated_time ? "≈ " : ""}${duration(report.total_ms, unit)}`, unitInfo(unit).long,
+        report.estimated_time ? "partly estimated from song lengths" : compare ? "in this period" : "all time"),
+      kpi(compare && !report.timeline ? "New plays" : "Plays", number(report.total_plays), null, plural(report.songs.length, "song")),
       compare
-        ? kpi("New finds", number(report.new_finds.length), null, "songs added and played")
+        ? kpi("New finds", number(report.new_finds.length), null, report.timeline ? "songs played for the first time" : "songs added and played")
         : kpi("Artists", number(report.artists.length), null, plural(report.albums.length, "album")),
       kpi("Skips", number(report.total_skips), null, report.skipped.length ? `across ${plural(report.skipped.length, "song")}` : "nothing skipped")),
 
@@ -27,7 +27,70 @@ export function render(root) {
       h("div.grid", { style: { alignContent: "start" } }, genres(report, by), listeningAge(report))),
 
     h("div.section", decades(report, by)),
+    listening(report, by, unit),
   );
+}
+
+// ---------- when you listen (sources with timestamps) ----------
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const hourName = (hour) => `${hour % 12 || 12}${hour < 12 ? "am" : "pm"}`;
+const dayName = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
+
+function listening(report, by, unit) {
+  const tl = report.timeline;
+  if (!tl) {
+    // Counter libraries (iTunes) don't know when songs were played.
+    if (state.sources.some((s) => !s.counter)) return null;
+    return h("div.card.invite.section",
+      h("span.invite-icon", icon("clock")),
+      h("div",
+        h("div.card-title", { style: { marginBottom: "4px" } }, "See when you listen"),
+        h("p.muted", "Connect Last.fm or ListenBrainz, or import your Spotify history, to see your listening by hour and day, your streaks and the artists you discovered.")),
+      h("button.btn", { onclick: () => state.openSetup({ start: "apps", cancellable: true }) }, icon("plus"), "Add a source"));
+  }
+  const metric = (pair) => (by === "time" ? pair.ms : pair.plays);
+  const label = (v) => (by === "time" ? `${duration(v, unit)} ${unitInfo(unit).short}` : number(v));
+  const streak = tl.longest_streak;
+  const found = tl.discoveries;
+  return h("div.section",
+    h("h2.section-title", "When you listen"),
+    h("div.grid.kpis",
+      kpi("Longest streak", number(streak.days), streak.days === 1 ? "day" : "days",
+        streak.days > 1 ? `${dayName(streak.start)} – ${dayName(streak.end)}` : dayName(streak.start)),
+      kpi("Days with music", number(tl.days_active), null, `of ${plural(tl.days, "day")}`),
+      kpi("Busiest day", dayName(tl.busiest_day.date), null, plural(tl.busiest_day.plays, "play")),
+      found ? kpi("New artists", number(found.artists), null, found.top[0] ? `most played: ${found.top[0].name}` : "first heard this period")
+        : kpi("Peak time", hourName(tl.peak_hour), null, `busiest on ${WEEKDAYS[tl.peak_weekday]}s`)),
+    h("div.grid.charts.section",
+      h("div.card",
+        h("div.card-title", "Time of day", h("span.muted", `peaks at ${hourName(tl.peak_hour)}`)),
+        columns(tl.hours[by === "time" ? "ms" : "plays"].map((v, hour) => ({
+          value: v, tick: hour % 6 === 0 ? hourName(hour) : "", title: `${hourName(hour)}: ${label(v)}`, peak: hour === tl.peak_hour,
+        })), { compact: true })),
+      h("div.card",
+        h("div.card-title", "Day of the week"),
+        columns(tl.weekdays[by === "time" ? "ms" : "plays"].map((v, day) => ({
+          value: v, tick: WEEKDAYS[day], title: `${WEEKDAYS[day]}: ${label(v)}`, peak: day === tl.peak_weekday,
+        })), { values: label }))),
+    tl.months.length > 1 && h("div.card.section",
+      h("div.card-title", "Month by month", h("span.muted", "with the artist you played most")),
+      columns(tl.months.map((m) => ({
+        value: metric(m), tick: new Date(`${m.month}-01T00:00:00Z`).toLocaleDateString(undefined, { month: "short", timeZone: "UTC" }),
+        title: `${m.month}: ${label(metric(m))}${m.top_artist ? ` · ${m.top_artist}` : ""}`, caption: m.top_artist,
+        peak: metric(m) === Math.max(...tl.months.map(metric)),
+      })), { values: label, tall: true })));
+}
+
+/** A column chart: items are {value, tick, title, peak, caption}. */
+function columns(items, { values = null, compact = false, tall = false } = {}) {
+  const max = Math.max(1, ...items.map((i) => i.value));
+  return h(`div.columns${compact ? ".compact" : ""}${tall ? ".tall" : ""}`, { role: "img", "aria-label": items.map((i) => i.title).join(", ") },
+    items.map((i) => h("div.column", { title: i.title },
+      values && h("span.value", i.value ? values(i.value) : ""),
+      h(`div.bar${i.peak ? "" : ".dim"}`, { style: { height: `${(i.value / max) * 100}%` } }),
+      i.caption !== undefined && h("span.caption", i.caption || ""),
+      h("span.tick", i.tick))));
 }
 
 function kpi(label, value, unitText, sub) {

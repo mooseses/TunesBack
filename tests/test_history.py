@@ -148,15 +148,21 @@ def test_spotify_import_and_recap(api, tmp_path):
     result = api.call("import_history", {"path": str(archive), "kind": "spotify"})
     assert result["plays"] == 6 and result["new"] == 6 and result["source"]["name"] == "Spotify"
     assert api.call("import_history", {"path": str(archive)})["new"] == 0
+    newer = tmp_path / "newer.zip"
+    with zipfile.ZipFile(newer, "w") as z:
+        z.writestr("Streaming_History_Audio_2025.json", json.dumps(entries + [{**entries[0], "ts": "2025-03-01T20:00:00Z"}]))
+    again = api.call("import_history", {"path": str(newer)})
+    assert again["new"] == 1 and again["source"]["id"] == result["source"]["id"]
+    assert api.call("library", {})["sources"][0]["path"] == str(newer)
     assert api.settings["setup_done"] is True
     [source] = api.call("library", {})["sources"]
-    assert source["play_count"] == 6 and not source["counter"]
+    assert source["play_count"] == 7 and not source["counter"]
     assert api.call("refresh_readings", {}) == {"new": 0, "problems": []}
 
     report = api.call("analyze", {"sources": [source["id"]], "period": {"start": "2025-01-01", "end": "2025-01-31"}})["report"]
     assert report["total_plays"] == 3 and report["mode"] == "compare" and report["timeline"]["total"] == 3
     everything = api.call("analyze", {"period": {"start": None, "end": None}})["report"]
-    assert everything["total_plays"] == 6 and everything["mode"] == "single"
+    assert everything["total_plays"] == 7 and everything["mode"] == "single"
     assert "no plays" in api.call("analyze", {"period": {"start": "2020-01-01", "end": "2020-12-31"}})["error"]
     assert "dates" in api.call("analyze", {"period": {"start": "yesterday"}})["error"]
     cards = api.call("cards", {})
