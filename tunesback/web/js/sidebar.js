@@ -1,6 +1,7 @@
 // The sidebar: drag its edge to resize it, drag it narrow enough (or press the
 // button, the menu item or Ctrl/Cmd+B) to hide it. Width and visibility are saved.
 
+import { call } from "./api.js";
 import { icon } from "./util.js";
 
 const MIN = 180;
@@ -9,6 +10,7 @@ const HIDE_BELOW = 130; // dragging narrower than this hides the sidebar on rele
 const DEFAULT = 220;
 
 let nav, resizer, settings, save;
+let native = false; // macOS: an AppKit sidebar replaces the page's (see app/macos.py)
 
 export function initSidebar(currentSettings, saveSettings) {
   settings = currentSettings;
@@ -18,7 +20,7 @@ export function initSidebar(currentSettings, saveSettings) {
   document.getElementById("hide-sidebar").append(icon("sidebar"));
   document.getElementById("show-sidebar").append(icon("sidebar"));
   document.getElementById("hide-sidebar").addEventListener("click", () => setHidden(true));
-  document.getElementById("show-sidebar").addEventListener("click", () => setHidden(false));
+  document.getElementById("show-sidebar").addEventListener("click", () => (native ? toggleSidebar() : setHidden(false)));
   setWidth(settings.sidebar_width || DEFAULT);
   apply(!!settings.sidebar_hidden, false);
 
@@ -36,7 +38,18 @@ export function initSidebar(currentSettings, saveSettings) {
 }
 
 export function toggleSidebar() {
-  setHidden(!document.body.classList.contains("sidebar-hidden"));
+  if (native) call("window_toggle_sidebar");
+  else setHidden(!document.body.classList.contains("sidebar-hidden"));
+}
+
+/** The window has a native sidebar: hide ours, and keep a toggle in the top bar. */
+export function setNativeSidebar(on) {
+  native = on;
+  document.body.classList.toggle("native-sidebar", on);
+  const show = document.getElementById("show-sidebar");
+  show.hidden = !on && !document.body.classList.contains("sidebar-hidden");
+  show.title = on ? "Show or hide sidebar" : "Show sidebar";
+  show.setAttribute("aria-label", show.title);
 }
 
 const clamp = (width) => Math.round(Math.min(MAX, Math.max(MIN, width)));
@@ -57,7 +70,7 @@ function apply(hidden, animate) {
   document.body.classList.toggle("sidebar-hidden", hidden);
   nav.setAttribute("aria-hidden", String(hidden));
   nav.inert = hidden;
-  document.getElementById("show-sidebar").hidden = !hidden;
+  document.getElementById("show-sidebar").hidden = !hidden && !native;
   if (animate) setTimeout(() => document.body.classList.remove("sidebar-animate"), 260);
 }
 

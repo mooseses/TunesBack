@@ -1,7 +1,9 @@
 # Research and plan: a native sidebar on Windows and macOS
 
-Status: decided (October 23, 2026). Windows: a Fluent-styled HTML sidebar on Mica, gated on a
-prototype. macOS: a real AppKit sidebar, aiming at Tahoe's floating Liquid Glass.
+Status: built (October 23, 2026). Windows: a Fluent-styled HTML sidebar on Mica (Windows 11 22H2
+and later), in `app/window.py`. macOS: a real AppKit sidebar (`app/macos.py`), in Liquid Glass on
+macOS 26 because the release build stamps the launcher with the macOS 26 SDK. Both can be turned
+off in Settings, and fall back to the page's own sidebar if anything fails.
 
 ## Decisions
 

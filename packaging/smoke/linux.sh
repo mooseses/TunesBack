@@ -78,5 +78,25 @@ xdotool mousemove $((X + WIDTH - 23)) $((Y + 19)) click 1
 for _ in $(seq 1 16); do kill -0 $APP 2>/dev/null || break; sleep 0.5; done
 if kill -0 $APP 2>/dev/null; then echo "closed by close button: False"; kill $APP; else echo "closed by close button: True"; fi
 show_log
+
+# Second run: set up with a library, so the app opens on the main window.
+FIXTURES=$(cd "$(dirname "$0")/../../tests/fixtures" && pwd)
+"$EXE" --add-library "$FIXTURES/Test Library.xml"
+"$EXE" > "$WORK/stdout2.txt" 2>&1 &
+APP=$!
+WID=""
+for _ in $(seq 1 120); do
+  kill -0 $APP 2>/dev/null || break
+  WID=$(xdotool search --name '^TunesBack$' 2>/dev/null | tail -1)
+  [ -n "$WID" ] && break
+  sleep 0.5
+done
+if [ -n "$WID" ]; then
+  sleep 15
+  echo "main     $(geom)"; shot main
+  kill $APP
+else
+  echo "FAIL: no window on the second run"
+fi
 kill $WM $XVFB 2>/dev/null
 exit 0

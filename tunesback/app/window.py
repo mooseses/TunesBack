@@ -72,10 +72,15 @@ def prepare_qt_sandbox() -> None:
 class DesktopWindow:
     """Owns the pywebview window and everything the interface asks of it."""
 
-    def __init__(self, url: str, title_bar: str, theme: str):
+    def __init__(self, url: str, title_bar: str, theme: str, native_sidebar: bool = True, mica: bool = True):
         import webview
 
         self.custom = title_bar == "custom"
+        self._theme = theme
+        self._want_native_sidebar = native_sidebar and SYSTEM == "macos"
+        self._want_mica = mica and SYSTEM == "windows"
+        self._chrome = None  # macOS: the drag strip and native sidebar (see macos.py)
+        self._material: Optional[str] = None  # "mica" once applied
         self._webview = webview
         self._maximized = False
         self._menu_mode = "pending"  # "native", "html" or "pending" until the window exists
@@ -186,6 +191,14 @@ class DesktopWindow:
                 style = user32.GetWindowLongW(hwnd, GWL_STYLE)
                 user32.SetWindowLongW(hwnd, GWL_STYLE, style | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU)
             invoke(add_styles)
+        if self._want_mica and _mica_supported():
+            def apply_mica():
+                if _winforms_mica(form, _dark(self._theme)):
+                    self._material = "mica"
+                    log.info("Mica backdrop applied")
+                else:
+                    log.info("Mica backdrop unavailable")
+            invoke(apply_mica)
 
     def _setup_qt(self) -> None:
         from qtpy.QtCore import QCoreApplication, QObject, Signal, Slot
@@ -258,8 +271,22 @@ class DesktopWindow:
                     log.info("Transparent title bar applied")
                 except Exception:
                     log.exception("Could not make the title bar transparent")
+            try:
+                from . import macos
+                macos.set_appearance(self._theme)
+                instance = BrowserView.instances.get(self.window.uid)
+                if instance is not None and (self.custom or self._want_native_sidebar):
+                    self._chrome = macos.Chrome(native, instance.webview, self._want_native_sidebar, self.custom,
+                                                self._sidebar_selected)
+            except Exception:
+                log.exception("Could not set up the macOS window chrome")
+            self._push_state()
 
         AppHelper.callAfter(setup)
+
+    def _sidebar_selected(self, item: str) -> None:
+        """A row of the native sidebar was chosen."""
+        self.run_command("settings" if item == "settings" else f"view:{item}")
 
     # --- state for the interface ---
 
@@ -275,6 +302,8 @@ class DesktopWindow:
             "menu": self._menu_mode,
             "menu_spec": menu_json(SYSTEM),
             "maximized": self._maximized,
+            "sidebar": "native" if self._chrome is not None and self._chrome.native_sidebar else "html",
+            "material": self._material,
         }
 
     def _push_state(self) -> None:
@@ -344,21 +373,34 @@ class DesktopWindow:
             self._invoke(lambda: self.window.native.windowHandle().startSystemMove())
         elif backend == "gtk":
             self._invoke(lambda: _gtk_drag(self.window.native, None))
+        elif backend == "cocoa":
+            from . import macos
+            self._invoke(lambda: macos.start_drag(self.window.native))
 
     def set_controls_visible(self, visible: bool) -> None:
         """Show or hide the window buttons. Only the macOS traffic lights are native
         to our window; elsewhere the page hides its own title bar buttons."""
-        if SYSTEM != "macos" or not self.custom:
+        if SYSTEM != "macos" or self._chrome is None:
             return
-        import AppKit
-        native = self.window.native
+        self._invoke(lambda: self._chrome.set_controls_visible(visible))
 
-        def apply():
-            for button in (AppKit.NSWindowCloseButton, AppKit.NSWindowMiniaturizeButton, AppKit.NSWindowZoomButton):
-                control = native.standardWindowButton_(button)
-                if control is not None:
-                    control.setHidden_(not visible)
-        self._invoke(apply)
+    def set_sidebar_model(self, model: dict) -> None:
+        """The page's sidebar changed (items, the current view, status); mirror it natively."""
+        if self._chrome is not None and self._chrome.native_sidebar:
+            self._invoke(lambda: self._chrome.set_sidebar_model(model))
+
+    def toggle_sidebar(self) -> None:
+        if self._chrome is not None and self._chrome.native_sidebar:
+            self._invoke(self._chrome.toggle_sidebar)
+
+    def set_theme(self, theme: str) -> None:
+        """Match the native parts of the window (title bar, sidebar, Mica) to TunesBack's theme."""
+        self._theme = theme
+        if SYSTEM == "macos" and self._backend == "cocoa":
+            from . import macos
+            self._invoke(lambda: macos.set_appearance(theme))
+        elif self._material == "mica":
+            self._invoke(lambda: _winforms_dark_frame(self.window.native, _dark(theme)))
 
     def start_resize(self, edge: str) -> None:
         if not self.custom or edge not in EDGES or self._maximized:
@@ -384,6 +426,62 @@ class DesktopWindow:
 
 
 # --- platform helpers ---
+
+def _dark(theme: str) -> bool:
+    """Whether a theme setting means dark, asking Windows for "system"."""
+    if theme in ("dark", "light"):
+        return theme == "dark"
+    if SYSTEM != "windows":
+        return True
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize") as key:
+            return winreg.QueryValueEx(key, "AppsUseLightTheme")[0] == 0
+    except OSError:
+        return False
+
+
+def _mica_supported() -> bool:
+    """Mica as a system backdrop needs Windows 11 22H2 (build 22621) or later."""
+    try:
+        return sys.getwindowsversion().build >= 22621
+    except AttributeError:
+        return False
+
+
+def _dwm_set(hwnd: int, attribute: int, value: int) -> int:
+    import ctypes
+    data = ctypes.c_int(value)
+    return ctypes.windll.dwmapi.DwmSetWindowAttribute(ctypes.c_void_p(hwnd), attribute, ctypes.byref(data), ctypes.sizeof(data))
+
+
+def _winforms_dark_frame(form, dark: bool) -> None:
+    _dwm_set(form.Handle.ToInt64(), 20, 1 if dark else 0)  # DWMWA_USE_IMMERSIVE_DARK_MODE: tints Mica
+
+
+def _winforms_mica(form, dark: bool) -> bool:
+    """Put Mica behind the whole window: the backdrop, the frame extended over the client area,
+    a black form (which DWM treats as see-through there) and a transparent web view."""
+    import ctypes
+    from System.Drawing import Color
+
+    class MARGINS(ctypes.Structure):
+        _fields_ = [("left", ctypes.c_int), ("right", ctypes.c_int), ("top", ctypes.c_int), ("bottom", ctypes.c_int)]
+
+    hwnd = form.Handle.ToInt64()
+    _winforms_dark_frame(form, dark)
+    if _dwm_set(hwnd, 38, 2) != 0:  # DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_MAINWINDOW (Mica)
+        return False
+    margins = MARGINS(-1, -1, -1, -1)
+    if ctypes.windll.dwmapi.DwmExtendFrameIntoClientArea(ctypes.c_void_p(hwnd), ctypes.byref(margins)) != 0:
+        _dwm_set(hwnd, 38, 1)  # DWMSBT_NONE: back to how it was
+        return False
+    form.BackColor = Color.Black
+    web = getattr(form, "webview", None)
+    if web is not None:
+        web.DefaultBackgroundColor = Color.Transparent
+    return True
+
 
 def _user32():
     import ctypes

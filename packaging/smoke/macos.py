@@ -1,7 +1,9 @@
 """Smoke test for the packaged macOS app.
 
-Starts it, drives the title bar with real mouse events and reports what
-happened. Fails only if the app crashes or never shows a window.
+Starts it on its first-run set-up, drives the title bar with real mouse events
+and reports what happened; then sets it up with a library and starts it again
+on the main window. Fails if the app crashes, never shows a window, or can't be
+dragged by its title bar.
 
 usage: python macos.py PATH/TO/TunesBack.app/Contents/MacOS/tunesback FIXTURES_DIR [true|false]
 """
@@ -75,21 +77,27 @@ def show(label, b):
     print(f"{label:<10} " + (f"x={b[0]} y={b[1]} w={b[2]} h={b[3]}" if b else "no window"), flush=True)
 
 
-proc = subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-bounds = None
-for _ in range(120):
-    time.sleep(0.5)
-    if proc.poll() is not None:
-        break
-    bounds = window_bounds()
-    if bounds:
-        break
-if not bounds:
+def launch():
+    global proc
+    proc = subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(120):
+        time.sleep(0.5)
+        if proc.poll() is not None:
+            break
+        if window_bounds():
+            return
     print(f"FAIL: no window (exit code {proc.poll()})")
     if log.exists():
         print(log.read_text()[-6000:])
     sys.exit(1)
 
+
+def moved(before, after):
+    return before[:2] != after[:2]
+
+
+failures = []
+launch()
 time.sleep(12)
 x, y, w, h = window_bounds()
 click(x + w // 2, y + h // 2)  # bring the app to the front; the first click only activates it
@@ -97,6 +105,8 @@ time.sleep(1)
 show("start", (x, y, w, h)); shot("start")
 drag(x + 600, y + 12, 80, 40)
 b = window_bounds(); show("dragged", b)
+if not moved((x, y, w, h), b):
+    failures.append("set-up: dragging the title strip didn't move the window")
 x, y, w, h = b
 drag(x + w - 2, y + h - 2, 60, 30)
 b = window_bounds(); show("resized", b)
@@ -105,6 +115,29 @@ click(x + 600, y + 12, clicks=2); time.sleep(1.5)
 show("dblclick", window_bounds()); shot("zoomed")
 proc.terminate()
 proc.wait(10)
+
+# Second run: set up with a library, so the app opens on the main window.
+seeded = subprocess.run([exe, "--add-library", str(Path(fixtures) / "Test Library.xml")], capture_output=True, text=True)
+print("seed:", (seeded.stdout or seeded.stderr).strip()[-300:])
+launch()
+time.sleep(15)
+x, y, w, h = window_bounds()
+click(x + w - 40, y + h - 40)  # activate, away from anything clickable
+time.sleep(1.5)
+show("main", (x, y, w, h)); shot("main")
+drag(x + 600, y + 12, 60, 30)
+b = window_bounds(); show("strip drag", b)
+if not moved((x, y, w, h), b):
+    failures.append("main window: dragging the title strip didn't move the window")
+x, y, w, h = b
+drag(x + int(w * 0.6), y + 52, -50, -20)  # an empty part of the page's top bar
+b = window_bounds(); show("bar drag", b)
+print("top bar drag moved the window:", moved((x, y, w, h), b))
+proc.terminate()
+proc.wait(10)
 if log.exists():
     print("--- app log ---")
-    print("\n".join(log.read_text().splitlines()[-40:]))
+    print("\n".join(log.read_text().splitlines()[-60:]))
+for failure in failures:
+    print("FAIL:", failure)
+sys.exit(1 if failures else 0)

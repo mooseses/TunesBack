@@ -36,6 +36,9 @@ DEFAULTS = {
     "age_calculated": False,
     "age_overview": None,  # on the Overview: None until you choose, then True or False
     "age_cards": False,  # listening age cards in Wrapped
+    "native_sidebar": True,  # macOS: an AppKit sidebar (Liquid Glass on macOS 26) instead of the page's
+    "mica": True,  # Windows 11: Mica behind the window
+    "overview_layout": None,  # the Overview's widgets, [{"id", "size"}] in order; None for the standard layout
 }
 
 # Feature flags for trying things out and tracking down problems, set in the Dev space.
@@ -154,10 +157,21 @@ class Settings:
                 if not isinstance(value, (int, float)):
                     continue
                 value = int(min(max(value, SIDEBAR_WIDTH[0]), SIDEBAR_WIDTH[1]))
-            if key in ("sidebar_hidden", "sync_on_launch", "dev_mode", "age_calculated", "age_cards"):
+            if key in ("sidebar_hidden", "sync_on_launch", "dev_mode", "age_calculated", "age_cards",
+                       "native_sidebar", "mica"):
                 value = bool(value)
             if key == "age_overview" and value is not None:
                 value = bool(value)
+            if key == "overview_layout" and value is not None:
+                if not isinstance(value, list):
+                    continue
+                seen, layout = set(), []
+                for item in value[:60]:
+                    if (isinstance(item, dict) and isinstance(item.get("id"), str) and len(item["id"]) <= 40
+                            and item.get("size") in ("S", "M", "L", "XL") and item["id"] not in seen):
+                        seen.add(item["id"])
+                        layout.append({"id": item["id"], "size": item["size"]})
+                value = layout
             if key == "flags":
                 if not isinstance(value, dict):
                     continue

@@ -88,4 +88,24 @@ $proc.WaitForExit(8000) | Out-Null
 "closed by close button: $($proc.HasExited)"
 if (-not $proc.HasExited) { $proc.Kill() }
 if (Test-Path $log) { "--- app log ---"; Get-Content $log -Tail 40 }
+
+# Second run: set up with a library so the app opens on the main window (Mica on Windows 11).
+"Windows build: $([Environment]::OSVersion.Version)"
+New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Force | Out-Null
+Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name EnableTransparency -Value 1 -Type DWord
+Start-Process -FilePath $Exe -ArgumentList "--add-library", "`"$Fixtures\Test Library.xml`"" -Wait
+$proc = Start-Process -FilePath $Exe -PassThru
+$hwnd = [IntPtr]::Zero
+for ($i = 0; $i -lt 120 -and $hwnd -eq [IntPtr]::Zero; $i++) {
+    Start-Sleep -Milliseconds 500
+    if ($proc.HasExited) { break }
+    $proc.Refresh(); $hwnd = $proc.MainWindowHandle
+}
+if ($hwnd -ne [IntPtr]::Zero) {
+    Start-Sleep -Seconds 15
+    [Win]::SetForegroundWindow($hwnd) | Out-Null; Start-Sleep -Milliseconds 800
+    $r = Rect $hwnd; Show "main" $r; Shot "main"
+    $proc.Kill()
+} else { "FAIL: no window on the second run" }
+if (Test-Path $log) { "--- app log (second run) ---"; Get-Content $log -Tail 25 | Select-String -Pattern "Mica|backend|sidebar|Traceback|Error" }
 exit 0

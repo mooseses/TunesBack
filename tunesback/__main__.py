@@ -42,7 +42,8 @@ def _run_window(settings: Settings, debug: bool) -> bool:
     api = Api(settings)
     server = AppServer(api)
     server.start_background()
-    api.window = DesktopWindow(server.url, settings["title_bar"], settings["theme"])
+    api.window = DesktopWindow(server.url, settings["title_bar"], settings["theme"],
+                               native_sidebar=settings["native_sidebar"], mica=settings["mica"])
     try:
         webview.start(debug=debug, gui=gui)
     except Exception as e:  # no GTK/Qt/WebView2 backend on this machine
@@ -61,6 +62,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--debug", action="store_true", help="verbose logging and web inspector")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     parser.add_argument("--selftest", metavar="IMAGE", help=argparse.SUPPRESS)  # draw sample cards (used by CI)
+    # Set up with this iTunes library and exit, so the next start opens on a recap (used by CI).
+    parser.add_argument("--add-library", metavar="XML", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
     if args.selftest:
@@ -69,6 +72,10 @@ def main(argv: list[str] | None = None) -> None:
 
     settings = Settings()
     configure_logging(args.debug or settings["debug_logging"])
+    if args.add_library:
+        result = Api(settings).call("add_library", {"path": args.add_library, "location": "local"})
+        print(result.get("error") or f"Added {result['tracks']} songs from {args.add_library}")
+        sys.exit(1 if result.get("error") else 0)
 
     if args.browser:
         _run_browser(settings, args.port, not args.no_open)

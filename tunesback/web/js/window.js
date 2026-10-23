@@ -48,6 +48,7 @@ export function initWindow(windowInfo, appHooks) {
 
 function applyWindow() {
   const custom = !!(info && info.custom_title_bar);
+  document.documentElement.classList.toggle("material-mica", !!info && info.material === "mica");
   document.body.classList.toggle("custom-titlebar", custom && info.platform !== "macos");
   document.body.classList.toggle("mac-inset-titlebar", custom && info.platform === "macos");
   document.body.classList.toggle("maximized", !!(info && info.maximized));
@@ -59,6 +60,7 @@ function applyWindow() {
   titlebar.classList.toggle("menu-only", menuOnly);
   if (!titlebar.hidden) renderTitlebar(menuOnly);
   renderResizeHandles(custom && info.platform !== "macos" && !info.maximized);
+  hooks.windowChanged?.(info);
 }
 
 // ---------- title bar ----------
@@ -104,6 +106,21 @@ window.addEventListener("mousemove", (event) => {
   call("window_start_move");
 });
 window.addEventListener("mouseup", () => { pending = null; });
+// macOS: the page runs under a transparent title bar. A native strip drags the
+// window from the top edge; the empty parts of the top bar drag it too, like a
+// toolbar would.
+const topbar = document.querySelector(".topbar");
+const INTERACTIVE = "button, a, input, select, textarea, .segmented, .period-chip, [role=button]";
+topbar.addEventListener("mousedown", (event) => {
+  if (!info || info.platform !== "macos" || !info.custom_title_bar) return;
+  if (event.button !== 0 || event.target.closest(INTERACTIVE)) return;
+  event.preventDefault();
+  pending = { x: event.screenX, y: event.screenY };
+});
+topbar.addEventListener("dblclick", (event) => {
+  if (!info || info.platform !== "macos" || !info.custom_title_bar || event.target.closest(INTERACTIVE)) return;
+  call("window_toggle_maximize");
+});
 titlebar.addEventListener("dblclick", (event) => {
   if (titlebar.classList.contains("menu-only") || event.target.closest("button, .menubar")) return;
   call("window_toggle_maximize");
@@ -237,5 +254,6 @@ const MENU_FALLBACK = [{ items: [
   { command: "open_folder", shortcut: "Mod+O" }, { command: "generate", shortcut: "Mod+Enter" },
   { command: "settings", shortcut: "Mod+," }, { command: "view:setup", shortcut: "Mod+1" },
   { command: "view:overview", shortcut: "Mod+2" }, { command: "view:charts", shortcut: "Mod+3" },
-  { command: "view:wrapped", shortcut: "Mod+4" },
+  { command: "view:wrapped", shortcut: "Mod+4" }, { command: "view:age", shortcut: "Mod+5" },
+  { command: "view:services", shortcut: "Mod+6" }, { command: "sidebar", shortcut: "Mod+B" },
 ] }];

@@ -138,3 +138,16 @@ def test_stopped_sync_records_what_it_kept(api, service, monkeypatch):
 def test_request_log_hides_keys():
     assert http._SECRET_PARAMS.sub(r"\1=…", "https://x/?method=a&api_key=SECRET&task=keep&sk=S") \
         == "https://x/?method=a&api_key=…&task=keep&sk=…"
+
+
+def test_overview_layout_and_window_settings(tmp_path):
+    settings = Settings(tmp_path / "settings.json")
+    settings.update({"overview_layout": [{"id": "plays", "size": "S"}, {"id": "plays", "size": "L"}, {"id": "x" * 50, "size": "S"},
+                                         {"id": "genres", "size": "huge"}, "junk", {"id": "top-songs", "size": "XL"}],
+                     "native_sidebar": 0, "mica": "yes"})
+    assert settings["overview_layout"] == [{"id": "plays", "size": "S"}, {"id": "top-songs", "size": "XL"}]
+    assert settings["native_sidebar"] is False and settings["mica"] is True
+    settings.update({"overview_layout": None})
+    assert settings["overview_layout"] is None
+    settings.update({"overview_layout": "nope"})
+    assert settings["overview_layout"] is None

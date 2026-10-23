@@ -42,7 +42,7 @@ Works on **Windows, macOS, and Linux** with:
 - **Several sources at once**: iTunes, Last.fm, ListenBrainz and Spotify, on their own or combined, without counting the same listen twice
 - **Any period**: this year, last year, the last 12 months, all time or your own dates; for iTunes, compare two readings
 - **When you listen** (sources with timestamps): listening by hour and weekday, month by month with your top artist, longest streak, busiest day and the artists you discovered
-- **Overview dashboard**: listening time, plays, new finds, skips, top artist/album/song, top artists chart, genre share, release decades and Listening Age
+- **Overview dashboard you can arrange**: listening time, plays, new finds, skips, top artist/album/song, top artists, top songs, top albums, genres, release decades, Listening Age and more. Press **Customize** to drag widgets around, pick their size, remove them or add others; rows close up around whatever isn't there
 - **Top charts** for Songs, Albums, Artists, Genres, Release Years, New Finds and Skipped tracks, with filtering and 10–100 rows
 - **Album art** displayed alongside track details, loaded as you scroll
 - **Network share support**: seamlessly works with UNC paths (Windows) and GVFS/CIFS mounts (Linux)
@@ -53,7 +53,7 @@ Works on **Windows, macOS, and Linux** with:
 - **Dev space** (turn it on in Settings): sync dry runs that fetch but store nothing, feature flags (offline, slow network, card guides, reduced motion…), a card lab, request log and diagnostics
 - **Flexible display:** switch between hours, minutes and days; rank by plays or listening time
 - **Dark and light mode**, or follow the system
-- **Native-feeling window:** TunesBack's own title bar by default (or your system's, in Settings), a File/View/Help menu bar with keyboard shortcuts, the macOS menu bar on Macs and the global menu on KDE Plasma
+- **Native-feeling window:** TunesBack's own title bar by default (or your system's, in Settings), a File/View/Help menu bar with keyboard shortcuts, the macOS menu bar on Macs and the global menu on KDE Plasma. On macOS the sidebar is a real AppKit sidebar (Liquid Glass on macOS Tahoe); on Windows 11 the window sits on Mica
 - **Private:** TunesBack collects no data. Your listening history is kept and analysed on your machine; TunesBack only goes online to read your Last.fm or ListenBrainz profile and album covers for them. See the [Privacy Policy](PRIVACY.md)
 
 ## Wrapped Cards

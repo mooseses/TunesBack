@@ -98,7 +98,7 @@ class Api:
         "catalog", "discover", "add_library", "import_exports", "refresh_readings", "library", "remove_library",
         "add_account", "import_history", "sync_sources", "set_lastfm_key",
         "dev_info", "dev_log", "dry_run_sync", "reset_sync", "forget_plays", "clear_caches",
-        "window_set_controls_visible",
+        "window_set_controls_visible", "window_sidebar", "window_toggle_sidebar",
         "analyze", "artwork", "card_options", "cards", "save_cards", "restart",
         "window_info", "window_minimize", "window_toggle_maximize", "window_close",
         "window_start_move", "window_start_resize",
@@ -144,6 +144,8 @@ class Api:
             configure_logging(values["debug_logging"])
         if "flags" in changes:
             self._apply_flags()
+        if "theme" in changes and self.window is not None:
+            self.window.set_theme(values["theme"])
         return {"settings": values}
 
     def _apply_flags(self) -> None:
@@ -733,6 +735,17 @@ class Api:
         with self._card_lock:
             self._card_cache.clear()
         return {"freed": freed}
+
+    def window_sidebar(self, model: dict) -> dict:
+        """The page's sidebar, for a native sidebar to mirror."""
+        if self.window is not None and isinstance(model, dict):
+            self.window.set_sidebar_model(model)
+        return {"ok": True}
+
+    def window_toggle_sidebar(self) -> dict:
+        if self.window is not None:
+            self.window.toggle_sidebar()
+        return {"ok": True}
 
     def window_set_controls_visible(self, visible: bool) -> dict:
         if self.window is not None:

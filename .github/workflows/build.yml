@@ -47,7 +47,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          # macOS 26, so screenshots show the Liquid Glass sidebar.
+          - os: macos-26
             platform: macos
             name: macOS
           - os: windows-latest
@@ -104,6 +105,21 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: 1
+
+      # macOS decides whether to draw an app in Liquid Glass from the SDK its executable
+      # says it was built with. PyInstaller's prebuilt launcher names an old one, so the
+      # app would run in compatibility mode; stamp it with this runner's SDK (keeping the
+      # minimum macOS) and sign the app again.
+      - name: Stamp the macOS SDK version
+        if: matrix.platform == 'macos'
+        run: |
+          BIN=dist/TunesBack.app/Contents/MacOS/tunesback
+          vtool -show-build "$BIN"
+          MINOS=$(vtool -show-build "$BIN" | awk '/minos/ {print $2; exit}')
+          SDK=$(xcrun --sdk macosx --show-sdk-version)
+          vtool -set-build-version macos "$MINOS" "$SDK" -replace -output "$BIN" "$BIN"
+          codesign --force --deep --sign - dist/TunesBack.app
+          vtool -show-build "$BIN"
 
       # The packaged app draws a few cards from made-up data: proves resvg, the
       # bundled fonts and a system font for other scripts all work once frozen.

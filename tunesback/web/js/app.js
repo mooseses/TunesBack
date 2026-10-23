@@ -1,7 +1,7 @@
 import { call, setCardFlags } from "./api.js";
 import { h, icon, number, segmented, shortDate, showMessage, toast } from "./util.js";
 import { openAbout } from "./about.js";
-import { initSidebar, toggleSidebar } from "./sidebar.js";
+import { initSidebar, setNativeSidebar, toggleSidebar } from "./sidebar.js";
 import { initWindow } from "./window.js";
 import * as setup from "./views/setup.js";
 import { openOnboarding } from "./views/onboarding.js";
@@ -47,6 +47,7 @@ export function navigate(view) {
   if (!VIEWS[view] || (VIEWS[view].shown && !VIEWS[view].shown())) return;
   if (VIEWS[view].group === "recap" && !state.report) view = "setup";
   if (view === state.view && content.childElementCount) return;
+  if (state.view === "overview" && overview.isEditing()) overview.stopEditing();
   state.view = view;
   render({ entering: true });
 }
@@ -89,11 +90,30 @@ export function renderNav() {
     item.disabled = view.group === "recap" && !state.report;
   }
   const dot = document.querySelector('.nav-item[data-view="services"] .status-dot');
+  const status = services.overallStatus();
   if (dot) {
-    const status = services.overallStatus();
     dot.className = `status-dot ${status || ""}`;
     dot.hidden = !status;
   }
+  if (nativeSidebar) sendSidebarModel(status);
+}
+
+// macOS: the native sidebar mirrors this one. Send it what to show when anything changes.
+let nativeSidebar = false;
+let sentModel = "";
+
+function sendSidebarModel(status) {
+  const items = Object.entries(VIEWS).map(([id, view]) => ({
+    id, label: view.title, group: view.group,
+    hidden: !!view.shown && !view.shown(),
+    enabled: view.group !== "recap" || !!state.report,
+    status: id === "services" ? status : null,
+  }));
+  items.push({ id: "settings", label: "Settings", group: "manage", enabled: true, hidden: false, status: null });
+  const model = JSON.stringify({ items, active: state.view });
+  if (model === sentModel) return;
+  sentModel = model;
+  call("window_sidebar", { model: JSON.parse(model) });
 }
 
 function buildNav() {
@@ -128,7 +148,8 @@ let topbar = { key: null, unit: null, rank: null };
 
 function renderTopbarActions() {
   const actions = document.getElementById("topbar-actions");
-  const key = `${state.view}|${!!state.report}`;
+  const editing = state.view === "overview" && overview.isEditing();
+  const key = `${state.view}|${!!state.report}|${editing}`;
   if (topbar.key === key) {
     topbar.unit?.setValue(state.settings.unit);
     topbar.rank?.setValue(state.settings.rank_by);
@@ -137,6 +158,8 @@ function renderTopbarActions() {
   topbar = { key, unit: null, rank: null };
   actions.replaceChildren();
   if (!state.report || VIEWS[state.view].group !== "recap" || state.view === "age") return;
+  if (state.view === "overview") actions.append(...overview.topbarActions());
+  if (editing) return; // the unit and ranking switches come back when you're done
   if (state.view !== "wrapped") {
     topbar.unit = segmented([["hours", "Hours"], ["minutes", "Minutes"], ["days", "Days"]], state.settings.unit,
       (unit) => { saveSettings({ unit }); render(); }, "Time unit");
@@ -202,6 +225,7 @@ export function openSettings() {
       h("div.setting", h("div", { style: { fontWeight: 600 } }, "Appearance"),
         segmented([["system", "System"], ["light", "Light"], ["dark", "Dark"]], s.theme, (theme) => saveSettings({ theme }), "Theme")),
       state.info.desktop && titleBarSetting(),
+      state.info.desktop && materialSetting(),
       toggle("show_art", "Album artwork in lists", "Read from your music files. Can be slow on network drives."),
       toggle("sync_on_launch", "Check for new listens on start-up", "Fetches from Last.fm and ListenBrainz each time TunesBack opens."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Set-up"),
@@ -216,6 +240,28 @@ export function openSettings() {
     ),
   );
   dialog.showModal();
+}
+
+/** macOS: the native sidebar; Windows 11: Mica. Both take effect when TunesBack restarts. */
+function materialSetting() {
+  const platform = state.info.window?.platform;
+  const [key, title, desc, running] = platform === "macos"
+    ? ["native_sidebar", "Native sidebar", "The macOS sidebar, in Liquid Glass on macOS Tahoe.", state.info.window?.sidebar === "native"]
+    : platform === "windows"
+      ? ["mica", "Mica background", "Windows 11's tinted, translucent window background.", state.info.window?.material === "mica"]
+      : [];
+  if (!key) return null;
+  const note = h("div.setting-note", { hidden: true },
+    h("span", "Restart TunesBack to apply this."),
+    h("button.btn", { onclick: () => call("restart") }, "Restart now"));
+  return h("div",
+    h("label.switch.setting",
+      h("div", h("div", { style: { fontWeight: 600 } }, title), h("div.desc", desc)),
+      h("input", {
+        type: "checkbox", role: "switch", checked: state.settings[key],
+        onchange: (e) => { saveSettings({ [key]: e.target.checked }); note.hidden = e.target.checked === running; },
+      })),
+    note);
 }
 
 function titleBarSetting() {
@@ -273,6 +319,14 @@ export function runCommand(id) {
 
 const commandHooks = {
   run: runCommand,
+  windowChanged: (info) => {
+    const native = info?.sidebar === "native";
+    if (native === nativeSidebar) return;
+    nativeSidebar = native;
+    sentModel = "";
+    setNativeSidebar(native);
+    renderNav();
+  },
   isChecked: (item) => {
     const [, value] = item.command.split(":");
     return state.settings[item.group] === value;

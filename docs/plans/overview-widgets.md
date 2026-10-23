@@ -1,6 +1,6 @@
 # Plan: an Overview you can arrange
 
-Status: decided (October 23, 2026), ready to build.
+Status: built (October 23, 2026). Widgets live in `tunesback/web/js/views/widgets.js`, the layout and edit mode in `views/overview.js`.
 
 ## Decisions
 
