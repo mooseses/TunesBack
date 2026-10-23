@@ -39,7 +39,12 @@ export function initWindow(windowInfo, appHooks) {
   hooks = appHooks;
   window.tunesback = {
     command: (id) => hooks.run(id),
-    windowChanged: (next) => { info = next; applyWindow(); },
+    // Updates are sent from different threads and can arrive out of order: keep the newest.
+    windowChanged: (next) => {
+      if (info && next && (next.seq ?? 0) < (info.seq ?? 0)) return;
+      info = next;
+      applyWindow();
+    },
   };
   info = windowInfo;
   document.addEventListener("keydown", onShortcut);

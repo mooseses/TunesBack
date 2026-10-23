@@ -190,6 +190,7 @@ class SidebarController(NSObject, protocols=_protocols("NSTableViewDataSource", 
         self.updating = True
         try:
             self.rows = rows
+            self.table.sizeLastColumnToFit()
             self.table.reloadData()
             active = next((i for i, r in enumerate(rows) if r["kind"] == "item" and r["id"] == model.get("active")), -1)
             if active >= 0:
@@ -235,7 +236,9 @@ class Chrome:
         column.setResizingMask_(AppKit.NSTableColumnAutoresizingMask)
         table.addTableColumn_(column)
         table.setHeaderView_(None)
-        table.setColumnAutoresizingStyle_(AppKit.NSTableViewUniformColumnAutoresizingStyle)
+        # One column, always as wide as the sidebar.
+        table.setColumnAutoresizingStyle_(AppKit.NSTableViewLastColumnOnlyAutoresizingStyle)
+        table.setAutoresizingMask_(AppKit.NSViewWidthSizable)
         if hasattr(AppKit, "NSTableViewStyleSourceList"):
             table.setStyle_(AppKit.NSTableViewStyleSourceList)
         else:

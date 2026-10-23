@@ -83,6 +83,7 @@ class DesktopWindow:
         self._sidebar_hidden = sidebar_hidden
         self._chrome = None  # macOS: the drag strip and native sidebar (see macos.py)
         self._material: Optional[str] = None  # "mica" once applied
+        self._state_seq = 0  # numbers each state sent to the page, which may arrive out of order
         self._webview = webview
         self._maximized = False
         self._menu_mode = "pending"  # "native", "html" or "pending" until the window exists
@@ -306,9 +307,11 @@ class DesktopWindow:
             "maximized": self._maximized,
             "sidebar": "native" if self._chrome is not None and self._chrome.native_sidebar else "html",
             "material": self._material,
+            "seq": self._state_seq,
         }
 
     def _push_state(self) -> None:
+        self._state_seq += 1
         self._eval(f"window.tunesback && window.tunesback.windowChanged({json.dumps(self.info())})")
 
     def _eval(self, script: str) -> None:
