@@ -300,7 +300,4 @@ def vertical_metrics(spec: FontSpec) -> tuple[float, float, float]:
     return ascent / _REF_SIZE, descent / _REF_SIZE, -cap_top / _REF_SIZE
 
 
-def fallback_files(text: str, spec: FontSpec) -> set[str]:
-    """System font files needed to draw `text` in `spec`, besides the bundled ones."""
-    face = bundled_face(spec)
-    return {f.path for f, _piece in runs(text, face) if f is not None and f is not face and f.path not in bundled_files()}
+

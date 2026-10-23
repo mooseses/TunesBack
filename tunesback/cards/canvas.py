@@ -233,17 +233,33 @@ class Canvas:
         else:
             baseline = y
         face = bundled_face(style.font)
-        for line in block.lines:
-            self._font_files |= fonts.fallback_files(line, style.font)
         text_anchor = {"left": "start", "center": "middle", "right": "end"}[align]
         tspans = "".join(
-            f'<tspan x="{_num(x)}" y="{_num(baseline + i * block.line_step)}">{escape(line)}</tspan>'
+            f'<tspan x="{_num(x)}" y="{_num(baseline + i * block.line_step)}">{self._runs(line, face)}</tspan>'
             for i, line in enumerate(block.lines))
         attrs = _attrs(
             font_family=face.family, font_weight=face.weight, font_style="italic" if face.italic else None,
             font_size=float(block.size), fill=style.fill, fill_opacity=float(style.opacity) if style.opacity != 1 else None,
             letter_spacing=float(style.tracking * block.size) if style.tracking else None, text_anchor=text_anchor)
         self._body.append(f'<text {attrs} xml:space="preserve">{tspans}</text>')
+
+    def _runs(self, line: str, face: fonts.Face) -> str:
+        """A line's markup, naming the fallback font for characters the design's font lacks.
+
+        Left to itself, resvg would pick any loaded font that has the glyph, which
+        can be a CJK font with full-width Latin or Cyrillic letters. Naming the
+        font also keeps the drawing identical to how the text was measured.
+        """
+        out = []
+        for piece_face, piece in fonts.runs(line, face):
+            if piece_face is None or piece_face is face:
+                out.append(escape(piece))
+                continue
+            self._font_files.add(piece_face.path)
+            attrs = _attrs(font_family=piece_face.family, font_weight=piece_face.weight,
+                           font_style="italic" if piece_face.italic else "normal")
+            out.append(f"<tspan {attrs}>{escape(piece)}</tspan>")
+        return "".join(out)
 
     # --- images ---
 
