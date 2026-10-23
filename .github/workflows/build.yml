@@ -51,6 +51,10 @@ jobs:
           - os: windows-latest
             platform: windows
             name: Windows
+          # 22.04 keeps the glibc requirement low (2.35), so the build runs on most distributions.
+          - os: ubuntu-22.04
+            platform: linux
+            name: Linux
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -69,7 +73,22 @@ jobs:
           cache: pip
 
       - name: Install
+        if: matrix.platform != 'linux'
         run: pip install . pyinstaller
+
+      # Linux builds bundle Qt and QtWebEngine (pip wheels) rather than relying on
+      # the system's WebKitGTK. The apt packages are what Qt needs at run time
+      # plus the virtual display used by the smoke test.
+      - name: Install (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libnss3 \
+            libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxkbfile1 libasound2 libdbus-1-3 \
+            xvfb openbox xdotool imagemagick desktop-file-utils
+          pip install ".[qt]" pyinstaller
 
       - name: Build app
         run: pyinstaller packaging/tunesback.spec --noconfirm
@@ -86,6 +105,10 @@ jobs:
       - name: Smoke test (macOS)
         if: matrix.platform == 'macos'
         run: python packaging/smoke/macos.py dist/TunesBack.app/Contents/MacOS/tunesback tests/fixtures "${{ inputs.screenshots || 'false' }}"
+
+      - name: Smoke test (Linux)
+        if: matrix.platform == 'linux'
+        run: packaging/smoke/linux.sh dist/TunesBack/tunesback "${{ inputs.screenshots || 'false' }}"
 
       # ========== macOS: Create DMG ==========
       - name: Create macOS DMG
@@ -158,6 +181,29 @@ jobs:
           $issContent | Out-File -FilePath "installer.iss" -Encoding ASCII
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"
 
+      # ========== Linux: AppImage and tarball ==========
+      - name: Create Linux AppImage and tarball
+        if: matrix.platform == 'linux'
+        run: |
+          BASE="TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64"
+          tar -C dist -czf "$BASE.tar.gz" TunesBack
+
+          mkdir -p AppDir/usr/share/icons/hicolor/512x512/apps
+          cp -a dist/TunesBack AppDir/TunesBack
+          cp packaging/linux/AppRun AppDir/AppRun
+          chmod +x AppDir/AppRun
+          cp packaging/linux/tunesback.desktop AppDir/
+          cp tunesback/assets/icon.png AppDir/tunesback.png
+          cp tunesback/assets/icon.png AppDir/.DirIcon
+          cp tunesback/assets/icon.png AppDir/usr/share/icons/hicolor/512x512/apps/tunesback.png
+          desktop-file-validate AppDir/tunesback.desktop
+
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run AppDir "$BASE.AppImage"
+          chmod +x "$BASE.AppImage"
+          APPIMAGE_EXTRACT_AND_RUN=1 "./$BASE.AppImage" --version
+
       # ========== Upload Artifacts ==========
       - name: Upload macOS artifact
         if: matrix.platform == 'macos'
@@ -172,3 +218,12 @@ jobs:
         with:
           name: TunesBack-Windows-v${{ env.APP_VERSION }}-x64
           path: TunesBack-Windows-v${{ env.APP_VERSION }}-x64.exe
+
+      - name: Upload Linux artifact
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64
+          path: |
+            TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64.AppImage
+            TunesBack-Linux-v${{ env.APP_VERSION }}-x86_64.tar.gz

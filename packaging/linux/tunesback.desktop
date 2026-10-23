@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=TunesBack
+Comment=Year-in-review statistics for your music library
+Exec=tunesback
+Icon=tunesback
+Categories=AudioVideo;Audio;
+Terminal=false
+StartupWMClass=tunesback

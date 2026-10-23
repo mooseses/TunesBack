@@ -10,6 +10,15 @@ ROOT = Path(SPECPATH).parent
 VERSION = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.M).group(1)
 ICON_PNG = str(ROOT / "tunesback" / "assets" / "icon.png")
 
+hiddenimports = collect_submodules("tunesback")
+excludes = ["tkinter", "numpy", "pandas", "matplotlib"]
+if sys.platform.startswith("linux"):
+    # Linux builds carry their own Qt and QtWebEngine instead of depending on
+    # the system's GTK and WebKitGTK versions.
+    hiddenimports += ["webview.platforms.qt", "qtpy", "PyQt6.QtWebEngineWidgets", "PyQt6.QtWebEngineCore",
+                      "PyQt6.QtWebChannel", "PyQt6.QtNetwork", "PyQt6.QtDBus"]
+    excludes += ["gi", "PyQt5", "PySide2", "PySide6", "webview.platforms.gtk"]
+
 a = Analysis(
     [str(ROOT / "packaging" / "launcher.py")],
     pathex=[str(ROOT)],
@@ -17,8 +26,8 @@ a = Analysis(
         (str(ROOT / "tunesback" / "assets"), "tunesback/assets"),
         (str(ROOT / "tunesback" / "web"), "tunesback/web"),
     ],
-    hiddenimports=collect_submodules("tunesback"),
-    excludes=["tkinter", "numpy", "pandas", "matplotlib"],
+    hiddenimports=hiddenimports,
+    excludes=excludes,
 )
 pyz = PYZ(a.pure)
 

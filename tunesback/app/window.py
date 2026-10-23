@@ -17,6 +17,7 @@ import logging
 import operator
 import os
 import platform
+import sys
 import threading
 from pathlib import Path
 from typing import Callable, Optional
@@ -44,10 +45,28 @@ def qt_available() -> bool:
 
 
 def preferred_gui() -> Optional[str]:
-    """Qt on KDE Plasma (its menus reach the global menu bar); pywebview's default elsewhere."""
-    if SYSTEM == "linux" and is_kde() and qt_available():
+    """Qt on KDE Plasma (its menus reach the global menu bar) and in the packaged
+    Linux app (which bundles Qt, not GTK); pywebview's default elsewhere."""
+    if SYSTEM == "linux" and (getattr(sys, "frozen", False) or is_kde()) and qt_available():
         return "qt"
     return None
+
+
+def prepare_qt_sandbox() -> None:
+    """Let Qt WebEngine start where Chromium's sandbox can't.
+
+    The sandbox needs unprivileged user namespaces, which Ubuntu 23.10+ blocks
+    for apps without an AppArmor profile (such as an AppImage), and Chromium
+    refuses to sandbox as root. The window only shows TunesBack's own pages.
+    """
+    if SYSTEM != "linux":
+        return
+    try:
+        restricted = Path("/proc/sys/kernel/apparmor_restrict_unprivileged_userns").read_text().strip() == "1"
+    except OSError:
+        restricted = False
+    if restricted or os.geteuid() == 0:
+        os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
 
 
 class DesktopWindow:

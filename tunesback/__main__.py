@@ -31,17 +31,20 @@ def _run_window(settings: Settings, debug: bool) -> bool:
     """Returns False if no native webview is available on this system."""
     try:
         import webview
-        from .app.window import DesktopWindow, preferred_gui
+        from .app.window import DesktopWindow, preferred_gui, prepare_qt_sandbox
     except ImportError as e:
         log.warning("pywebview is not installed (%s)", e)
         return False
 
+    gui = preferred_gui()
+    if gui == "qt":
+        prepare_qt_sandbox()
     api = Api(settings)
     server = AppServer(api)
     server.start_background()
     api.window = DesktopWindow(server.url, settings["title_bar"], settings["theme"])
     try:
-        webview.start(debug=debug, gui=preferred_gui())
+        webview.start(debug=debug, gui=gui)
     except Exception as e:  # no GTK/Qt/WebView2 backend on this machine
         log.warning("Could not open a native window: %s", e)
         server.shutdown()
