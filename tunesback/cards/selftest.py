@@ -9,6 +9,7 @@ from PIL import Image
 
 from .data import CardData, Item
 from .deck import CardChoice, draw
+from .fonts import FontSpec, bundled_face, runs
 
 
 def _data() -> CardData:
@@ -34,5 +35,15 @@ def run(path: str) -> int:
     for i, card in enumerate(cards):
         strip.paste(card, (10 + i * (card.width + 10), 10))
     strip.save(path, quality=80)
+    # Which installed fonts drew what, for checking a platform's fallbacks.
+    lines = []
+    design = bundled_face(FontSpec("Figtree", 700))
+    for item in data.songs:
+        for text in (item.title, item.subtitle or ""):
+            for face, piece in runs(text, design):
+                if face is not design:
+                    lines.append(f"{piece!r}: {face.families if face else None} {face.path if face else ''}")
+    with open(path + ".txt", "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
     print(f"Drew {len(cards)} cards to {path} at {datetime.now():%H:%M:%S}")
     return 0

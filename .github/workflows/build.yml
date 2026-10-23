@@ -117,6 +117,7 @@ jobs:
           esac
           "$EXE" --selftest cards.jpg
           test -s cards.jpg
+          cat cards.jpg.txt
           if [ "${{ inputs.screenshots || 'false' }}" = "true" ]; then
             python -c "import base64; d = base64.b64encode(open('cards.jpg', 'rb').read()).decode(); [print('SHOT cards', d[i:i + 4000]) for i in range(0, len(d), 4000)]; print('SHOT cards END')"
           fi

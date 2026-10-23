@@ -201,6 +201,12 @@ _PREFERRED = (
 )
 _AVOID = ("bold", "italic", "oblique", "light", "thin", "black", "heavy", "condensed", "narrow", "mono", "serif",
           "unifont", "lastresort")
+# For Latin, Greek and Cyrillic, East Asian fonts come last: their letters are
+# full-width and look spaced out next to the card's own type.
+_WESTERN = ("notosans-regular", "segoeui.ttf", "helvetica.ttc", "helveticaneue", "arial.ttf", "arial unicode",
+            "arialuni", "dejavusans.ttf", "liberationsans-regular", "notosans", "verdana", "tahoma", "lucidagrande")
+_EAST_ASIAN = ("cjk", "msyh", "msjh", "simsun", "simhei", "yugoth", "meiryo", "msgothic", "malgun", "batang", "gulim",
+               "hiragino", "pingfang", "applesdgothic", "wqy", "sourcehan", "droidsansfallback", "unifont", "ヒラギノ")
 
 
 def _font_dirs() -> list[Path]:
@@ -225,12 +231,26 @@ def _rank(path: str) -> tuple[int, int, str]:
     return (avoid, preferred, name)
 
 
+def _western_rank(path: str) -> tuple[int, int, int, str]:
+    name = os.path.basename(path).lower()
+    east_asian = any(word in name for word in _EAST_ASIAN)
+    preferred = next((i for i, p in enumerate(_WESTERN) if p in name), len(_WESTERN))
+    return (int(east_asian), sum(word in name for word in _AVOID), preferred, name)
+
+
+def _is_western(char: str) -> bool:
+    """Latin, Greek, Cyrillic and nearby scripts (and their punctuation)."""
+    cp = ord(char)
+    return cp < 0x0590 or 0x1D00 <= cp < 0x2C80 or 0xA640 <= cp < 0xA720
+
+
 class _Fallbacks:
     """Finds an installed font for characters the bundled fonts don't have."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._files: Optional[list[str]] = None
+        self._western: Optional[list[str]] = None
         self._faces: dict[str, list[Face]] = {}
         self._by_char: dict[str, Optional[Face]] = {}
 
@@ -242,6 +262,7 @@ class _Fallbacks:
                     found.extend(os.path.join(dirpath, f) for f in files
                                  if f.lower().endswith((".ttf", ".otf", ".ttc")))
             self._files = sorted(found, key=_rank)
+            self._western = sorted(found, key=_western_rank)
         return self._files
 
     def face_for(self, char: str) -> Optional[Face]:
@@ -251,7 +272,8 @@ class _Fallbacks:
             return self._by_char[char]
 
     def _search(self, char: str) -> Optional[Face]:
-        for path in self._candidates():
+        candidates = self._candidates()
+        for path in (self._western if _is_western(char) else candidates):
             if path not in self._faces:
                 self._faces[path] = read_faces(path)
             for face in self._faces[path]:
