@@ -71,6 +71,7 @@ function applyWindow() {
 // ---------- title bar ----------
 
 function renderTitlebar(menuOnly) {
+  titlebar.classList.toggle("menu-hidden", hooks.menuShown?.() === false);
   if (menuOnly) {
     titlebar.replaceChildren(menubar());
     return;
@@ -147,6 +148,26 @@ function renderResizeHandles(show) {
 
 // ---------- in-app menu bar ----------
 
+/** Show or hide the menu bar in the title bar. Hidden, Alt shows it until you're done with it. */
+export function setTitleBarMenu(visible) {
+  titlebar.classList.toggle("menu-hidden", !visible);
+  titlebar.classList.remove("menu-peek");
+}
+
+// Alt on its own (pressed and released with nothing else) shows a hidden menu bar, and hides it again.
+let altAlone = false;
+window.addEventListener("keydown", (event) => { altAlone = event.key === "Alt" && !event.repeat; }, true);
+window.addEventListener("keyup", (event) => {
+  if (event.key !== "Alt" || !altAlone || !titlebar.classList.contains("menu-hidden")) return;
+  altAlone = false;
+  const peek = !titlebar.classList.contains("menu-peek");
+  titlebar.classList.toggle("menu-peek", peek);
+  if (peek) titlebar.querySelector(".menu-trigger")?.focus();
+}, true);
+document.addEventListener("mousedown", (event) => {
+  if (titlebar.classList.contains("menu-peek") && !event.target.closest(".menubar, .menu-popup")) titlebar.classList.remove("menu-peek");
+});
+
 let openMenu = null; // { trigger, popup }
 
 function menubar() {
@@ -188,7 +209,7 @@ function showMenu(trigger, menu, focusFirst = false) {
       h("span.menu-check", checked ? glyph("check") : null),
       h("span.menu-label", item.label),
       h("span.menu-shortcut", shortcutLabel(item.shortcut)));
-    row.addEventListener("click", () => { closeMenu(); hooks.run(item.command); });
+    row.addEventListener("click", () => { closeMenu(); titlebar.classList.remove("menu-peek"); hooks.run(item.command); });
     popup.append(row);
   }
   popup.addEventListener("keydown", (event) => menuKeys(event, trigger));

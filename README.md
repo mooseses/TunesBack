@@ -50,10 +50,10 @@ Works on **Windows, macOS, and Linux** with:
 - **Listening Age:** calculates the "era" of music you gravitate toward, with its own page: press Calculate and watch a five-year window sweep across your release years to your era. It's opt-in: it appears on the Overview and in Wrapped only if you choose
 - **Services page:** your Last.fm and ListenBrainz accounts and Spotify downloads at a glance: sync status, how much history is imported, recent syncs, Sync now / Stop, and the Last.fm API key
 - **Resizable sidebar:** drag its edge to resize it, drag it narrow (or press Ctrl/⌘+B) to hide it
-- **Dev space** (turn it on in Settings): sync dry runs that fetch but store nothing, feature flags (offline, slow network, card guides, reduced motion…), a card lab, request log and diagnostics
+- **Dev space** (turn it on in Settings): sync dry runs that fetch but store nothing, detailed logging, feature flags (offline, slow network, card guides, reduced motion…), a card lab, request log, diagnostics and a "start over" reset
 - **Flexible display:** switch between hours, minutes and days; rank by plays or listening time
 - **Dark and light mode**, or follow the system
-- **Native-feeling window:** TunesBack's own title bar by default (or your system's, in Settings), a File/View/Help menu bar with keyboard shortcuts, the macOS menu bar on Macs and the global menu on KDE Plasma. On macOS the sidebar is a real AppKit sidebar (Liquid Glass on macOS Tahoe); on Windows 11 the window sits on Mica
+- **Native-feeling window:** TunesBack's own title bar by default (or your system's, in Settings), a File/View/Help menu bar with keyboard shortcuts (hide it from the title bar in Settings; Alt shows it again), the macOS menu bar on Macs and the global menu on KDE Plasma. On macOS the sidebar is a real AppKit sidebar (Liquid Glass on macOS Tahoe); on Windows 11 the window sits on Mica
 - **Private:** TunesBack collects no data. Your listening history is kept and analysed on your machine; TunesBack only goes online to read your Last.fm or ListenBrainz profile and album covers for them. See the [Privacy Policy](PRIVACY.md)
 
 ## Wrapped Cards
@@ -206,7 +206,7 @@ TunesBack extracts album artwork directly from your audio files using **embedded
 
 If album art doesn't appear:
 
-1. Turn on **Settings → Detailed logging**
+1. Turn on **Dev space → Detailed logging** (turn on the Dev space in Settings first)
 2. Check the log file for path resolution errors:
    - **macOS:** `~/Library/Logs/TunesBack/tunesback.log`
    - **Windows:** `%LOCALAPPDATA%\TunesBack\Logs\tunesback.log`
@@ -331,7 +331,7 @@ Copy-Item "$env:USERPROFILE\Music\iTunes\iTunes Library.xml" "$env:USERPROFILE\M
 - **Card fonts**: titles in scripts the bundled fonts don't cover use a font installed on your computer, in its regular weight.
 - **Artist credits**: only explicit "feat." / "ft." / "featuring", `;` and ` / ` credits are split into separate artists, so duos like "Simon & Garfunkel" stay together.
 
-Turn on **Settings → Detailed logging** to see why artwork might be missing.
+Turn on **Dev space → Detailed logging** to see why artwork might be missing.
 
 ## Tech Stack
 
@@ -341,6 +341,7 @@ Turn on **Settings → Detailed logging** to see why artwork might be missing.
 - [mutagen](https://mutagen.readthedocs.io/): audio metadata extraction
 - [python-dateutil](https://dateutil.readthedocs.io/): date parsing
 - Typefaces, all under the SIL Open Font License: [Figtree](https://github.com/erikdkennedy/figtree), [Instrument Serif](https://github.com/Instrument/instrument-serif), [Space Mono](https://github.com/googlefonts/spacemono) and [Anton](https://github.com/googlefonts/AntonFont)
+- Service logos: [Simple Icons](https://simpleicons.org/) (CC0) for Last.fm, Spotify, Apple Music, Plex, Jellyfin and foobar2000; the ListenBrainz logo is by the [MetaBrainz Foundation](https://github.com/metabrainz/design-system) (CC BY-SA 4.0). The marks belong to their owners and are used only to name the services.
 
 ## Development
 

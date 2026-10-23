@@ -6,6 +6,7 @@
 
 import { call } from "../api.js";
 import { navigate, render as renderApp, runAnalysis, saveSettings, state } from "../app.js";
+import { brandIcon, hasBrand } from "../brands.js";
 import { confirmAction, h, icon, number, relativeTime, segmented, shortDate, toast } from "../util.js";
 
 const showIds = () => !!state.settings.flags?.show_ids;
@@ -191,7 +192,7 @@ function sourcesCard() {
         h("button.btn", { onclick: () => state.openSetup({ start: "apps", cancellable: true }) }, icon("plus"), "Add source"))),
     state.sources.length
       ? h("div.source-list", state.sources.map((s) => h("div.source-row",
-        h(`span.source-icon.kind-${s.kind}`, icon(KIND_ICONS[s.kind] || "song")),
+        hasBrand(s.kind) ? brandIcon(s.kind, 38) : h(`span.source-icon.kind-${s.kind}`, icon(KIND_ICONS[s.kind] || "song")),
         h("div.source-text",
           h("b", label(s)),
           h("small", { title: s.path }, detail(s)),

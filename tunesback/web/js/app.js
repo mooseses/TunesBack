@@ -2,7 +2,7 @@ import { call, setCardFlags } from "./api.js";
 import { h, icon, number, segmented, shortDate, showMessage, toast } from "./util.js";
 import { openAbout } from "./about.js";
 import { initSidebar, setNativeSidebar, toggleSidebar } from "./sidebar.js";
-import { initWindow } from "./window.js";
+import { initWindow, setTitleBarMenu } from "./window.js";
 import * as setup from "./views/setup.js";
 import { openOnboarding } from "./views/onboarding.js";
 import * as overview from "./views/overview.js";
@@ -199,6 +199,11 @@ export async function saveSettingsNow(changes) {
   return result;
 }
 
+// Windows and macOS tint their parts of the window by theme; tell them when the system switches.
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (state.info?.desktop && state.settings.theme === "system") call("window_theme_changed");
+});
+
 function applyTheme() {
   const theme = state.settings.theme;
   if (theme === "system") document.documentElement.removeAttribute("data-theme");
@@ -226,12 +231,16 @@ export function openSettings() {
         segmented([["system", "System"], ["light", "Light"], ["dark", "Dark"]], s.theme, (theme) => saveSettings({ theme }), "Theme")),
       state.info.desktop && titleBarSetting(),
       state.info.desktop && materialSetting(),
+      state.info.window?.menu === "html" && h("label.switch.setting",
+        h("div", h("div", { style: { fontWeight: 600 } }, "Menu bar in the title bar"),
+          h("div.desc", "When it's hidden, press Alt to show it.")),
+        h("input", { type: "checkbox", role: "switch", checked: s.title_bar_menu !== false,
+          onchange: (e) => { saveSettings({ title_bar_menu: e.target.checked }); setTitleBarMenu(e.target.checked); } })),
       toggle("show_art", "Album artwork in lists", "Read from your music files. Can be slow on network drives."),
       toggle("sync_on_launch", "Check for new listens on start-up", "Fetches from Last.fm and ListenBrainz each time TunesBack opens."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Set-up"),
         h("div.desc", "Go through the welcome steps again, for example to add another source.")),
         h("button.btn", { onclick: () => { dialog.close(); openSetup({ start: "welcome", cancellable: true }); } }, "Run set-up")),
-      toggle("debug_logging", "Detailed logging", "Writes extra detail to the log file to help track down problems."),
       toggle("dev_mode", "Dev space", "Adds a page with dry runs, feature flags and diagnostics to the sidebar."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Log files"), h("div.desc", state.info.log_dir)),
         h("button.btn", { onclick: async () => { const r = await call("open_logs"); if (r.error) toast(r.error, { error: true }); } }, "Open folder")),
@@ -319,6 +328,7 @@ export function runCommand(id) {
 
 const commandHooks = {
   run: runCommand,
+  menuShown: () => state.settings.title_bar_menu !== false,
   windowChanged: (info) => {
     const native = info?.sidebar === "native";
     if (native === nativeSidebar) return;

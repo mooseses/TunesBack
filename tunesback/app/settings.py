@@ -39,6 +39,7 @@ DEFAULTS = {
     "native_sidebar": True,  # macOS: an AppKit sidebar (Liquid Glass on macOS 26) instead of the page's
     "mica": True,  # Windows 11: Mica behind the window
     "overview_layout": None,  # the Overview's widgets, [{"id", "size"}] in order; None for the standard layout
+    "title_bar_menu": True,  # show the menu bar in TunesBack's title bar (Alt shows it when hidden)
 }
 
 # Feature flags for trying things out and tracking down problems, set in the Dev space.
@@ -158,7 +159,7 @@ class Settings:
                     continue
                 value = int(min(max(value, SIDEBAR_WIDTH[0]), SIDEBAR_WIDTH[1]))
             if key in ("sidebar_hidden", "sync_on_launch", "dev_mode", "age_calculated", "age_cards",
-                       "native_sidebar", "mica"):
+                       "native_sidebar", "mica", "title_bar_menu"):
                 value = bool(value)
             if key == "age_overview" and value is not None:
                 value = bool(value)
@@ -186,6 +187,12 @@ class Settings:
     def __getitem__(self, key: str):
         with self._lock:
             return self._values[key]
+
+    def reset(self) -> dict:
+        """Everything back to how a new installation starts."""
+        with self._lock:
+            self._values = dict(DEFAULTS)
+        return self.update({})
 
     def update(self, changes: dict) -> dict:
         with self._lock:

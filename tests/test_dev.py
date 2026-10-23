@@ -151,3 +151,15 @@ def test_overview_layout_and_window_settings(tmp_path):
     assert settings["overview_layout"] is None
     settings.update({"overview_layout": "nope"})
     assert settings["overview_layout"] is None
+
+
+def test_reset_all(api, service):
+    api.call("add_account", {"kind": "lastfm", "username": "rj", "api_key": "KEY"})
+    api.call("update_settings", {"changes": {"theme": "dark", "dev_mode": True, "flags": {"offline": True}, "title_bar_menu": False}})
+    assert api.call("reset_all", {}) == {"ok": True}
+    settings = api.call("state", {})["settings"]
+    assert settings["setup_done"] is False and settings["theme"] == "system" and settings["dev_mode"] is False
+    assert settings["flags"] == {} and settings["title_bar_menu"] is True and http.SIMULATE["offline"] is False
+    assert len(api.call("library", {})["sources"]) == 1  # the library stays unless asked
+    api.call("reset_all", {"forget_library": True})
+    assert api.call("library", {})["sources"] == []

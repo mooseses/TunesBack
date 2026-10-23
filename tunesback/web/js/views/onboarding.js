@@ -6,6 +6,7 @@
 // Last.fm and ListenBrainz ask for a user name, Spotify for its download.
 
 import { openPrivacy, serviceNote } from "../about.js";
+import { brandIcon, hasBrand } from "../brands.js";
 import { call } from "../api.js";
 import { state } from "../app.js";
 import { h, icon, number, relativeTime, shortDate } from "../util.js";
@@ -113,6 +114,7 @@ function back() {
 }
 
 function monogram(source, i) {
+  if (hasBrand(source.id)) return brandIcon(source.id, 40);
   return h("span.oobe-monogram", { style: { background: TINTS[source.id] || OTHER_TINTS[i % OTHER_TINTS.length] } }, source.name[0]);
 }
 

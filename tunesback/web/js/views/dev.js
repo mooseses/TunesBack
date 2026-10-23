@@ -53,7 +53,13 @@ const section = (title, note, ...body) => h("div.card.dev-card", h("div.card-tit
 
 function flagsCard() {
   return section("Feature flags", "take effect at once",
-    h("div.dev-flags", info.flags.map((flag) => h("label.switch.setting",
+    h("div.dev-flags",
+      h("label.switch.setting",
+        h("div", h("div", { style: { fontWeight: 600 } }, "Detailed logging"),
+          h("div.desc", "Writes extra detail to the log file, every request included.")),
+        h("input", { type: "checkbox", role: "switch", checked: !!state.settings.debug_logging,
+          onchange: (e) => saveSettings({ debug_logging: e.target.checked }) })),
+      info.flags.map((flag) => h("label.switch.setting",
       h("div", h("div", { style: { fontWeight: 600 } }, h("code", flag.id)), h("div.desc", flag.label)),
       h("input", {
         type: "checkbox", role: "switch", checked: flag.on,
@@ -198,12 +204,35 @@ function housekeepingCard() {
       h("div.dev-list-row",
         h("div", h("b", "Set-up"), h("div.desc", "Run the welcome steps again, full screen.")),
         h("button.btn", { onclick: () => state.openSetup({ start: "welcome", cancellable: true }) }, "Run set-up")),
+      startOver(),
       h("div.dev-list-row",
         h("div", h("b", "Logs"), h("div.desc", info.paths.Logs)),
         h("button.btn", { onclick: async () => { const r = await call("open_logs"); if (r.error) toast(r.error, { error: true }); } }, "Open folder")),
       h("div.dev-list-row",
         h("div", h("b", "Refresh"), h("div.desc", "Load this page's numbers again.")),
         h("button.btn", { onclick: () => { info = null; renderApp(); } }, icon("refresh"), "Reload"))));
+}
+
+/** Every setting back to its default, then set-up from the start (optionally forgetting the library). */
+function startOver() {
+  const forget = h("input", { type: "checkbox" });
+  return h("div.dev-list-row.dev-danger",
+    h("div", h("b", "Start over"),
+      h("div.desc", "Resets every setting, including this page's, and goes back to the welcome screen."),
+      h("label.dev-check", forget, "Also forget my music library and everything imported")),
+    h("button.btn.btn-danger", {
+      onclick: async () => {
+        const all = forget.checked;
+        const ok = await confirmAction("Reset all settings?",
+          all ? "Every setting goes back to its default, and TunesBack forgets your sources and the listens it imported. Your music files and online accounts aren't touched."
+            : "Every setting goes back to its default and set-up starts again. Your library and imported listens stay.",
+          "Reset");
+        if (!ok) return;
+        const r = await call("reset_all", { forget_library: all });
+        if (r.error) return toast(r.error, { error: true });
+        window.location.reload();
+      },
+    }, "Reset…"));
 }
 
 // ---------- card lab ----------

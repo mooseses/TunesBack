@@ -225,7 +225,8 @@ h1, h2, h3, p { margin: 0; }
 .switch input:checked::after { transform: translateX(18px); }
 
 /* ---------- cards & layout ---------- */
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); min-width: 0; }
+/* Flat cards: a hairline border and no drop shadow, on every platform. */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; min-width: 0; }
 .card-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .card-title .muted { font-size: 13px; font-weight: 500; }
 .grid { display: grid; gap: 16px; }
@@ -461,6 +462,8 @@ h1, h2, h3, p { margin: 0; }
 .onboarding-open .titlebar:hover .titlebar-controls, .onboarding-open .titlebar-controls:focus-within { opacity: 1; }
 .oobe-close { position: absolute; top: 16px; right: 16px; }
 .custom-titlebar .oobe-close { top: 48px; }
+/* The app stays out of sight behind set-up (with Mica, set-up's background is see-through). */
+.onboarding-open .shell { visibility: hidden; }
 .oobe-progress { display: flex; gap: 8px; margin-bottom: 28px; }
 .oobe-progress span { width: 28px; height: 4px; border-radius: 999px; background: var(--surface-3); transition: background 300ms ease; }
 .oobe-progress span.on { background: var(--accent); }
@@ -888,7 +891,6 @@ body[data-platform="windows"] .nav-item.active::before {
 :root.material-mica .nav, :root.material-mica .titlebar { background: transparent; border-color: transparent; }
 :root.material-mica .main { background: var(--layer); border-top: 1px solid var(--border); border-left: 1px solid var(--border); border-top-left-radius: 8px; }
 :root.material-mica.sidebar-hidden .main, :root.material-mica .sidebar-hidden .main { border-left: 0; border-top-left-radius: 0; }
-:root.material-mica .card { box-shadow: none; }
 
 /* ---------- Overview widgets ---------- */
 .widgets { display: grid; grid-template-columns: repeat(var(--cols, 12), minmax(0, 1fr)); gap: 16px; align-items: stretch; }
@@ -938,7 +940,7 @@ body[data-platform="windows"] .nav-item.active::before {
 .w-ghost { position: fixed; z-index: 60; margin: 0; pointer-events: none; opacity: 0.96; box-shadow: 0 20px 44px rgba(0, 0, 0, 0.32); outline: 2px solid var(--accent) !important; }
 .dragging-widget, .dragging-widget * { cursor: grabbing !important; }
 .w-new { animation: w-flash 1.4s ease-out; }
-@keyframes w-flash { 0%, 40% { box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow); } 100% { box-shadow: var(--shadow); } }
+@keyframes w-flash { 0%, 40% { box-shadow: 0 0 0 4px var(--accent-soft); } 100% { box-shadow: 0 0 0 0 transparent; } }
 
 /* The panel of widgets to add */
 .widget-drawer {
@@ -958,3 +960,21 @@ body[data-platform="windows"] .nav-item.active::before {
 .widget-option-text small { color: var(--muted); font-size: 13px; }
 .widget-preview { grid-column: 1 / -1; grid-row: 2; height: 116px; overflow: hidden; border-radius: 10px; background: var(--bg); }
 .widget-preview > .card { width: 200%; transform: scale(0.5); transform-origin: top left; }
+
+/* ---------- service logos (js/brands.js) ---------- */
+.brand-icon { display: inline-grid; place-items: center; flex: none; }
+.brand-icon svg { display: block; border-radius: 25%; }
+.brand-spotify svg { border-radius: 50%; }
+/* Logos on a white tile get a hairline, so they don't melt into light pages. */
+.brand-listenbrainz svg, .brand-jellyfin svg, .brand-foobar2000 svg, .brand-itunes svg { box-shadow: 0 0 0 1px var(--border); }
+.oobe-tile.soon .brand-icon { opacity: 0.45; }
+
+/* The menu bar in the title bar can be hidden; Alt shows it ("peek"). */
+.titlebar.menu-hidden:not(.menu-peek) .menubar { display: none; }
+.titlebar.menu-only.menu-hidden:not(.menu-peek) { display: none; }
+
+/* Dev space: start over */
+.dev-danger b { color: var(--danger); }
+.dev-danger .dev-check { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.btn-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+.btn-danger:hover:not(:disabled) { background: rgba(198, 40, 40, 0.1); }

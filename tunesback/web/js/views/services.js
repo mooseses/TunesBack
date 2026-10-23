@@ -3,12 +3,12 @@
 
 import { POLICIES, externalLink, openPrivacy } from "../about.js";
 import { call } from "../api.js";
+import { brandIcon } from "../brands.js";
 import { render as renderApp, renderNav, saveSettings, state } from "../app.js";
 import { confirmAction, h, icon, number, relativeTime, shortDate, toast } from "../util.js";
 import { loadLibrary } from "./setup.js";
 
 const NAMES = { lastfm: "Last.fm", listenbrainz: "ListenBrainz", spotify: "Spotify" };
-const TINTS = { lastfm: "#d51007", listenbrainz: "#eb743b", spotify: "#1db954" };
 const PROFILES = {
   lastfm: (user) => `https://www.last.fm/user/${encodeURIComponent(user)}`,
   listenbrainz: (user) => `https://listenbrainz.org/user/${encodeURIComponent(user)}/`,
@@ -121,7 +121,7 @@ function connectButton(kind) {
 function intro() {
   const option = (kind, text) => h("button.oobe-option.service-option", {
     type: "button", onclick: () => connect(kind),
-  }, h("span.service-logo", { style: { background: TINTS[kind] } }, NAMES[kind][0]), h("b", NAMES[kind]), h("small", text));
+  }, brandIcon(kind, 40), h("b", NAMES[kind]), h("small", text));
   return h("div.card.services-intro",
     h("span.invite-icon", icon("cloud")),
     h("h2", "Bring in your listening history"),
@@ -148,7 +148,7 @@ function accountCard(source) {
   const profile = PROFILES[source.kind]?.(source.path);
   return h("div.card.service-card",
     h("div.service-top",
-      h("span.service-logo", { style: { background: TINTS[source.kind] } }, NAMES[source.kind][0]),
+      brandIcon(source.kind, 40),
       h("div.service-name",
         h("b", NAMES[source.kind]),
         h("a.muted", { href: profile, target: "_blank", rel: "noreferrer", onclick: (e) => openLink(e, profile) },
@@ -207,7 +207,7 @@ function activity(source) {
 function downloadCard(source) {
   return h("div.card.service-card",
     h("div.service-top",
-      h("span.service-logo", { style: { background: TINTS[source.kind] } }, NAMES[source.kind][0]),
+      brandIcon(source.kind, 40),
       h("div.service-name", h("b", `${NAMES[source.kind]} download`), h("span.muted", { title: source.path }, source.path)),
       h("span.status-pill.ok", h("span.dot"), "Imported"),
       h("div.service-actions",

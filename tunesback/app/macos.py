@@ -244,6 +244,7 @@ class Chrome:
         else:
             table.setSelectionHighlightStyle_(AppKit.NSTableViewSelectionHighlightStyleSourceList)
         table.setBackgroundColor_(AppKit.NSColor.clearColor())
+        table.setFloatsGroupRows_(False)  # the headings scroll with the list, without a band behind them
         table.setDataSource_(sidebar)
         table.setDelegate_(sidebar)
         sidebar.table = table
@@ -270,6 +271,9 @@ class Chrome:
         split.addSplitViewItem_(AppKit.NSSplitViewItem.splitViewItemWithViewController_(content_vc))
 
         frame = self.window.frame()
+        # The sidebar's material shows the window's own background through it. pywebview set
+        # that to TunesBack's dark colour; the system's follows light and dark like the sidebar.
+        self.window.setBackgroundColor_(AppKit.NSColor.windowBackgroundColor())
         self.window.setContentViewController_(split)
         self.window.setFrame_display_(frame, True)  # setting a view controller resizes the window to fit it
         split.splitView().setAutosaveName_("TunesBack Sidebar")  # remembers the width

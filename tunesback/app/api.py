@@ -98,7 +98,7 @@ class Api:
         "catalog", "discover", "add_library", "import_exports", "refresh_readings", "library", "remove_library",
         "add_account", "import_history", "sync_sources", "set_lastfm_key",
         "dev_info", "dev_log", "dry_run_sync", "reset_sync", "forget_plays", "clear_caches",
-        "window_set_controls_visible", "window_sidebar", "window_toggle_sidebar",
+        "window_set_controls_visible", "window_sidebar", "window_toggle_sidebar", "window_theme_changed", "reset_all",
         "analyze", "artwork", "card_options", "cards", "save_cards", "restart",
         "window_info", "window_minimize", "window_toggle_maximize", "window_close",
         "window_start_move", "window_start_resize",
@@ -740,6 +740,29 @@ class Api:
         """The page's sidebar, for a native sidebar to mirror."""
         if self.window is not None and isinstance(model, dict):
             self.window.set_sidebar_model(model)
+        return {"ok": True}
+
+    def reset_all(self, forget_library: bool = False) -> dict:
+        """Start over: every setting back to its default (so set-up runs again), and with
+        `forget_library`, every source and everything imported from it too."""
+        if forget_library:
+            for source in self.store.sources():
+                self.store.remove_source(source["id"])
+            self.clear_caches()
+        self.settings.reset()
+        configure_logging(False)
+        self._apply_flags()
+        with self._lock:
+            self._report = None
+        if self.window is not None:
+            self.window.set_theme(self.settings["theme"])
+        log.info("Reset all settings%s", " and forgot the library" if forget_library else "")
+        return {"ok": True}
+
+    def window_theme_changed(self) -> dict:
+        """The system switched between light and dark (matters while the theme is "system")."""
+        if self.window is not None:
+            self.window.set_theme(self.settings["theme"])
         return {"ok": True}
 
     def window_toggle_sidebar(self) -> dict:

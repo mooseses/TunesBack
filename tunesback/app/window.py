@@ -406,7 +406,7 @@ class DesktopWindow:
             from . import macos
             self._invoke(lambda: macos.set_appearance(theme))
         elif self._material == "mica":
-            self._invoke(lambda: _winforms_dark_frame(self.window.native, _dark(theme)))
+            self._invoke(lambda: _winforms_mica(self.window.native, _dark(theme), refresh=True))
 
     def start_resize(self, edge: str) -> None:
         if not self.custom or edge not in EDGES or self._maximized:
@@ -465,9 +465,11 @@ def _winforms_dark_frame(form, dark: bool) -> None:
     _dwm_set(form.Handle.ToInt64(), 20, 1 if dark else 0)  # DWMWA_USE_IMMERSIVE_DARK_MODE: tints Mica
 
 
-def _winforms_mica(form, dark: bool) -> bool:
+def _winforms_mica(form, dark: bool, refresh: bool = False) -> bool:
     """Put Mica behind the whole window: the backdrop, the frame extended over the client area,
-    a black form (which DWM treats as see-through there) and a transparent web view."""
+    a black form (which DWM treats as see-through there) and a transparent web view.
+    `refresh` (after a theme change): drop the backdrop first and redraw the frame, since DWM
+    doesn't repaint Mica in the new light or dark tint by itself."""
     import ctypes
     from System.Drawing import Color
 
@@ -475,6 +477,8 @@ def _winforms_mica(form, dark: bool) -> bool:
         _fields_ = [("left", ctypes.c_int), ("right", ctypes.c_int), ("top", ctypes.c_int), ("bottom", ctypes.c_int)]
 
     hwnd = form.Handle.ToInt64()
+    if refresh:
+        _dwm_set(hwnd, 38, 1)  # DWMSBT_NONE
     _winforms_dark_frame(form, dark)
     if _dwm_set(hwnd, 38, 2) != 0:  # DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_MAINWINDOW (Mica)
         return False
@@ -486,6 +490,11 @@ def _winforms_mica(form, dark: bool) -> bool:
     web = getattr(form, "webview", None)
     if web is not None:
         web.DefaultBackgroundColor = Color.Transparent
+    if refresh:
+        SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOACTIVATE, SWP_FRAMECHANGED = 0x1, 0x2, 0x4, 0x10, 0x20
+        _user32().SetWindowPos(ctypes.c_void_p(hwnd), None, 0, 0, 0, 0,
+                               SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED)
+        form.Invalidate(True)
     return True
 
 
