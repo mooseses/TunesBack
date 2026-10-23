@@ -71,6 +71,9 @@ class Report:
     new_finds: list[Entry]
     skipped: list[Entry]
     listening_age: Optional[ListeningAge]
+    timeline: Optional[dict] = None  # when and how you listened (sources with timestamps only)
+    estimated_time: bool = False  # some listening times are guessed from song lengths
+    sources: list = field(default_factory=list)  # which sources went in, and the dates each covers
 
     def top(self, category: str, by: RankBy = "plays", limit: Optional[int] = None) -> list[Entry]:
         entries = getattr(self, category)
@@ -91,11 +94,20 @@ class Report:
             },
             **{name: [e.to_dict() for e in getattr(self, name)] for name in
                ("songs", "albums", "artists", "genres", "years", "new_finds", "skipped")},
+            "timeline": self.timeline,
+            "estimated_time": self.estimated_time,
+            "sources": self.sources,
         }
 
 
 def build_report(end: Snapshot, start: Optional[Snapshot] = None) -> Report:
-    activity = period_activity(end, start)
+    """A report from two readings of a counter source (or one, for all time)."""
+    return report_from_activity(period_activity(end, start), start.date if start else None, end.date)
+
+
+def report_from_activity(activity: list[TrackActivity], start_date: Optional[datetime], end_date: datetime,
+                         timeline: Optional[dict] = None, estimated_time: bool = False) -> Report:
+    """Roll per-track activity for a period up into a report."""
 
     songs: dict[tuple, Entry] = {}
     albums: dict[tuple, Entry] = {}
@@ -130,9 +142,9 @@ def build_report(end: Snapshot, start: Optional[Snapshot] = None) -> Report:
 
     played_songs = [e for e in songs.values() if e.plays]
     return Report(
-        mode="compare" if start else "single",
-        start_date=start.date if start else None,
-        end_date=end.date,
+        mode="compare" if start_date else "single",
+        start_date=start_date,
+        end_date=end_date,
         total_ms=sum(a.ms for a in activity),
         total_plays=sum(a.plays for a in activity),
         total_skips=sum(a.skips for a in activity),
@@ -143,5 +155,7 @@ def build_report(end: Snapshot, start: Optional[Snapshot] = None) -> Report:
         years=list(years.values()),
         new_finds=new_finds,
         skipped=[e for e in songs.values() if e.skips],
-        listening_age=calculate_listening_age(plays_per_year, end.date.year),
+        listening_age=calculate_listening_age(plays_per_year, end_date.year),
+        timeline=timeline,
+        estimated_time=estimated_time,
     )

@@ -16,9 +16,12 @@ class TrackActivity:
     plays: int
     skips: int
     is_new: bool  # not in the library at the start of the period
+    listened_ms: Optional[int] = None  # measured listening time, when the source logs it
 
     @property
     def ms(self) -> int:
+        if self.listened_ms is not None:
+            return self.listened_ms
         return self.plays * self.track.duration_ms
 
 

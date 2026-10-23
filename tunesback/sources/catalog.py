@@ -1,8 +1,16 @@
-"""Music players shown during set-up. Only iTunes / Apple Music is supported so far."""
+"""Music players and services shown during set-up.
+
+`flow` says how set-up connects one: "library" (find a library file on this
+computer or a network drive), "account" (an online profile) or "export" (a
+downloaded history file).
+"""
 from __future__ import annotations
 
 CATALOG = [
-    {"id": "itunes", "name": "iTunes / Apple Music", "blurb": "Library exports and the iTunes library file", "available": True},
+    {"id": "itunes", "name": "iTunes / Apple Music", "blurb": "Your library on this computer", "available": True, "flow": "library"},
+    {"id": "lastfm", "name": "Last.fm", "blurb": "Every scrobble, with dates", "available": True, "flow": "account"},
+    {"id": "listenbrainz", "name": "ListenBrainz", "blurb": "Every listen, with dates", "available": True, "flow": "account"},
+    {"id": "spotify", "name": "Spotify", "blurb": "Your downloaded listening history", "available": True, "flow": "export"},
     {"id": "musicbee", "name": "MusicBee", "blurb": "Windows", "available": False},
     {"id": "foobar2000", "name": "foobar2000", "blurb": "With playback statistics", "available": False},
     {"id": "mediamonkey", "name": "MediaMonkey", "blurb": "Windows", "available": False},

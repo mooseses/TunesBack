@@ -6,6 +6,7 @@ import hashlib
 import logging
 import os
 import threading
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
@@ -51,12 +52,60 @@ def _folder_art(path: str) -> Optional[bytes]:
     return None
 
 
+# Covers from online services (Last.fm, the Cover Art Archive) are kept here once downloaded.
+REMOTE_CACHE: Optional[Path] = None
+
+
+def is_remote(location: Optional[str]) -> bool:
+    return bool(location) and location.startswith(("https://", "http://"))
+
+
+def _remote_bytes(url: str) -> Optional[bytes]:
+    """A cover image from the web, cached on disk so it's only downloaded once."""
+    cached = REMOTE_CACHE / (hashlib.sha1(url.encode()).hexdigest() + ".img") if REMOTE_CACHE else None
+    if cached is not None and cached.exists():
+        try:
+            return cached.read_bytes()
+        except OSError:
+            pass
+    from ..sources.http import USER_AGENT, ssl_context
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(request, timeout=10, context=ssl_context()) as response:
+            data = response.read(5_000_000)
+    except (OSError, ValueError) as e:
+        log.debug("Couldn't download artwork %s: %s", url, e)
+        return None
+    if cached is not None:
+        try:
+            cached.parent.mkdir(parents=True, exist_ok=True)
+            cached.write_bytes(data)
+        except OSError:
+            pass
+    return data
+
+
+def _decode(data: bytes, max_size: Optional[int]) -> Image.Image:
+    image = Image.open(BytesIO(data))
+    if max_size:
+        image.draft("RGB", (max_size, max_size))
+    image.load()
+    return image.convert("RGB")
+
+
 def load_artwork(location: Optional[str], max_size: Optional[int] = None) -> Optional[Image.Image]:
-    """Artwork for a library location, or None.
+    """Artwork for a library location (or a cover's web address), or None.
 
     With `max_size`, JPEGs are decoded at a reduced scale, which is several
     times faster than decoding a large cover and shrinking it afterwards.
     """
+    if is_remote(location):
+        data = _remote_bytes(location)
+        try:
+            return _decode(data, max_size) if data else None
+        except Exception as e:
+            log.debug("Artwork unreadable at %s: %s", location, e)
+            return None
     path = resolve_location(location)
     if not path:
         return None
@@ -72,11 +121,7 @@ def _load_from_path(path: str, max_size: Optional[int]) -> Optional[Image.Image]
     try:
         data = data or _folder_art(path)
         if data:
-            image = Image.open(BytesIO(data))
-            if max_size:
-                image.draft("RGB", (max_size, max_size))
-            image.load()
-            return image.convert("RGB")
+            return _decode(data, max_size)
     except Exception as e:  # corrupt tags or images should never break a run
         log.warning("Artwork unreadable for %s: %s", path, e)
     return None
@@ -128,6 +173,9 @@ class ThumbnailCache:
         return self._dir / (hashlib.sha1(key.encode("utf-8", "surrogatepass")).hexdigest() + ".jpg")
 
     def _load(self, location: str) -> Optional[str]:
+        if is_remote(location):
+            image = load_artwork(location, self._size * 2)
+            return _thumbnail_uri(image, self._size) if image else None
         path = resolve_location(location)
         if not path:
             return None
@@ -150,6 +198,13 @@ class ThumbnailCache:
             except OSError as e:
                 log.debug("Could not cache thumbnail: %s", e)
         return _data_uri(data)
+
+
+def _thumbnail_uri(image: Image.Image, size: int) -> str:
+    image.thumbnail((size, size))
+    buf = BytesIO()
+    image.save(buf, format="JPEG", quality=85)
+    return _data_uri(buf.getvalue())
 
 
 def _data_uri(jpeg: bytes) -> str:

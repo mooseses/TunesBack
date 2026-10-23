@@ -25,6 +25,7 @@ DEFAULTS = {
     "setup_done": False,
     "sources_wanted": [],  # players picked during set-up that aren't supported yet
     "cards": {},  # the Wrapped deck's design: format, theme, shuffle seed and per-card choices
+    "lastfm_api_key": None,  # entered during set-up when this build doesn't come with one
 }
 
 _CHOICES = {
@@ -125,6 +126,8 @@ class Settings:
             if key == "last_folder" and value is not None and not isinstance(value, str):
                 continue
             if key == "cards" and not isinstance(value, dict):
+                continue
+            if key == "lastfm_api_key" and value is not None and not isinstance(value, str):
                 continue
             clean[key] = value
         return clean

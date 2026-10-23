@@ -122,3 +122,24 @@ def test_catalog_lists_layouts_and_themes():
     assert {f["id"] for f in info["formats"]} == {"story", "square"}
     assert {"mix", "cover", "midnight", "paper"} <= {t["id"] for t in info["themes"]}
     assert all(c["layouts"] for c in info["cards"])
+
+
+def test_timeline_cards_render(sample_data):
+    import random
+    from dataclasses import replace
+
+    from tunesback.stats.plays import Listen, timeline
+
+    rnd = random.Random(1)
+    start = datetime(2025, 1, 1)
+    listens = sorted((Listen(int(start.timestamp()) + rnd.randrange(365 * 86400), 200_000, rnd.choice("ABCDE"), "S")
+                      for _ in range(2000)), key=lambda l: l.at)
+    data = replace(sample_data, timeline=timeline(listens, start, datetime(2026, 1, 1),
+                                                  {"a": 0, "b": int(datetime(2025, 6, 1).timestamp())}, 0))
+    types = {c.type for c in plan(data)}
+    assert {"clock", "months", "streak", "discoveries"} <= types
+    for card in ("clock", "months", "streak", "discoveries"):
+        for layout in CARD_TYPES[card].layouts:
+            for theme in THEMES:
+                for fmt in ("story", "square"):
+                    draw(CardChoice(card, layout, theme), data, fmt, scale=0.2)

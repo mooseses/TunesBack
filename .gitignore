@@ -11,3 +11,4 @@ installer.iss
 TunesBack-*.exe
 .DS_Store
 Thumbs.db
+tunesback/_build.py

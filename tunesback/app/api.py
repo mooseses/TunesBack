@@ -16,17 +16,23 @@ import webbrowser
 from collections import OrderedDict
 from io import BytesIO
 from pathlib import Path
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Optional
 
 from .. import __version__
+from ..art import artwork
 from ..art.artwork import ThumbnailCache
 from ..cards import CardChoice, CardData, build_data, catalog, draw, normalize, plan, resolve_theme
 from ..cards.layouts.base import FORMATS
 from ..cards.registry import CARD_TYPES
 from ..cards.themes import THEMES
 from ..library import LibraryStore
-from ..sources import itunes_xml
+from ..recap import COUNTER_MODES, build_recap, source_name
+from ..sources import itunes_xml, lastfm, spotify
 from ..sources.catalog import CATALOG
+from ..sources.lastfm import LastFm
+from ..sources.listenbrainz import ListenBrainz
+from ..sources.plays import SourceError, Stopped, sync_history
 from ..stats.report import Report, build_report
 from .settings import Settings, cache_dir, configure_logging, data_dir, log_dir
 
@@ -64,9 +70,13 @@ class Api:
         self._card_data: Optional[CardData] = None
         self._card_data_key: Optional[tuple] = None
         self._card_cache: OrderedDict[tuple, bytes] = OrderedDict()
-        self._progress = {"running": False, "stage": ""}
-        self._cancel = threading.Event()
+        # Long jobs report progress on their own channel, so a sync in the
+        # background and an analysis in the foreground don't mix.
+        self._progress = {"analysis": {"running": False, "stage": ""}, "sync": {"running": False, "stage": ""}}
+        self._cancel = {"analysis": threading.Event(), "sync": threading.Event()}
+        self._sync_lock = threading.Lock()
         self._thumbs = ThumbnailCache(cache_dir=thumbnail_dir or cache_dir() / "thumbnails")
+        artwork.REMOTE_CACHE = (thumbnail_dir or cache_dir() / "thumbnails").parent / "covers"
         self.store = LibraryStore(store_path or data_dir() / "library.sqlite")
         self._migrate_snapshot_folder()
 
@@ -75,6 +85,7 @@ class Api:
     ACTIONS = frozenset({
         "state", "update_settings", "open_logs", "open_website", "pick_folder", "pick_file", "progress", "cancel",
         "catalog", "discover", "add_library", "import_exports", "refresh_readings", "library", "remove_library",
+        "add_account", "import_history", "sync_sources",
         "analyze", "artwork", "card_options", "cards", "save_cards", "restart",
         "window_info", "window_minimize", "window_toggle_maximize", "window_close",
         "window_start_move", "window_start_resize",
@@ -178,15 +189,16 @@ class Api:
             return {"path": None, "unsupported": True}
         return {"path": self.window.pick_folder()}
 
-    def pick_file(self) -> dict:
+    def pick_file(self, kind: str = "itunes") -> dict:
         if self.window is None:
             return {"path": None, "unsupported": True}
-        return {"path": self.window.pick_file(("Library exports (*.xml)",))}
+        types = {"spotify": ("Spotify data (*.zip;*.json)",)}.get(kind, ("Library exports (*.xml)",))
+        return {"path": self.window.pick_file(types)}
 
     # --- set-up and library readings ---
 
     def catalog(self) -> dict:
-        return {"sources": CATALOG}
+        return {"sources": CATALOG, "lastfm_key": bool(self._lastfm_key()), "lastfm_key_url": lastfm.KEY_URL}
 
     def discover(self, root: Optional[str] = None) -> dict:
         if root is not None:
@@ -235,7 +247,7 @@ class Api:
         """Add a folder of older exports as history for a library."""
         folder = os.path.expanduser((folder or "").strip())
         if source_id is None:
-            sources = self.store.sources()
+            sources = [s for s in self.store.sources() if s["kind"] == "itunes"]
             if not sources:
                 return self.add_library(folder)
             source_id = sources[0]["id"]
@@ -259,6 +271,85 @@ class Api:
                     problems.append({"source": source["path"], "error": result.error})
         return {"new": new, "problems": problems}
 
+    # --- play sources ---
+
+    def _lastfm_key(self) -> Optional[str]:
+        return lastfm.bundled_key() or self.settings["lastfm_api_key"]
+
+    def _service(self, source: dict, api_key: Optional[str] = None):
+        stop = self._cancel["sync"].is_set
+        if source["kind"] == "lastfm":
+            key = api_key or self._lastfm_key()
+            if not key:
+                raise UserError("Last.fm needs an API key. Add one in set-up.")
+            return LastFm(source["path"], key, stop=stop)
+        if source["kind"] == "listenbrainz":
+            return ListenBrainz(source["path"], stop=stop)
+        raise UserError("That source can't be synced.")
+
+    def add_account(self, kind: str, username: str, api_key: Optional[str] = None) -> dict:
+        """Connect a Last.fm or ListenBrainz profile and import its history."""
+        username = (username or "").strip()
+        if kind not in ("lastfm", "listenbrainz"):
+            raise UserError("Unknown kind of account.")
+        if not username:
+            raise UserError("Enter a user name.")
+        api_key = (api_key or "").strip() or None
+        self._cancel["sync"].clear()
+        try:
+            account = self._service({"kind": kind, "path": username}, api_key).check()
+        except SourceError as e:
+            raise UserError(str(e)) from e
+        if kind == "lastfm" and api_key and not lastfm.bundled_key():
+            self.settings.update({"lastfm_api_key": api_key})
+        source = self.store.add_source(kind, "account", account["name"], "online")
+        self.settings.update({"setup_done": True})
+        result = self.sync_sources(source_id=source["id"])
+        return {"source": self._source_json(source["id"]), "expected": account["plays"], **result}
+
+    def import_history(self, path: str, kind: str = "spotify") -> dict:
+        """Import a downloaded listening history (Spotify)."""
+        path = os.path.expanduser((path or "").strip())
+        if kind != "spotify":
+            raise UserError("Unknown kind of history.")
+        if not os.path.exists(path):
+            raise UserError("Can't find that file or folder.")
+        try:
+            plays = spotify.read_export(path)
+        except SourceError as e:
+            raise UserError(str(e)) from e
+        source = self.store.add_source("spotify", "export", path, "local")
+        new = self.store.add_plays(source["id"], plays)
+        self.settings.update({"setup_done": True})
+        return {"source": self._source_json(source["id"]), "plays": len(plays), "new": new}
+
+    def sync_sources(self, source_id: Optional[int] = None, quiet: bool = False) -> dict:
+        """Fetch new listens from online accounts (one, or all of them)."""
+        if not self._sync_lock.acquire(blocking=not quiet):
+            return {"new": 0, "problems": [], "busy": True}
+        self._cancel["sync"].clear()
+        new, problems, stopped = 0, [], False
+        try:
+            accounts = [s for s in self.store.sources() if s["mode"] == "account"
+                        and (source_id is None or s["id"] == int(source_id))]
+            for source in accounts:
+                name = source_name(source)
+                try:
+                    service = self._service(source)
+                    new += sync_history(self.store, source["id"], service.newer, service.older,
+                                        progress=lambda text, name=name: self._set_stage("sync", f"{name}: {text}"),
+                                        stop=self._cancel["sync"].is_set)
+                except Stopped:
+                    stopped = True
+                    break
+                except (SourceError, UserError) as e:
+                    problems.append({"source": name, "error": str(e)})
+        finally:
+            with self._lock:
+                self._progress["sync"] = {"running": False, "stage": ""}
+            self._sync_lock.release()
+        return {"new": new, "problems": problems, "stopped": stopped}
+
     def library(self) -> dict:
         return {
             "sources": [self._source_json(s["id"]) for s in self.store.sources()],
@@ -273,7 +364,13 @@ class Api:
 
     def _source_json(self, source_id: int) -> dict:
         source = next((s for s in self.store.sources() if s["id"] == source_id), None) or {}
-        return {k: source.get(k) for k in ("id", "kind", "mode", "path", "location", "reading_count", "last_reading")}
+        out = {k: source.get(k) for k in ("id", "kind", "mode", "path", "location", "reading_count", "last_reading",
+                                          "play_count", "first_play", "last_play")}
+        out["name"] = source_name(source) if source else None
+        out["counter"] = source.get("mode") in COUNTER_MODES
+        sync = (source.get("options") or {}).get("sync") or {}
+        out["complete"] = sync.get("complete", True) if source.get("mode") == "account" else True
+        return out
 
     def _migrate_snapshot_folder(self) -> None:
         """TunesBack 1.x pointed at a folder of exports; adopt it as a library."""
@@ -287,43 +384,33 @@ class Api:
 
     # --- analysis ---
 
-    def progress(self) -> dict:
+    def progress(self, channel: str = "analysis") -> dict:
         with self._lock:
-            return dict(self._progress)
+            return dict(self._progress.get(channel, {"running": False, "stage": ""}))
 
-    def cancel(self) -> dict:
-        self._cancel.set()
+    def cancel(self, channel: str = "analysis") -> dict:
+        if channel in self._cancel:
+            self._cancel[channel].set()
         return {"ok": True}
 
-    def _stage(self, text: str) -> None:
-        if self._cancel.is_set():
-            raise Cancelled
+    def _set_stage(self, channel: str, text: str) -> None:
         with self._lock:
-            self._progress = {"running": True, "stage": text}
+            self._progress[channel] = {"running": True, "stage": text}
 
-    def analyze(self, end: int, start: Optional[int] = None) -> dict:
+    def _stage(self, text: str) -> None:
+        if self._cancel["analysis"].is_set():
+            raise Cancelled
+        self._set_stage("analysis", text)
+
+    def analyze(self, end: Optional[int] = None, start: Optional[int] = None, sources: Optional[list] = None,
+                period: Optional[dict] = None, combine: str = "same") -> dict:
+        """Build a recap: between two readings (`start`, `end` reading ids), or for a date
+        range (`period` {"start", "end"} as YYYY-MM-DD, start null for all time) over `sources`."""
         if not self._analysis_lock.acquire(blocking=False):
             raise UserError("An analysis is already running.")
-        self._cancel.clear()
+        self._cancel["analysis"].clear()
         try:
-            readings = {r["id"]: r for r in self.store.readings()}
-            end_info = readings.get(int(end))
-            start_info = readings.get(int(start)) if start is not None else None
-            if end_info is None or (start is not None and start_info is None):
-                raise UserError("Pick a reading first.")
-            if start_info and start_info["date"] > end_info["date"]:
-                raise UserError("The start of the period is after its end.")
-            if start_info and start_info["id"] == end_info["id"]:
-                raise UserError("Pick two different readings to compare.")
-
-            start_snapshot = None
-            if start_info:
-                self._stage("Loading the start of the period…")
-                start_snapshot = self.store.load(start_info["id"])
-            self._stage("Loading the end of the period…")
-            end_snapshot = self.store.load(end_info["id"])
-            self._stage("Crunching numbers…")
-            report = build_report(end_snapshot, start_snapshot)
+            report = self._readings_report(end, start) if end is not None else self._range_report(sources, period, combine)
             self._stage("Done")
             with self._lock:
                 self._report = report
@@ -333,8 +420,50 @@ class Api:
             return {"cancelled": True}
         finally:
             with self._lock:
-                self._progress = {"running": False, "stage": ""}
+                self._progress["analysis"] = {"running": False, "stage": ""}
             self._analysis_lock.release()
+
+    def _readings_report(self, end: int, start: Optional[int]) -> Report:
+        readings = {r["id"]: r for r in self.store.readings()}
+        end_info = readings.get(int(end))
+        start_info = readings.get(int(start)) if start is not None else None
+        if end_info is None or (start is not None and start_info is None):
+            raise UserError("Pick a reading first.")
+        if start_info and start_info["date"] > end_info["date"]:
+            raise UserError("The start of the period is after its end.")
+        if start_info and start_info["id"] == end_info["id"]:
+            raise UserError("Pick two different readings to compare.")
+        start_snapshot = None
+        if start_info:
+            self._stage("Loading the start of the period…")
+            start_snapshot = self.store.load(start_info["id"])
+        self._stage("Loading the end of the period…")
+        end_snapshot = self.store.load(end_info["id"])
+        self._stage("Crunching numbers…")
+        report = build_report(end_snapshot, start_snapshot)
+        source = self.store.source(end_info["source_id"])
+        report.sources = [{"id": source["id"], "name": source_name(source), "kind": source["kind"],
+                           "covers": {"start": start_info["date"] if start_info else None, "end": end_info["date"]}}]
+        return report
+
+    def _range_report(self, source_ids: Optional[list], period: Optional[dict], combine: str) -> Report:
+        everything = self.store.sources()
+        wanted = {int(i) for i in source_ids} if source_ids else {s["id"] for s in everything}
+        chosen = [s for s in everything if s["id"] in wanted]
+        if not chosen:
+            raise UserError("Pick a source first.")
+        period = period or {}
+        try:
+            start = datetime.strptime(period["start"], "%Y-%m-%d") if period.get("start") else None
+            end = datetime.strptime(period["end"], "%Y-%m-%d") + timedelta(days=1) if period.get("end") else None
+        except (TypeError, ValueError) as e:
+            raise UserError("Those dates don't look right.") from e
+        if start and end and start >= end:
+            raise UserError("The start of the period is after its end.")
+        report = build_recap(self.store, chosen, start, end, "separate" if combine == "separate" else "same", self._stage)
+        if not report.total_plays and not report.total_skips:
+            raise UserError("There are no plays in that period. Try a longer one, or another source.")
+        return report
 
     def artwork(self, locations: list) -> dict:
         wanted = [loc for loc in locations[:200] if isinstance(loc, str)]
