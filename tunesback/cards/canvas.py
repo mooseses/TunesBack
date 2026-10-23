@@ -256,7 +256,10 @@ class Canvas:
                 out.append(escape(piece))
                 continue
             self._font_files.add(piece_face.path)
-            attrs = _attrs(font_family=piece_face.family, font_weight=piece_face.weight,
+            # Every name the font goes by, then the design's font: a renderer that knows it by
+            # another name still finds it, and one that finds none falls back by glyph as before.
+            names = ", ".join(f"'{n}'" for n in [*piece_face.families, face.family] if "'" not in n)
+            attrs = _attrs(font_family=names, font_weight=piece_face.weight,
                            font_style="italic" if piece_face.italic else "normal")
             out.append(f"<tspan {attrs}>{escape(piece)}</tspan>")
         return "".join(out)

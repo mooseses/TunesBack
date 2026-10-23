@@ -73,28 +73,40 @@ def _cmap_ranges(data: bytes, tables: dict) -> list[tuple[int, int]]:
     return []
 
 
-def _names(data: bytes, tables: dict) -> tuple[Optional[str], int, bool]:
-    """(family, weight, italic) as font renderers look them up."""
-    family = None
+def _names(data: bytes, tables: dict) -> tuple[list[str], int, bool]:
+    """(family names, weight, italic) as font renderers look them up.
+
+    Renderers use the typographic family (name 16) when a font has one, else
+    the legacy family (name 1), in English first. All of them are returned,
+    best first, so a lookup by any of them finds the face.
+    """
+    found: dict[tuple[int, bool], list[str]] = {}
     if "name" in tables:
         base = tables["name"][0]
         _fmt, count, strings = struct.unpack_from(">HHH", data, base)
-        found = {}
         for i in range(count):
-            pid, eid, _lang, nid, length, off = struct.unpack_from(">6H", data, base + 6 + 12 * i)
-            if nid == 1 and pid in (0, 3) and nid not in found:
-                raw = data[base + strings + off: base + strings + off + length]
-                try:
-                    found[nid] = raw.decode("utf-16-be")
-                except UnicodeDecodeError:
-                    continue
-        family = found.get(1)
+            pid, _eid, lang, nid, length, off = struct.unpack_from(">6H", data, base + 6 + 12 * i)
+            if nid not in (1, 16) or pid not in (0, 1, 3):
+                continue
+            raw = data[base + strings + off: base + strings + off + length]
+            try:
+                text = raw.decode("mac_roman" if pid == 1 else "utf-16-be").strip()
+            except UnicodeDecodeError:
+                continue
+            english = pid == 0 or (pid == 3 and lang == 0x409) or (pid == 1 and lang == 0)
+            if text:
+                found.setdefault((nid, english), []).append(text)
+    families: list[str] = []
+    for key in ((16, True), (1, True), (16, False), (1, False)):
+        for name in found.get(key, []):
+            if name not in families:
+                families.append(name)
     weight, italic = 400, False
     if "OS/2" in tables:
         base = tables["OS/2"][0]
         weight = struct.unpack_from(">H", data, base + 4)[0] or 400
         italic = bool(struct.unpack_from(">H", data, base + 62)[0] & 1)
-    return family, weight, italic
+    return families, weight, italic
 
 
 @dataclass
@@ -103,10 +115,14 @@ class Face:
 
     path: str
     index: int
-    family: str
+    families: list[str]  # every name it's known by, best first
     weight: int
     italic: bool
     ranges: list[tuple[int, int]]
+
+    @property
+    def family(self) -> str:
+        return self.families[0]
 
     def __post_init__(self) -> None:
         self._starts = [r[0] for r in self.ranges]
@@ -125,9 +141,9 @@ def read_faces(path: str) -> list[Face]:
         faces = []
         for index, offset in enumerate(_face_offsets(data)):
             tables = _tables(data, offset)
-            family, weight, italic = _names(data, tables)
-            if family:
-                faces.append(Face(path, index, family, weight, italic, sorted(_cmap_ranges(data, tables))))
+            families, weight, italic = _names(data, tables)
+            if families:
+                faces.append(Face(path, index, families, weight, italic, sorted(_cmap_ranges(data, tables))))
         return faces
     except (OSError, struct.error, ValueError, IndexError):
         return []
@@ -178,7 +194,8 @@ def bundled_files() -> frozenset[str]:
 _PREFERRED = (
     "notosans-regular", "notosanscjk", "notosansjp", "notosanskr", "notosanssc", "notosanstc", "notosans",
     "sourcehansans", "segoeui.ttf", "yugothm", "yugothr", "msyh.", "msjh.", "malgun.", "meiryo", "hiragino",
-    "pingfang", "applesdgothicneo", "arial unicode", "arialuni", "dejavusans.ttf", "wqy-zenhei", "droidsansfallback",
+    "pingfang", "applesdgothicneo", "helvetica.ttc", "arial unicode", "arialuni", "dejavusans.ttf", "wqy-zenhei",
+    "droidsansfallback",
     "nirmala", "tahoma", "geezapro", "kohinoor", "thonburi", "seguisym", "seguiemj", "notocoloremoji",
     "apple color emoji",
 )
@@ -238,6 +255,9 @@ class _Fallbacks:
             if path not in self._faces:
                 self._faces[path] = read_faces(path)
             for face in self._faces[path]:
+                # macOS's hidden system fonts (".SF NS"...) can't be asked for by name.
+                if face.family.startswith(".") or "LastResort" in face.family:
+                    continue
                 if face.covers(char):
                     log.debug("Using %s for U+%04X", face.family, ord(char))
                     return face
