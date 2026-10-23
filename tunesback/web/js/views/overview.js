@@ -32,7 +32,7 @@ function save(next) {
 // ---------- packing ----------
 
 function columnsFor(width) {
-  return width >= 900 ? 12 : width >= 560 ? 6 : 1;
+  return width >= 840 ? 12 : width >= 560 ? 6 : 1;
 }
 
 function spanFor(size, cols) {

@@ -72,13 +72,15 @@ def prepare_qt_sandbox() -> None:
 class DesktopWindow:
     """Owns the pywebview window and everything the interface asks of it."""
 
-    def __init__(self, url: str, title_bar: str, theme: str, native_sidebar: bool = True, mica: bool = True):
+    def __init__(self, url: str, title_bar: str, theme: str, native_sidebar: bool = True, mica: bool = True,
+                 sidebar_hidden: bool = False):
         import webview
 
         self.custom = title_bar == "custom"
         self._theme = theme
         self._want_native_sidebar = native_sidebar and SYSTEM == "macos"
         self._want_mica = mica and SYSTEM == "windows"
+        self._sidebar_hidden = sidebar_hidden
         self._chrome = None  # macOS: the drag strip and native sidebar (see macos.py)
         self._material: Optional[str] = None  # "mica" once applied
         self._webview = webview
@@ -277,7 +279,7 @@ class DesktopWindow:
                 instance = BrowserView.instances.get(self.window.uid)
                 if instance is not None and (self.custom or self._want_native_sidebar):
                     self._chrome = macos.Chrome(native, instance.webview, self._want_native_sidebar, self.custom,
-                                                self._sidebar_selected)
+                                                self._sidebar_selected, collapsed=self._sidebar_hidden)
             except Exception:
                 log.exception("Could not set up the macOS window chrome")
             self._push_state()
@@ -389,9 +391,10 @@ class DesktopWindow:
         if self._chrome is not None and self._chrome.native_sidebar:
             self._invoke(lambda: self._chrome.set_sidebar_model(model))
 
-    def toggle_sidebar(self) -> None:
+    def toggle_sidebar(self, on_change: Optional[Callable[[bool], None]] = None) -> None:
+        """Show or hide the native sidebar; `on_change(hidden)` hears the result."""
         if self._chrome is not None and self._chrome.native_sidebar:
-            self._invoke(self._chrome.toggle_sidebar)
+            self._invoke(lambda: self._chrome.toggle_sidebar(on_change))
 
     def set_theme(self, theme: str) -> None:
         """Match the native parts of the window (title bar, sidebar, Mica) to TunesBack's theme."""

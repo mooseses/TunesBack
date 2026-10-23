@@ -203,7 +203,8 @@ class SidebarController(NSObject, protocols=_protocols("NSTableViewDataSource", 
 class Chrome:
     """What TunesBack adds to its macOS window. Created on the main thread once the window shows."""
 
-    def __init__(self, ns_window, webview, native_sidebar: bool, strip: bool, on_select: Callable[[str], None]):
+    def __init__(self, ns_window, webview, native_sidebar: bool, strip: bool, on_select: Callable[[str], None],
+                 collapsed: bool = False):
         self.window = ns_window
         self.webview = webview
         self.custom_title_bar = strip  # the page runs under a transparent title bar
@@ -214,7 +215,7 @@ class Chrome:
         container = make_container(webview, strip)
         if native_sidebar:
             try:
-                self._install_sidebar(container, on_select)
+                self._install_sidebar(container, on_select, collapsed)
             except Exception:
                 log.exception("Native sidebar failed; using the page's own")
                 self.split = None
@@ -226,7 +227,7 @@ class Chrome:
     def native_sidebar(self) -> bool:
         return self.split is not None
 
-    def _install_sidebar(self, container, on_select) -> None:
+    def _install_sidebar(self, container, on_select, collapsed: bool) -> None:
         sidebar = SidebarController.alloc().init()
         sidebar.on_select = on_select
         table = AppKit.NSTableView.alloc().initWithFrame_(((0, 0), (220, 400)))
@@ -268,9 +269,12 @@ class Chrome:
         frame = self.window.frame()
         self.window.setContentViewController_(split)
         self.window.setFrame_display_(frame, True)  # setting a view controller resizes the window to fit it
-        split.splitView().setAutosaveName_("TunesBack Sidebar")
+        split.splitView().setAutosaveName_("TunesBack Sidebar")  # remembers the width
         if not AppKit.NSUserDefaults.standardUserDefaults().objectForKey_("NSSplitView Subview Frames TunesBack Sidebar"):
             split.splitView().setPosition_ofDividerAtIndex_(220, 0)
+        # Whether it's shown comes from TunesBack's own setting, not the autosave: that would also
+        # remember set-up's temporary collapse if TunesBack quit during set-up.
+        item.setCollapsed_(collapsed)
         self.split, self.sidebar_item, self.sidebar = split, item, sidebar
         log.info("Native sidebar installed")
 
@@ -280,9 +284,12 @@ class Chrome:
         if self.sidebar is not None:
             self.sidebar.apply(model)
 
-    def toggle_sidebar(self) -> None:
+    def toggle_sidebar(self, on_change: Optional[Callable[[bool], None]] = None) -> None:
         if self.sidebar_item is not None:
-            self.sidebar_item.animator().setCollapsed_(not self.sidebar_item.isCollapsed())
+            collapsed = not self.sidebar_item.isCollapsed()
+            self.sidebar_item.animator().setCollapsed_(collapsed)
+            if on_change is not None:
+                on_change(collapsed)
 
     def set_controls_visible(self, visible: bool) -> None:
         """Hide the traffic lights (and the native sidebar) while set-up covers the window."""

@@ -744,7 +744,7 @@ class Api:
 
     def window_toggle_sidebar(self) -> dict:
         if self.window is not None:
-            self.window.toggle_sidebar()
+            self.window.toggle_sidebar(lambda hidden: self.settings.update({"sidebar_hidden": hidden}))
         return {"ok": True}
 
     def window_set_controls_visible(self, visible: bool) -> dict:

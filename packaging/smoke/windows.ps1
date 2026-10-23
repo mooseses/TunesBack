@@ -39,6 +39,21 @@ function Drag($x, $y, $dx, $dy) {
     Start-Sleep -Milliseconds 200; Up; Start-Sleep -Milliseconds 800
 }
 function Click($x, $y) { [Win]::SetCursorPos($x, $y) | Out-Null; Start-Sleep -Milliseconds 150; Down; Up; Start-Sleep -Milliseconds 120 }
+# The window itself at full size (for looking at its materials).
+function ShotWindow($name, $r) {
+    if ($Screenshots -ne "true") { return }
+    $w = $r.Right - $r.Left; $h = $r.Bottom - $r.Top
+    $bmp = New-Object System.Drawing.Bitmap $w, $h
+    $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.Left, $r.Top, 0, 0, (New-Object System.Drawing.Size $w, $h))
+    $ms = New-Object System.IO.MemoryStream
+    $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" }
+    $params = New-Object System.Drawing.Imaging.EncoderParameters 1
+    $params.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality), 70L
+    $bmp.Save($ms, $codec, $params)
+    $data = [Convert]::ToBase64String($ms.ToArray())
+    for ($i = 0; $i -lt $data.Length; $i += 4000) { "SHOT $name " + $data.Substring($i, [Math]::Min(4000, $data.Length - $i)) }
+    "SHOT $name END"
+}
 function Shot($name) {
     if ($Screenshots -ne "true") { return }
     $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
@@ -103,8 +118,10 @@ for ($i = 0; $i -lt 120 -and $hwnd -eq [IntPtr]::Zero; $i++) {
 }
 if ($hwnd -ne [IntPtr]::Zero) {
     Start-Sleep -Seconds 15
-    [Win]::SetForegroundWindow($hwnd) | Out-Null; Start-Sleep -Milliseconds 800
-    $r = Rect $hwnd; Show "main" $r; Shot "main"
+    [Win]::SetForegroundWindow($hwnd) | Out-Null; Start-Sleep -Milliseconds 500
+    $r = Rect $hwnd
+    Click ($r.Left + 600) ($r.Top + 19); Start-Sleep -Milliseconds 800   # activate it: Mica only shows on the active window
+    $r = Rect $hwnd; Show "main" $r; Shot "main"; ShotWindow "main_window" $r
     $proc.Kill()
 } else { "FAIL: no window on the second run" }
 if (Test-Path $log) { "--- app log (second run) ---"; Get-Content $log -Tail 25 | Select-String -Pattern "Mica|backend|sidebar|Traceback|Error" }
