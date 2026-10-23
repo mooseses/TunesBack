@@ -80,7 +80,7 @@ $r2 = Rect $hwnd; Show "dragged" $r2
 Drag ($r2.Left + 3) ($r2.Top + 3) (-8) (-50)
 $r3 = Rect $hwnd; Show "resized" $r3
 Click ($r3.Left + 152) ($r3.Top + 19); Start-Sleep -Milliseconds 600; Shot "menu"
-Click ($r3.Left + 700) ($r3.Top + 300); Start-Sleep -Milliseconds 400   # dismiss the menu
+[System.Windows.Forms.SendKeys]::SendWait("{ESC}"); Start-Sleep -Milliseconds 400   # close the menu
 Click ($r3.Left + 700) ($r3.Top + 19); Click ($r3.Left + 700) ($r3.Top + 19); Start-Sleep -Seconds 1
 $r4 = Rect $hwnd; Show "dblclick" $r4; "maximized: $([Win]::IsZoomed($hwnd))"; Shot "maximized"
 Click ($r4.Right - 23) ($r4.Top + 19)
