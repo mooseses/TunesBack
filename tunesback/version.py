@@ -96,9 +96,14 @@ def spellings(text: str) -> dict[str, str]:
 
 
 if __name__ == "__main__":
-    # python -m tunesback.version [VERSION]: every spelling, as KEY=value lines (for CI).
+    # python -m tunesback.version [--shell] [VERSION]: every spelling, as key=value lines
+    # (for GitHub's $GITHUB_ENV), or with --shell as quoted V_KEY='value' lines for `eval`.
+    import shlex
     import sys
     from . import __version__
 
-    for key, value in spellings(sys.argv[1] if len(sys.argv) > 1 else __version__).items():
-        print(f"{key}={value}")
+    args = sys.argv[1:]
+    shell = "--shell" in args
+    args = [a for a in args if a != "--shell"]
+    for key, value in spellings(args[0] if args else __version__).items():
+        print(f"V_{key.upper()}={shlex.quote(value)}" if shell else f"{key}={value}")

@@ -11,8 +11,8 @@ set -euo pipefail
 OUT=$(realpath "${1:-.}")
 ID=io.github.mooseses.tunesback
 LINUX=packaging/linux
-eval "$(python3 -m tunesback.version | sed 's/^/V_/')"
-BASE="TunesBack-Linux-v${V_pep440}-x86_64"
+eval "$(python3 -m tunesback.version --shell)"
+BASE="TunesBack-Linux-v${V_PEP440}-x86_64"
 mkdir -p "$OUT"
 
 desktop-file-validate "$LINUX/$ID.desktop"
@@ -43,18 +43,18 @@ COMMON=(
   --after-install "$LINUX/after-install.sh" --after-remove "$LINUX/after-install.sh"
 )
 # Qt and its web engine come with the app; these are the system libraries they load.
-fpm "${COMMON[@]}" -t deb -v "$V_deb" -a amd64 --category sound -p "$OUT/$BASE.deb" \
+fpm "${COMMON[@]}" -t deb -v "$V_DEB" -a amd64 --category sound -p "$OUT/$BASE.deb" \
   -d libegl1 -d libgl1 -d libxkbcommon-x11-0 -d libxcb-cursor0 -d libxcb-icccm4 -d libxcb-image0 \
   -d libxcb-keysyms1 -d libxcb-randr0 -d libxcb-render-util0 -d libxcb-shape0 -d libxcb-xinerama0 \
   -d libxcb-xkb1 -d libnss3 -d libxcomposite1 -d libxdamage1 -d libxrandr2 -d libxtst6 -d libxkbfile1 \
   -d "libasound2t64 | libasound2" -d libdbus-1-3 \
   opt usr
-fpm "${COMMON[@]}" -t rpm -v "$V_rpm" -a x86_64 --rpm-os linux -p "$OUT/$BASE.rpm" \
+fpm "${COMMON[@]}" -t rpm -v "$V_RPM" -a x86_64 --rpm-os linux -p "$OUT/$BASE.rpm" \
   -d mesa-libEGL -d mesa-libGL -d libxkbcommon-x11 -d xcb-util-cursor -d xcb-util-wm -d xcb-util-image \
   -d xcb-util-keysyms -d xcb-util-renderutil -d nss -d libXcomposite -d libXdamage -d libXrandr -d libXtst \
   -d libxkbfile -d alsa-lib -d dbus-libs \
   opt usr
-fpm "${COMMON[@]}" -t pacman -v "$V_pacman" -a x86_64 --pacman-compression zstd -p "$OUT/$BASE.pkg.tar.zst" \
+fpm "${COMMON[@]}" -t pacman -v "$V_PACMAN" -a x86_64 --pacman-compression zstd -p "$OUT/$BASE.pkg.tar.zst" \
   -d libglvnd -d libxkbcommon-x11 -d xcb-util-cursor -d xcb-util-wm -d xcb-util-image -d xcb-util-keysyms \
   -d xcb-util-renderutil -d nss -d libxcomposite -d libxdamage -d libxrandr -d libxtst -d libxkbfile \
   -d alsa-lib -d dbus \

@@ -345,8 +345,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          python -m tunesback.version | while IFS='=' read -r key value; do echo "V_$(echo "$key" | tr a-z A-Z)=$value"; done > version.env
-          . ./version.env
+          eval "$(python -m tunesback.version --shell)"
           if [ "$(python -c "from tunesback.version import parse; print(parse('$TAG'))")" != "$V_PEP440" ]; then
             echo "::error::Tag $TAG doesn't match the app's version $V_PEP440"; exit 1
           fi
