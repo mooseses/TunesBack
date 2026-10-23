@@ -128,7 +128,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(HTTPStatus.NOT_FOUND, b"Not found", "text/plain")
         try:
             seed = int(query.get("s", ["0"])[0])
-            data = self.server.api.card_image(*parts, seed=seed, rank_by=query.get("r", [None])[0])
+            data = self.server.api.card_image(*parts, seed=seed, rank_by=query.get("r", [None])[0],
+                                              sample=query.get("sample", [None])[0])
         except UserError as e:
             return self._send(HTTPStatus.CONFLICT, str(e).encode(), "text/plain")
         except ValueError:

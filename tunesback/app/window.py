@@ -345,6 +345,21 @@ class DesktopWindow:
         elif backend == "gtk":
             self._invoke(lambda: _gtk_drag(self.window.native, None))
 
+    def set_controls_visible(self, visible: bool) -> None:
+        """Show or hide the window buttons. Only the macOS traffic lights are native
+        to our window; elsewhere the page hides its own title bar buttons."""
+        if SYSTEM != "macos" or not self.custom:
+            return
+        import AppKit
+        native = self.window.native
+
+        def apply():
+            for button in (AppKit.NSWindowCloseButton, AppKit.NSWindowMiniaturizeButton, AppKit.NSWindowZoomButton):
+                control = native.standardWindowButton_(button)
+                if control is not None:
+                    control.setHidden_(not visible)
+        self._invoke(apply)
+
     def start_resize(self, edge: str) -> None:
         if not self.custom or edge not in EDGES or self._maximized:
             return

@@ -30,6 +30,11 @@ async function load(deck) {
   }
   if (state.view === "wrapped") renderApp();
   if (editing) renderEditor();
+  if (pendingEdit && state.deck.cards) {
+    const type = pendingEdit;
+    pendingEdit = null;
+    openEditor(type);
+  }
 }
 
 const url = (card, size, extra) => cardImageUrl(card, state.deck.deck.format, size, state.deck.deck.seed, state.deck.rank, extra);
@@ -183,6 +188,13 @@ export async function save(types) {
 // ---------- the card editor ----------
 
 let editing = null; // the card type open in the editor
+let pendingEdit = null; // a card to open once the deck is drawn
+
+/** Open a card's editor from another page, as soon as the deck is ready. */
+export function editCard(type) {
+  if (state.deck?.cards && state.deck.rank === state.settings.rank_by) openEditor(type);
+  else pendingEdit = type;
+}
 
 function openEditor(type) {
   editing = type;

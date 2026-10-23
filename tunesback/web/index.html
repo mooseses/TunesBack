@@ -12,26 +12,24 @@
 <body>
   <header class="titlebar" id="titlebar" hidden></header>
   <div class="shell">
-    <nav class="nav" aria-label="Main">
-      <div class="brand">
-        <img src="/assets/icon.png" alt="" width="28" height="28">
-        <span>TunesBack</span>
+    <nav class="nav" id="nav" aria-label="Main">
+      <div class="nav-inner">
+        <div class="brand">
+          <img src="/assets/icon.png" alt="" width="28" height="28">
+          <span>TunesBack</span>
+          <button class="sidebar-toggle" id="hide-sidebar" aria-label="Hide sidebar" title="Hide sidebar"></button>
+        </div>
+        <div class="nav-items" id="nav-top"></div>
+        <div class="nav-spacer"></div>
+        <div class="nav-items" id="nav-bottom"></div>
       </div>
-      <div class="nav-items">
-        <button class="nav-item" data-view="overview" disabled></button>
-        <button class="nav-item" data-view="charts" disabled></button>
-        <button class="nav-item" data-view="wrapped" disabled></button>
-      </div>
-      <div class="nav-spacer"></div>
-      <div class="nav-items">
-        <button class="nav-item" data-view="setup"></button>
-        <button class="nav-item" id="open-settings"></button>
-      </div>
+      <div class="nav-resizer" id="nav-resizer" role="separator" aria-orientation="vertical" aria-label="Sidebar width" tabindex="0"></div>
     </nav>
 
     <main class="main">
       <header class="topbar">
         <div class="topbar-title">
+          <button class="sidebar-toggle" id="show-sidebar" aria-label="Show sidebar" title="Show sidebar" hidden></button>
           <h1 id="view-title">Library</h1>
           <button class="period-chip" id="period-chip" hidden></button>
         </div>

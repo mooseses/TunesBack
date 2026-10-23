@@ -17,9 +17,16 @@ export async function call(method, args = {}) {
   return response.json();
 }
 
+// Flags that change how cards are drawn (the Dev space's guides). They're part
+// of every card URL, since the browser caches card images by URL.
+let cardFlags = {};
+export function setCardFlags(flags) {
+  cardFlags = flags;
+}
+
 /** A card image: `size` is "thumb", "preview" or "full". */
 export function cardImageUrl(card, format, size, seed, rank, extra = {}) {
-  const query = new URLSearchParams({ s: seed, r: rank, token, ...extra });
+  const query = new URLSearchParams({ s: seed, r: rank, token, ...cardFlags, ...extra });
   return `/api/card/${card.type}/${card.layout}/${card.theme}/${format}/${size}.jpg?${query}`;
 }
 

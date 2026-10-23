@@ -77,6 +77,11 @@ class Ctx:
 
     def background(self) -> None:
         self.theme.paint_background(self.canvas, self.rng, self.bottom + (12 if self.square else 20))
+        from .. import canvas
+        if canvas.GUIDES:  # the content area every layout keeps to
+            self.canvas.overlay.append(
+                f'<rect x="{self.m}" y="{self.top}" width="{self.inner}" height="{self.bottom - self.top}" '
+                'fill="none" stroke="#00E5FF" stroke-width="2" stroke-dasharray="12 8"/>')
 
     # --- frame ---
 

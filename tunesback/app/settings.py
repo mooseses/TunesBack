@@ -27,7 +27,23 @@ DEFAULTS = {
     "cards": {},  # the Wrapped deck's design: format, theme, shuffle seed and per-card choices
     "lastfm_api_key": None,  # entered during set-up when this build doesn't come with one
     "recap": {},  # the last recap chosen on the Library page: source, period preset, dates, combine
+    "sidebar_width": 220,  # pixels
+    "sidebar_hidden": False,
+    "sync_on_launch": True,  # fetch new listens from online accounts when TunesBack opens
+    "dev_mode": False,  # show the Dev space
+    "flags": {},  # Dev space feature flags (see FLAGS)
 }
+
+# Feature flags for trying things out and tracking down problems, set in the Dev space.
+FLAGS = {
+    "card_guides": "Draw margins and text boxes on Wrapped cards",
+    "offline": "Pretend there's no internet connection (online services fail at once)",
+    "slow_network": "Wait 1.5 seconds before every request to an online service",
+    "log_http": "Write every request to online services to the log (keys hidden)",
+    "show_ids": "Show the internal numbers of sources and readings",
+    "reduced_motion": "Turn animations off, as with the system's reduced motion setting",
+}
+SIDEBAR_WIDTH = (180, 360)
 
 _CHOICES = {
     "theme": {"system", "light", "dark"},
@@ -130,6 +146,16 @@ class Settings:
                 continue
             if key == "lastfm_api_key" and value is not None and not isinstance(value, str):
                 continue
+            if key == "sidebar_width":
+                if not isinstance(value, (int, float)):
+                    continue
+                value = int(min(max(value, SIDEBAR_WIDTH[0]), SIDEBAR_WIDTH[1]))
+            if key in ("sidebar_hidden", "sync_on_launch", "dev_mode"):
+                value = bool(value)
+            if key == "flags":
+                if not isinstance(value, dict):
+                    continue
+                value = {name: bool(on) for name, on in value.items() if name in FLAGS}
             clean[key] = value
         return clean
 

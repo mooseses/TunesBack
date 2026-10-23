@@ -149,6 +149,10 @@ class ThumbnailCache:
                 log.warning("Thumbnail cache disabled: %s", e)
                 self._dir = None
 
+    def clear(self) -> None:
+        with self._lock:
+            self._memory.clear()
+
     def get(self, location: str) -> Optional[str]:
         with self._lock:
             if location in self._memory:

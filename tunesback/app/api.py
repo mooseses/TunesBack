@@ -12,8 +12,9 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -28,14 +29,17 @@ from ..cards.layouts.base import FORMATS
 from ..cards.registry import CARD_TYPES
 from ..cards.themes import THEMES
 from ..library import LibraryStore
+from ..cards import canvas as card_canvas
+from ..cards.selftest import sample_data
 from ..recap import COUNTER_MODES, build_recap, source_name
-from ..sources import itunes_xml, lastfm, spotify
+from ..sources import http, itunes_xml, lastfm, spotify
 from ..sources.catalog import CATALOG
 from ..sources.lastfm import LastFm
 from ..sources.listenbrainz import ListenBrainz
 from ..sources.plays import SourceError, Stopped, sync_history
 from ..stats.report import Report, build_report
-from .settings import Settings, cache_dir, configure_logging, data_dir, log_dir
+from . import devtools
+from .settings import FLAGS, Settings, cache_dir, config_dir, configure_logging, data_dir, log_dir
 
 if TYPE_CHECKING:
     from .window import DesktopWindow
@@ -76,9 +80,14 @@ class Api:
         self._progress = {"analysis": {"running": False, "stage": ""}, "sync": {"running": False, "stage": ""}}
         self._cancel = {"analysis": threading.Event(), "sync": threading.Event()}
         self._sync_lock = threading.Lock()
-        self._thumbs = ThumbnailCache(cache_dir=thumbnail_dir or cache_dir() / "thumbnails")
-        artwork.REMOTE_CACHE = (thumbnail_dir or cache_dir() / "thumbnails").parent / "covers"
-        self.store = LibraryStore(store_path or data_dir() / "library.sqlite")
+        self._thumb_dir = thumbnail_dir or cache_dir() / "thumbnails"
+        self._thumbs = ThumbnailCache(cache_dir=self._thumb_dir)
+        artwork.REMOTE_CACHE = self._thumb_dir.parent / "covers"
+        self._store_path = store_path or data_dir() / "library.sqlite"
+        self._calls: deque = deque(maxlen=200)  # recent API calls, for the Dev space
+        self._render_times: deque = deque(maxlen=60)
+        self._apply_flags()
+        self.store = LibraryStore(self._store_path)
         self._migrate_snapshot_folder()
 
     # --- dispatch ---
@@ -86,7 +95,9 @@ class Api:
     ACTIONS = frozenset({
         "state", "update_settings", "open_logs", "open_website", "open_url", "pick_folder", "pick_file", "progress", "cancel",
         "catalog", "discover", "add_library", "import_exports", "refresh_readings", "library", "remove_library",
-        "add_account", "import_history", "sync_sources",
+        "add_account", "import_history", "sync_sources", "set_lastfm_key",
+        "dev_info", "dev_log", "dry_run_sync", "reset_sync", "forget_plays", "clear_caches",
+        "window_set_controls_visible",
         "analyze", "artwork", "card_options", "cards", "save_cards", "restart",
         "window_info", "window_minimize", "window_toggle_maximize", "window_close",
         "window_start_move", "window_start_resize",
@@ -96,16 +107,22 @@ class Api:
         if method not in self.ACTIONS:
             return {"error": f"Unknown action: {method}"}
         handler = getattr(self, method)
+        started = time.perf_counter()
         try:
-            return handler(**args)
+            result = handler(**args)
         except UserError as e:
-            return {"error": str(e)}
+            result = {"error": str(e)}
         except TypeError as e:
             log.exception("Bad arguments for %s", method)
-            return {"error": f"Bad request: {e}"}
+            result = {"error": f"Bad request: {e}"}
         except Exception as e:  # keep the interface alive and leave a trace in the log
             log.exception("%s failed", method)
-            return {"error": f"Something went wrong: {e}"}
+            result = {"error": f"Something went wrong: {e}"}
+        if method not in ("dev_log", "progress"):
+            self._calls.append({"at": time.strftime("%H:%M:%S"), "action": method,
+                                "ms": round((time.perf_counter() - started) * 1000, 1),
+                                "error": result.get("error") if isinstance(result, dict) else None})
+        return result
 
     # --- app state ---
 
@@ -124,7 +141,18 @@ class Api:
         values = self.settings.update(changes)
         if values["debug_logging"] != before:
             configure_logging(values["debug_logging"])
+        if "flags" in changes:
+            self._apply_flags()
         return {"settings": values}
+
+    def _apply_flags(self) -> None:
+        flags = self.settings["flags"]
+        for name in http.SIMULATE:
+            http.SIMULATE[name] = bool(flags.get(name))
+        if card_canvas.GUIDES != bool(flags.get("card_guides")):
+            card_canvas.GUIDES = bool(flags.get("card_guides"))
+            with self._card_lock:
+                self._card_cache.clear()
 
     def open_website(self) -> dict:
         webbrowser.open(WEBSITE)
@@ -209,7 +237,8 @@ class Api:
     # --- set-up and library readings ---
 
     def catalog(self) -> dict:
-        return {"sources": CATALOG, "lastfm_key": bool(self._lastfm_key()), "lastfm_key_url": lastfm.KEY_URL}
+        return {"sources": CATALOG, "lastfm_key": bool(self._lastfm_key()), "lastfm_key_url": lastfm.KEY_URL,
+                "lastfm_key_info": self._key_info()}
 
     def discover(self, root: Optional[str] = None) -> dict:
         if root is not None:
@@ -355,21 +384,60 @@ class Api:
                         and (source_id is None or s["id"] == int(source_id))]
             for source in accounts:
                 name = source_name(source)
+                found, error = 0, None
+                before = source.get("play_count") or 0
+                with self._lock:
+                    self._progress["sync"] = {"running": True, "stage": f"{name}: connecting…", "source": source["id"]}
                 try:
                     service = self._service(source)
-                    new += sync_history(self.store, source["id"], service.newer, service.older,
-                                        progress=lambda text, name=name: self._set_stage("sync", f"{name}: {text}"),
-                                        stop=self._cancel["sync"].is_set)
+                    found = sync_history(self.store, source["id"], service.newer, service.older,
+                                         progress=lambda text, name=name, sid=source["id"]: self._set_stage(
+                                             "sync", f"{name}: {text}", source=sid),
+                                         stop=self._cancel["sync"].is_set)
+                    new += found
                 except Stopped:
+                    # What was fetched before the stop is kept.
                     stopped = True
+                    found = next((s["play_count"] for s in self.store.sources() if s["id"] == source["id"]), before) - before
+                    new += found
+                    self._record_sync(source["id"], found, None, stopped=True)
                     break
                 except (SourceError, UserError) as e:
-                    problems.append({"source": name, "error": str(e)})
+                    error = str(e)
+                    problems.append({"source": name, "error": error})
+                self._record_sync(source["id"], found, error)
         finally:
             with self._lock:
                 self._progress["sync"] = {"running": False, "stage": ""}
             self._sync_lock.release()
         return {"new": new, "problems": problems, "stopped": stopped}
+
+    def _record_sync(self, source_id: int, new: int, error: Optional[str], stopped: bool = False) -> None:
+        """Remember how a sync went: shown on the Services page."""
+        options = (self.store.source(source_id) or {}).get("options", {})
+        entry = {"at": datetime.now().isoformat(timespec="seconds"), "new": new, "error": error, "stopped": stopped}
+        history = [entry, *(options.get("history") or [])][:10]
+        self.store.set_options(source_id, last_sync=entry, history=history)
+
+    def set_lastfm_key(self, api_key: str) -> dict:
+        """Change the Last.fm API key (checked against a connected account first)."""
+        api_key = (api_key or "").strip()
+        if not api_key:
+            raise UserError("Enter an API key.")
+        account = next((s for s in self.store.sources() if s["kind"] == "lastfm"), None)
+        if account:
+            try:
+                LastFm(account["path"], api_key, stop=self._cancel["sync"].is_set).check()
+            except SourceError as e:
+                raise UserError(str(e)) from e
+        self.settings.update({"lastfm_api_key": api_key})
+        return {"ok": True, "lastfm_key": self._key_info()}
+
+    def _key_info(self) -> dict:
+        if lastfm.bundled_key():
+            return {"source": "bundled"}
+        key = self.settings["lastfm_api_key"]
+        return {"source": "yours", "ends": key[-4:]} if key else {"source": None}
 
     def library(self) -> dict:
         return {
@@ -389,8 +457,12 @@ class Api:
                                           "play_count", "first_play", "last_play")}
         out["name"] = source_name(source) if source else None
         out["counter"] = source.get("mode") in COUNTER_MODES
-        sync = (source.get("options") or {}).get("sync") or {}
+        options = source.get("options") or {}
+        sync = options.get("sync") or {}
         out["complete"] = sync.get("complete", True) if source.get("mode") == "account" else True
+        out["synced_back_to"] = sync.get("oldest")
+        out["last_sync"] = options.get("last_sync")
+        out["history"] = options.get("history") or []
         return out
 
     def _migrate_snapshot_folder(self) -> None:
@@ -414,9 +486,9 @@ class Api:
             self._cancel[channel].set()
         return {"ok": True}
 
-    def _set_stage(self, channel: str, text: str) -> None:
+    def _set_stage(self, channel: str, text: str, **extra) -> None:
         with self._lock:
-            self._progress[channel] = {"running": True, "stage": text}
+            self._progress[channel] = {"running": True, "stage": text, **extra}
 
     def _stage(self, text: str) -> None:
         if self._cancel["analysis"].is_set():
@@ -528,18 +600,25 @@ class Api:
         }
 
     def card_image(self, card_type: str, layout: str, theme: str, fmt: str, size: str, seed: int = 0,
-                   rank_by: Optional[str] = None) -> Optional[bytes]:
-        """One card as a JPEG (for the gallery, the editor or a download)."""
+                   rank_by: Optional[str] = None, sample: Optional[str] = None) -> Optional[bytes]:
+        """One card as a JPEG (for the gallery, the editor or a download). `sample` draws
+        made-up data instead of the recap (the Dev space's card lab)."""
         if (card_type not in CARD_TYPES or layout not in CARD_TYPES[card_type].layouts
                 or theme not in ("cover", *THEMES) or fmt not in FORMATS or size not in self.SIZES):
             return None
-        data, key = self._data_for_cards(rank_by)
+        if sample:
+            data, key = sample_data(sample), ("sample", sample)
+        else:
+            data, key = self._data_for_cards(rank_by)
         cache_key = (key, card_type, layout, theme, fmt, size, seed)
         with self._card_lock:
             if cache_key in self._card_cache:
                 self._card_cache.move_to_end(cache_key)
                 return self._card_cache[cache_key]
+        started = time.perf_counter()
         image = draw(CardChoice(card_type, layout, theme), data, fmt, self.SIZES[size], seed)
+        self._render_times.append({"card": f"{card_type} · {layout} · {theme}", "format": fmt, "size": size,
+                                   "ms": round((time.perf_counter() - started) * 1000)})
         buf = BytesIO()
         image.save(buf, format="JPEG", quality=95 if size == "full" else 86, subsampling=0 if size == "full" else 2)
         jpeg = buf.getvalue()
@@ -575,3 +654,81 @@ class Api:
             with open(os.path.join(folder, self.card_filename(choice.type)), "wb") as f:
                 f.write(jpeg)
         return {"saved": len(chosen), "folder": folder}
+
+    # --- the Dev space ---
+
+    def dev_info(self) -> dict:
+        db = self._store_path
+        return {
+            "versions": devtools.versions(self.window.info().get("backend") if self.window else None),
+            "paths": {"Settings": str(config_dir()), "Library database": str(db), "Logs": str(log_dir()),
+                      "Thumbnails": str(self._thumb_dir), "Covers": str(artwork.REMOTE_CACHE)},
+            "database": {**self.store.stats(), "size": db.stat().st_size if db.exists() else 0},
+            "caches": {"thumbnails": devtools.folder_size(self._thumb_dir),
+                       "covers": devtools.folder_size(artwork.REMOTE_CACHE) if artwork.REMOTE_CACHE else 0,
+                       "cards in memory": len(self._card_cache)},
+            "fonts": devtools.font_report(),
+            "flags": [{"id": k, "label": v, "on": bool(self.settings["flags"].get(k))} for k, v in FLAGS.items()],
+        }
+
+    def dev_log(self) -> dict:
+        return {"calls": list(self._calls)[::-1], "renders": list(self._render_times)[::-1]}
+
+    def dry_run_sync(self, source_id: Optional[int] = None, kind: Optional[str] = None, username: Optional[str] = None,
+                     api_key: Optional[str] = None, batches: int = 3, fresh: bool = False) -> dict:
+        """Fetch from an account as a sync would, without storing anything; reports what it saw."""
+        if source_id is not None:
+            source = self.store.source(int(source_id))
+            if source is None or source["mode"] != "account":
+                raise UserError("Pick an online account.")
+        else:
+            if kind not in ("lastfm", "listenbrainz") or not (username or "").strip():
+                raise UserError("Pick a service and enter a user name.")
+            source = {"id": None, "kind": kind, "path": username.strip()}
+        if not self._sync_lock.acquire(blocking=False):
+            raise UserError("A sync is running. Try again when it's done.")
+        self._cancel["sync"].clear()
+        service = None
+        try:
+            service = self._service(source, (api_key or "").strip() or None)
+            fresh = bool(fresh) or source["id"] is None  # an account that isn't connected starts from nothing
+            run = devtools.DryRun(self.store, source["id"], fresh, max(1, min(int(batches), 50)))
+            outcome = "finished"
+            try:
+                sync_history(run, source["id"] or 0, service.newer, service.older,
+                             progress=lambda text: self._set_stage("sync", f"Dry run: {text}"),
+                             stop=self._cancel["sync"].is_set)
+            except devtools.LimitReached:
+                outcome = "stopped after the batch limit"
+            except Stopped:
+                outcome = "cancelled"
+            except SourceError as e:
+                outcome = f"failed: {e}"
+            return run.report(outcome, service.client.stats)
+        finally:
+            with self._lock:
+                self._progress["sync"] = {"running": False, "stage": ""}
+            self._sync_lock.release()
+
+    def reset_sync(self, source_id: int) -> dict:
+        """Forget how far a sync got; the next one fetches everything again (nothing is duplicated)."""
+        self.store.set_options(int(source_id), sync={})
+        return self.library()
+
+    def forget_plays(self, source_id: int) -> dict:
+        deleted = self.store.forget_plays(int(source_id))
+        return {"deleted": deleted, **self.library()}
+
+    def clear_caches(self) -> dict:
+        freed = devtools.empty_folder(self._thumb_dir)
+        if artwork.REMOTE_CACHE:
+            freed += devtools.empty_folder(artwork.REMOTE_CACHE)
+        self._thumbs.clear()
+        with self._card_lock:
+            self._card_cache.clear()
+        return {"freed": freed}
+
+    def window_set_controls_visible(self, visible: bool) -> dict:
+        if self.window is not None:
+            self.window.set_controls_visible(bool(visible))
+        return {"ok": True}

@@ -47,7 +47,10 @@ Works on **Windows, macOS, and Linux** with:
 - **Album art** displayed alongside track details, loaded as you scroll
 - **Network share support**: seamlessly works with UNC paths (Windows) and GVFS/CIFS mounts (Linux)
 - **Wrapped cards:** shareable story or square images, with several layouts and themes per card, and a Shuffle button
-- **Listening Age:** calculates the "era" of music you gravitate toward
+- **Listening Age:** calculates the "era" of music you gravitate toward, with its own page: press Calculate and watch a five-year window sweep across your release years to your era
+- **Services page:** your Last.fm and ListenBrainz accounts and Spotify downloads at a glance: sync status, how much history is imported, recent syncs, Sync now / Stop, and the Last.fm API key
+- **Resizable sidebar:** drag its edge to resize it, drag it narrow (or press Ctrl/⌘+B) to hide it
+- **Dev space** (turn it on in Settings): sync dry runs that fetch but store nothing, feature flags (offline, slow network, card guides, reduced motion…), a card lab, request log and diagnostics
 - **Flexible display:** switch between hours, minutes and days; rank by plays or listening time
 - **Dark and light mode**, or follow the system
 - **Native-feeling window:** TunesBack's own title bar by default (or your system's, in Settings), a File/View/Help menu bar with keyboard shortcuts, the macOS menu bar on Macs and the global menu on KDE Plasma
@@ -161,7 +164,7 @@ When a recap uses dates (or mixes iTunes with other sources), TunesBack uses the
 
 ### Last.fm
 
-Set-up asks for your user name. Reading scrobbles needs a free **API key**: [create one](https://www.last.fm/api/account/create) (any app name works) and paste the "API key" it shows. TunesBack remembers it. Release builds can come with a key, in which case set-up doesn't ask.
+Set-up asks for your user name. Reading scrobbles needs a free **API key**: [create one](https://www.last.fm/api/account/create) (any app name works) and paste the "API key" it shows. TunesBack remembers it; change it on the Services page. Release builds can come with a key, in which case set-up doesn't ask.
 
 The first import fetches your whole history (200 scrobbles per request, a few per second, so a long history takes a few minutes). You can stop at any time: TunesBack keeps what it has and carries on the next time it opens. After that, each launch fetches only what's new. Your profile's recent listening must be public.
 
@@ -288,7 +291,9 @@ Every time it opens, TunesBack reads your iTunes library again and fetches new l
 
 - **Library**: your sources, and the period (and sources) to recap
 - **Overview** and **Top charts**: your stats for that period
+- **Listening age**: your era, with an animated reveal
 - **Wrapped**: shareable cards
+- **Services**: your online accounts and downloads, and how their syncing is going
 
 ## Snapshot Dates
 

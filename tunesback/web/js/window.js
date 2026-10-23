@@ -17,6 +17,7 @@ const SVG = {
   restore: '<rect x="1.5" y="3.5" width="6" height="6" rx="0.5"/><path d="M3.5 3.5V2a.5.5 0 0 1 .5-.5h5.5a.5.5 0 0 1 .5.5v5.5a.5.5 0 0 1-.5.5H7.5"/>',
   close: '<path d="M1.5 1.5l8 8M9.5 1.5l-8 8"/>',
   check: '<path d="M2 6l2.5 2.5L10 3"/>',
+  sidebar: '<rect x="1" y="1.5" width="9" height="8" rx="1"/><path d="M4 1.5v8"/>',
 };
 
 function glyph(name) {
@@ -76,6 +77,8 @@ function renderTitlebar(menuOnly) {
     h("button.titlebar-button.close", { "aria-label": "Close", title: "Close", onclick: () => call("window_close") }, glyph("close")));
 
   titlebar.replaceChildren(...[
+    h("button.titlebar-button.titlebar-sidebar", { "aria-label": "Show or hide sidebar", title: "Show or hide sidebar",
+      onclick: () => hooks.run("sidebar") }, glyph("sidebar")),
     h("div.titlebar-brand", h("img", { src: "/assets/icon.png", alt: "", width: 16, height: 16 }), "TunesBack"),
     info.menu === "html" && menubar(),
     h("div.titlebar-drag"),

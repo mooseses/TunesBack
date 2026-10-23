@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import ssl
 import threading
 import time
@@ -19,6 +20,9 @@ log = logging.getLogger(__name__)
 
 USER_AGENT = f"TunesBack/{__version__} (+https://github.com/mooseses/TunesBack)"
 RETRY_STATUS = {429, 500, 502, 503, 504}
+# Dev space flags: pretend to be offline, slow every request down, log requests.
+SIMULATE = {"offline": False, "slow_network": False, "log_http": False}
+_SECRET_PARAMS = re.compile(r"(?<=[?&])(api_key|token|sk)=[^&]+")
 
 
 def ssl_context() -> ssl.SSLContext:
@@ -45,6 +49,7 @@ class Client:
         self._last = 0.0
         self._lock = threading.Lock()
         self._context = ssl_context() if base_url.startswith("https") else None
+        self.stats = {"requests": 0, "retries": 0, "seconds": 0.0}
 
     def _wait(self, seconds: float) -> None:
         end = time.monotonic() + seconds
@@ -72,6 +77,7 @@ class Client:
             offline = offline + 1 if status is None else 0
             if attempt == self.retries or offline > 2:
                 break
+            self.stats["retries"] += 1
             log.debug("%s: retrying %s (status %s)", self.name, path, status)
             self._wait(max(delay, wait or 0))
             delay = min(delay * 2, 30)
@@ -80,6 +86,20 @@ class Client:
         raise SourceError(f"{self.name} isn't answering properly right now (error {status}). Try again later.")
 
     def _fetch(self, url: str) -> tuple[Optional[int], object, Optional[float]]:
+        self.stats["requests"] += 1
+        started = time.monotonic()
+        try:
+            return self._request(url)
+        finally:
+            self.stats["seconds"] += time.monotonic() - started
+
+    def _request(self, url: str) -> tuple[Optional[int], object, Optional[float]]:
+        if SIMULATE["log_http"]:
+            log.info("%s: GET %s", self.name, _SECRET_PARAMS.sub(r"\1=…", url))
+        if SIMULATE["slow_network"]:
+            self._wait(1.5)
+        if SIMULATE["offline"]:
+            return None, None, None
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
         try:
             with urllib.request.urlopen(request, timeout=self.timeout, context=self._context) as response:

@@ -23,6 +23,8 @@ from .fonts import bundled_face
 from .text import Block, Style, fit
 
 _BACKDROP_SCALE = 0.25
+# Dev space flag: outline every text box and the layout's margins.
+GUIDES = False
 
 
 def _rgb(color: str) -> tuple[int, int, int]:
@@ -160,6 +162,7 @@ class Canvas:
         self._defs: list[str] = []
         self._body: list[str] = []  # the SVG layer being drawn
         self._layers: list[object] = []  # finished SVG layers (lists of elements) and artwork
+        self.overlay: list[str] = []  # drawn on top of everything (guides)
         self._ids = 0
         self._font_files: set[str] = set()
 
@@ -237,6 +240,11 @@ class Canvas:
         tspans = "".join(
             f'<tspan x="{_num(x)}" y="{_num(baseline + i * block.line_step)}">{self._runs(line, face)}</tspan>'
             for i, line in enumerate(block.lines))
+        if GUIDES:
+            left = {"left": x, "center": x - block.width / 2, "right": x - block.width}[align]
+            top = baseline - block.cap_height
+            self.overlay.append(f'<rect x="{_num(left)}" y="{_num(top)}" width="{_num(block.width)}" '
+                                f'height="{_num(block.height + block.descent)}" fill="none" stroke="#FF00FF" stroke-width="2"/>')
         attrs = _attrs(
             font_family=face.family, font_weight=face.weight, font_style="italic" if face.italic else None,
             font_size=float(block.size), fill=style.fill, fill_opacity=float(style.opacity) if style.opacity != 1 else None,
@@ -286,7 +294,7 @@ class Canvas:
         size = (max(1, round(self.width * scale)), max(1, round(self.height * scale)))
         image = self.backdrop.render(self.width, self.height, size).convert("RGBA")
         files = sorted(fonts.bundled_files() | self._font_files)
-        for layer in [*self._layers, self._body]:
+        for layer in [*self._layers, self._body + self.overlay]:
             if isinstance(layer, _Art):
                 layer.paste(image, scale)
             elif layer:

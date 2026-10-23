@@ -5,9 +5,10 @@
 // so does "All sources" when there's more than one.
 
 import { call } from "../api.js";
-import { render as renderApp, runAnalysis, saveSettings, state } from "../app.js";
+import { navigate, render as renderApp, runAnalysis, saveSettings, state } from "../app.js";
 import { confirmAction, h, icon, number, relativeTime, segmented, shortDate, toast } from "../util.js";
 
+const showIds = () => !!state.settings.flags?.show_ids;
 const KIND_ICONS = { itunes: "library", lastfm: "wave", listenbrainz: "wave", spotify: "download" };
 const PRESETS = [
   ["this_year", "This year"], ["last_year", "Last year"], ["last_12", "Last 12 months"], ["all", "All time"], ["custom", "Custom"],
@@ -194,37 +195,13 @@ function sourcesCard() {
         h("div.source-text",
           h("b", label(s)),
           h("small", { title: s.path }, detail(s)),
-          h("small", sourceStats(s))),
+          h("small", sourceStats(s), showIds() && ` · source #${s.id}`)),
         s.counter && h("button.btn.btn-ghost", { onclick: () => refresh().then(() => renderApp()) }, icon("refresh"), "Read now"),
-        s.mode === "account" && h("button.btn.btn-ghost", {
-          onclick: async (e) => {
-            const button = e.currentTarget;
-            button.disabled = true;
-            button.lastChild.textContent = "Syncing…";
-            const result = await sync({ sourceId: s.id });
-            toast(result.new ? `${number(result.new)} new listens from ${s.name}` : `${s.name} is up to date`);
-            await loadLibrary();
-            renderApp();
-          },
-        }, icon("refresh"), "Sync now"),
-        s.kind === "spotify" && state.info.desktop && h("button.btn.btn-ghost", {
-          title: "Import a newer download from Spotify",
+        !s.counter && h("button.btn.btn-ghost", { onclick: () => navigate("services") }, icon("cloud"), "Manage"),
+        s.counter && h("button.btn.btn-ghost", {
           onclick: async () => {
-            const picked = await call("pick_file", { kind: "spotify" });
-            if (!picked.path) return;
-            const result = await call("import_history", { kind: "spotify", path: picked.path });
-            if (result.error) return toast(result.error, { error: true });
-            toast(result.new ? `Added ${number(result.new)} new listens` : "That download has nothing new");
-            await loadLibrary();
-            renderApp();
-          },
-        }, icon("download"), "Add download"),
-        h("button.btn.btn-ghost", {
-          onclick: async () => {
-            const ok = await confirmAction(`Remove ${label(s)}?`, s.counter
-              ? `TunesBack will stop reading ${s.path} and forget its readings. Your music and the file itself aren't touched.`
-              : `TunesBack will forget the listens it imported from ${s.name}. Nothing changes on ${s.kind === "spotify" ? "Spotify" : s.name} itself.`,
-            "Remove");
+            const ok = await confirmAction(`Remove ${label(s)}?`,
+              `TunesBack will stop reading ${s.path} and forget its readings. Your music and the file itself aren't touched.`, "Remove");
             if (!ok) return;
             const r = await call("remove_library", { source_id: s.id });
             if (r.error) return toast(r.error, { error: true });
@@ -346,6 +323,6 @@ function readingsCard() {
     h("div.snapshot-list", { role: "list" }, [...readings].reverse().map((x) => h("div.snapshot-row", { role: "listitem" },
       h("span.date", shortDate(x.date)),
       h("span.file", `${number(x.track_count)} songs · ${number(x.total_plays)} plays`,
-        h("span.badge", x.origin === "imported" ? "imported" : "automatic")),
+        h("span.badge", x.origin === "imported" ? "imported" : "automatic"), showIds() && h("span.badge", `#${x.id}`)),
       h("span.meta", { title: x.file_path }, x.mode === "folder" ? "exports" : "library")))));
 }

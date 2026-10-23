@@ -116,8 +116,12 @@ def _track_key(track: Track) -> str:
     return track.persistent_id or "k:" + "\x1f".join(track.match_key)
 
 
-def _play_key(play: Play) -> str:
+def play_key(play: Play) -> str:
+    """How a listened-to track is keyed in the store (title, artist, album)."""
     return "k:" + "\x1f".join((normalize_key(play.name), normalize_key(play.artist), normalize_key(play.album)))
+
+
+_play_key = play_key
 
 
 class LibraryStore:
@@ -327,6 +331,28 @@ class LibraryStore:
         with self._lock:
             return self._db.execute(query, (*ids, start if start is not None else -2**62,
                                             end if end is not None else 2**62)).fetchall()
+
+    def existing_plays(self, source_id: int, start: int, end: int) -> set[tuple[int, str]]:
+        """(played_at, track key) of stored listens with start <= played_at <= end."""
+        with self._lock:
+            rows = self._db.execute("""SELECT p.played_at, t.key FROM plays p JOIN tracks t ON t.id = p.track_id
+                                       WHERE p.source_id = ? AND p.played_at BETWEEN ? AND ?""",
+                                    (source_id, start, end)).fetchall()
+        return {(r[0], r[1]) for r in rows}
+
+    def forget_plays(self, source_id: int) -> int:
+        """Delete a source's listens and sync progress (it then imports everything again)."""
+        with self._lock, self._db:
+            deleted = self._db.execute("DELETE FROM plays WHERE source_id = ?", (source_id,)).rowcount
+        self.set_options(source_id, sync={})
+        return deleted
+
+    def stats(self) -> dict:
+        with self._lock:
+            counts = {table: self._db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                      for table in ("sources", "readings", "tracks", "counts", "plays")}
+            version = self._db.execute("PRAGMA user_version").fetchone()[0]
+        return {"schema": version, "rows": counts}
 
     def first_plays(self, source_ids: Iterable[int]) -> list[sqlite3.Row]:
         """When each track was first played (for spotting what was new in a period)."""

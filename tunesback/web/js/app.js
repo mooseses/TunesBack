@@ -1,17 +1,25 @@
-import { call } from "./api.js";
+import { call, setCardFlags } from "./api.js";
 import { h, icon, number, segmented, shortDate, showMessage, toast } from "./util.js";
+import { initSidebar, toggleSidebar } from "./sidebar.js";
 import { initWindow } from "./window.js";
 import * as setup from "./views/setup.js";
 import { openOnboarding } from "./views/onboarding.js";
 import * as overview from "./views/overview.js";
 import * as charts from "./views/charts.js";
+import * as age from "./views/age.js";
 import * as wrapped from "./views/wrapped.js";
+import * as services from "./views/services.js";
+import * as dev from "./views/dev.js";
 
+// The sidebar, top to bottom. Views in the "recap" group need a recap first.
 const VIEWS = {
-  setup: { module: setup, title: "Library", icon: "library", label: "Library" },
-  overview: { module: overview, title: "Overview", icon: "overview", label: "Overview" },
-  charts: { module: charts, title: "Top charts", icon: "charts", label: "Top charts" },
-  wrapped: { module: wrapped, title: "Wrapped", icon: "wrapped", label: "Wrapped" },
+  overview: { module: overview, title: "Overview", icon: "overview", group: "recap" },
+  charts: { module: charts, title: "Top charts", icon: "charts", group: "recap" },
+  age: { module: age, title: "Listening age", icon: "age", group: "recap" },
+  wrapped: { module: wrapped, title: "Wrapped", icon: "wrapped", group: "recap" },
+  setup: { module: setup, title: "Library", icon: "library", group: "manage" },
+  services: { module: services, title: "Services", icon: "cloud", group: "manage" },
+  dev: { module: dev, title: "Dev space", icon: "flask", group: "manage", shown: () => !!state.settings.dev_mode },
 };
 
 export const state = {
@@ -35,7 +43,8 @@ const content = document.getElementById("content");
 // ---------- navigation ----------
 
 export function navigate(view) {
-  if (view !== "setup" && !state.report) view = "setup";
+  if (!VIEWS[view] || (VIEWS[view].shown && !VIEWS[view].shown())) return;
+  if (VIEWS[view].group === "recap" && !state.report) view = "setup";
   if (view === state.view && content.childElementCount) return;
   state.view = view;
   render({ entering: true });
@@ -47,13 +56,10 @@ export function navigate(view) {
  * (unit, ranking...) keep the scroll position so nothing jumps.
  */
 export function render({ entering = false } = {}) {
+  if (VIEWS[state.view].shown && !VIEWS[state.view].shown()) state.view = "setup";
   const view = VIEWS[state.view];
   document.getElementById("view-title").textContent = view.title;
-  document.querySelectorAll(".nav-item[data-view]").forEach((item) => {
-    item.classList.toggle("active", item.dataset.view === state.view);
-    item.setAttribute("aria-current", item.dataset.view === state.view ? "page" : "false");
-    if (item.dataset.view !== "setup") item.disabled = !state.report;
-  });
+  renderNav();
   renderPeriodChip();
   renderTopbarActions();
 
@@ -71,10 +77,42 @@ export function render({ entering = false } = {}) {
 }
 
 
+/** The sidebar's items: enabled when they can show something, with a status dot for Services. */
+export function renderNav() {
+  for (const [key, view] of Object.entries(VIEWS)) {
+    const item = document.querySelector(`.nav-item[data-view="${key}"]`);
+    if (!item) continue;
+    item.hidden = !!view.shown && !view.shown();
+    item.classList.toggle("active", key === state.view);
+    item.setAttribute("aria-current", key === state.view ? "page" : "false");
+    item.disabled = view.group === "recap" && !state.report;
+  }
+  const dot = document.querySelector('.nav-item[data-view="services"] .status-dot');
+  if (dot) {
+    const status = services.overallStatus();
+    dot.className = `status-dot ${status || ""}`;
+    dot.hidden = !status;
+  }
+}
+
+function buildNav() {
+  const groups = { recap: document.getElementById("nav-top"), manage: document.getElementById("nav-bottom") };
+  for (const [key, view] of Object.entries(VIEWS)) {
+    const item = h("button.nav-item", { type: "button", "data-view": key, title: view.title },
+      icon(view.icon), h("span.nav-label", view.title), key === "services" && h("span.status-dot", { hidden: true }));
+    item.addEventListener("click", () => navigate(key));
+    groups[view.group].append(item);
+  }
+  const settingsButton = h("button.nav-item", { type: "button", id: "open-settings", title: "Settings" },
+    icon("settings"), h("span.nav-label", "Settings"));
+  settingsButton.addEventListener("click", openSettings);
+  groups.manage.append(settingsButton);
+}
+
 function renderPeriodChip() {
   const chip = document.getElementById("period-chip");
   const report = state.report;
-  chip.hidden = !report || state.view === "setup";
+  chip.hidden = !report || VIEWS[state.view].group !== "recap";
   if (!report) return;
   const text = report.mode === "compare"
     ? `${shortDate(report.start_date)} → ${shortDate(report.end_date)}`
@@ -97,7 +135,7 @@ function renderTopbarActions() {
   }
   topbar = { key, unit: null, rank: null };
   actions.replaceChildren();
-  if (!state.report || state.view === "setup") return;
+  if (!state.report || VIEWS[state.view].group !== "recap" || state.view === "age") return;
   if (state.view !== "wrapped") {
     topbar.unit = segmented([["hours", "Hours"], ["minutes", "Minutes"], ["days", "Days"]], state.settings.unit,
       (unit) => { saveSettings({ unit }); render(); }, "Time unit");
@@ -119,6 +157,7 @@ export function saveSettings(changes) {
   Object.assign(state.settings, changes);
   Object.assign(pendingSettings, changes);
   applyTheme();
+  if ("dev_mode" in changes) renderNav();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     const batch = pendingSettings;
@@ -132,7 +171,13 @@ function applyTheme() {
   const theme = state.settings.theme;
   if (theme === "system") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.dataset.theme = theme;
+  document.documentElement.classList.toggle("reduce-motion", !!state.settings.flags?.reduced_motion);
+  setCardFlags(state.settings.flags?.card_guides ? { guides: 1 } : {});
 }
+
+/** Animations are off when the system asks for less motion, or the Dev space flag says so. */
+export const reducedMotion = () => !!state.settings.flags?.reduced_motion
+  || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export function openSettings() {
   const dialog = document.getElementById("settings-dialog");
@@ -149,10 +194,12 @@ export function openSettings() {
         segmented([["system", "System"], ["light", "Light"], ["dark", "Dark"]], s.theme, (theme) => saveSettings({ theme }), "Theme")),
       state.info.desktop && titleBarSetting(),
       toggle("show_art", "Album artwork in lists", "Read from your music files. Can be slow on network drives."),
+      toggle("sync_on_launch", "Check for new listens on start-up", "Fetches from Last.fm and ListenBrainz each time TunesBack opens."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Set-up"),
         h("div.desc", "Go through the welcome steps again, for example to add another source.")),
         h("button.btn", { onclick: () => { dialog.close(); openSetup({ start: "welcome", cancellable: true }); } }, "Run set-up")),
       toggle("debug_logging", "Detailed logging", "Writes extra detail to the log file to help track down problems."),
+      toggle("dev_mode", "Dev space", "Adds a page with dry runs, feature flags and diagnostics to the sidebar."),
       h("div.setting", h("div", h("div", { style: { fontWeight: 600 } }, "Log files"), h("div.desc", state.info.log_dir)),
         h("button.btn", { onclick: async () => { const r = await call("open_logs"); if (r.error) toast(r.error, { error: true }); } }, "Open folder")),
       h("div.about", `TunesBack ${state.info.version} · `,
@@ -200,6 +247,7 @@ export function runCommand(id) {
       else toast("The cards are still being drawn");
       break;
     case "settings": openSettings(); break;
+    case "sidebar": toggleSidebar(); break;
     case "quit": call("window_close"); break;
     case "view": navigate(arg); break;
     case "rank": saveSettings({ rank_by: arg }); render(); break;
@@ -224,7 +272,10 @@ const commandHooks = {
   },
   isEnabled: (command) => {
     const [kind, arg] = command.split(":");
-    if (kind === "view") return arg === "setup" || !!state.report;
+    if (kind === "view") {
+      const view = VIEWS[arg];
+      return !!view && (!view.shown || view.shown()) && (view.group !== "recap" || !!state.report);
+    }
     if (kind === "generate") return setup.canGenerate();
     if (kind === "import_exports" || kind === "refresh") return state.sources.length > 0;
     if (kind === "save_cards") return !!state.report;
@@ -279,7 +330,7 @@ export async function runAnalysis({ quiet = false } = {}) {
 
 /** Show first-run set-up; when it finishes, load the library and show a recap. */
 function openSetup(options = {}) {
-  openOnboarding({ ...options, finish: () => showLibrary({ recap: true }) });
+  openOnboarding({ finish: () => showLibrary({ recap: true }), ...options });
 }
 
 async function showLibrary({ recap }) {
@@ -290,14 +341,7 @@ async function showLibrary({ recap }) {
 }
 
 async function init() {
-  for (const item of document.querySelectorAll(".nav-item[data-view]")) {
-    const view = VIEWS[item.dataset.view];
-    item.append(icon(view.icon), view.label);
-    item.addEventListener("click", () => navigate(item.dataset.view));
-  }
-  const settingsButton = document.getElementById("open-settings");
-  settingsButton.append(icon("settings"), "Settings");
-  settingsButton.addEventListener("click", openSettings);
+  buildNav();
   document.getElementById("period-chip").addEventListener("click", () => navigate("setup"));
 
   const info = await call("state");
@@ -305,6 +349,7 @@ async function init() {
   state.info = info;
   state.settings = info.settings;
   initWindow(info.window, commandHooks);
+  initSidebar(state.settings, saveSettings);
   applyTheme();
 
   if (!state.settings.setup_done) {
@@ -326,11 +371,13 @@ async function init() {
 
 /** Fetch new listens from online accounts after start-up, without holding anything up. */
 async function syncInBackground() {
-  if (!state.sources.some((s) => s.mode === "account")) return;
+  if (!state.settings.sync_on_launch || !state.sources.some((s) => s.mode === "account")) return;
+  services.watchSync();
   const result = await setup.sync({ quiet: true });
-  if (!result.new) return;
   await setup.loadLibrary();
-  if (state.view === "setup") render();
+  renderNav();
+  if (state.view === "services" || state.view === "setup") render();
+  if (!result.new) return;
   const uses = state.report?.sources?.some((s) => state.sources.find((x) => x.id === s.id)?.mode === "account");
   toast(`${number(result.new)} new listens from your accounts`,
     uses ? { action: { label: "Update recap", run: runAnalysis } } : {});

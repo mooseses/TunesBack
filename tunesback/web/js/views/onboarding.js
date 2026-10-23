@@ -25,17 +25,27 @@ let root = null;
 let flow = null;
 let onFinish = null;
 
-/** Show set-up. `start` skips the welcome (e.g. when adding another source). */
-export function openOnboarding({ start = "welcome", finish, cancellable = false } = {}) {
+/**
+ * Show set-up. `start` skips the welcome (e.g. when adding another source);
+ * `only` runs just one app's steps (e.g. "lastfm", from the Services page).
+ */
+export function openOnboarding({ start = "welcome", finish, cancellable = false, only = null } = {}) {
   onFinish = finish;
   flow = {
     step: start, apps: new Set(["itunes"]), queue: [], location: "local", root: "", catalog: [], lastfmKey: true,
     lastfmKeyUrl: "", search: "idle", candidates: [], selected: null, reading: null, error: null, imported: null,
-    accounts: {}, added: [], cancellable,
+    accounts: {}, added: [], cancellable, only,
   };
+  if (only) {
+    flow.apps = new Set([only]);
+    flow.queue = STEPS_FOR[only];
+    flow.step = flow.queue[0];
+  }
   root = document.getElementById("onboarding");
   root.hidden = false;
+  // Set-up covers the whole window, title bar included; the window buttons hide beneath it.
   document.body.classList.add("onboarding-open");
+  call("window_set_controls_visible", { visible: false });
   call("catalog").then((r) => {
     flow.catalog = r.sources || [];
     flow.lastfmKey = !!r.lastfm_key;
@@ -49,11 +59,23 @@ function close() {
   root.hidden = true;
   root.replaceChildren();
   document.body.classList.remove("onboarding-open");
+  call("window_set_controls_visible", { visible: true });
 }
 
-const order = () => ["welcome", "apps", ...flow.queue, "done"];
+/** Leave set-up early, keeping whatever was added on the way. */
+function cancel() {
+  close();
+  if (flow.added.length) onFinish?.();
+}
+
+const order = () => (flow.only ? [...flow.queue, "done"] : ["welcome", "apps", ...flow.queue, "done"]);
 
 function go(step) {
+  if (step === "done" && flow.only) {
+    close();
+    onFinish?.();
+    return;
+  }
   const steps = order();
   const forward = steps.indexOf(step) >= steps.indexOf(flow.step);
   flow.step = step;
@@ -69,11 +91,11 @@ function show(direction = "forward") {
   const body = { welcome, apps, location, find, history, lastfm: () => account("lastfm"),
     listenbrainz: () => account("listenbrainz"), spotify, done }[flow.step]();
   const page = h(`div.oobe-step.enter-${direction}`, body);
-  const dots = ["apps", ...flow.queue];
-  const progress = dots.includes(flow.step) && h("div.oobe-progress", { "aria-label": `Step ${dots.indexOf(flow.step) + 1} of ${dots.length}` },
+  const dots = flow.only ? flow.queue : ["apps", ...flow.queue];
+  const progress = dots.length > 1 && dots.includes(flow.step) && h("div.oobe-progress", { "aria-label": `Step ${dots.indexOf(flow.step) + 1} of ${dots.length}` },
     dots.map((s, i) => h(`span${i <= dots.indexOf(flow.step) ? ".on" : ""}`)));
   root.replaceChildren(...[
-    flow.cancellable && h("button.oobe-close.btn.btn-ghost", { "aria-label": "Close set-up", onclick: close }, icon("close")),
+    flow.cancellable && h("button.oobe-close.btn.btn-ghost", { "aria-label": "Close set-up", onclick: cancel }, icon("close")),
     progress,
     page,
   ].filter(Boolean));
@@ -85,6 +107,7 @@ function footer(...buttons) {
 }
 
 function back() {
+  if (flow.only && order().indexOf(flow.step) === 0) return h("button.btn.btn-ghost", { onclick: cancel }, "Cancel");
   return h("button.btn.btn-ghost", { onclick: () => go(previous()) }, "Back");
 }
 
@@ -373,7 +396,7 @@ function account(kind) {
       h("p.oobe-sub", r.stopped || !r.source.complete
         ? "TunesBack will fetch the rest of your history the next time it opens."
         : "New listens are fetched each time you open TunesBack."),
-      h("button.btn.btn-primary.btn-large.oobe-cta", { onclick: () => go(next()) }, "Continue", icon("arrow")));
+      h("button.btn.btn-primary.btn-large.oobe-cta", { onclick: () => go(next()) }, flow.only ? "Done" : "Continue", icon("arrow")));
   }
   const needsKey = kind === "lastfm" && !flow.lastfmKey;
   const user = h("input.input", {
@@ -428,7 +451,7 @@ function account(kind) {
       ]),
     a.error && h("p.oobe-result.error", a.error),
     footer(back(), h("div.oobe-footer-group",
-      h("button.btn.btn-ghost", { onclick: () => go(next()) }, "Skip"),
+      !flow.only && h("button.btn.btn-ghost", { onclick: () => go(next()) }, "Skip"),
       connect)),
   ];
 }
@@ -458,7 +481,7 @@ function spotify() {
       h("p.oobe-lead", h("b", number(r.source.play_count)), " listens",
         r.source.first_play ? [" since ", h("b", shortDate(new Date(r.source.first_play * 1000).toISOString()))] : ""),
       h("p.oobe-sub", "Request a new download from Spotify now and then and add it from the Library page to keep it current."),
-      h("button.btn.btn-primary.btn-large.oobe-cta", { onclick: () => go(next()) }, "Continue", icon("arrow")));
+      h("button.btn.btn-primary.btn-large.oobe-cta", { onclick: () => go(next()) }, flow.only ? "Done" : "Continue", icon("arrow")));
   }
   const importFrom = async (path) => {
     if (!path) return;
@@ -496,7 +519,7 @@ function spotify() {
           h("span.oobe-option-icon", icon("folder")), h("b", "Choose a folder"), h("small", "If you've already unzipped it")))
       : h("div.folder-row", pathInput, h("button.btn.btn-primary", { onclick: () => importFrom(pathInput.value.trim()) }, "Import")),
     s.error && h("p.oobe-result.error", s.error),
-    footer(back(), h("button.btn.btn-ghost", { onclick: () => go(next()) }, "Skip for now")),
+    footer(back(), flow.only ? h("span") : h("button.btn.btn-ghost", { onclick: () => go(next()) }, "Skip for now")),
   ];
 }
 

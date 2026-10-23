@@ -27,7 +27,7 @@ export function render(root) {
       h("div.grid", { style: { alignContent: "start" } }, genres(report, by), listeningAge(report))),
 
     h("div.section", decades(report, by)),
-    listening(report, by, unit),
+    listening(report, by, unit) ?? "", // nothing for recaps without listening dates
   );
 }
 
@@ -182,7 +182,8 @@ function decades(report, by) {
 function listeningAge(report) {
   const age = report.listening_age;
   return h("div.card",
-    h("div.card-title", "Listening age"),
+    h("div.card-title", "Listening age",
+      age && h("button.btn.btn-ghost.btn-small", { onclick: () => navigate("age") }, "See how", icon("arrow"))),
     age ? h("div.age",
       h("div.big", age.age),
       h("div",
