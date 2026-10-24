@@ -73,6 +73,9 @@ async def shoot(url: str, out: Path, chromium: str | None) -> None:
         await page.click(".nav-item[data-view=wrapped]")
         await page.wait_for_selector(".card-tile img", timeout=120_000)
         await page.wait_for_load_state("networkidle")
+        await page.wait_for_function("[...document.querySelectorAll('.card-tile img')].filter((i) => i.getBoundingClientRect().top < innerHeight)"
+                                     ".every((i) => i.complete && i.naturalWidth)",
+                                     timeout=120_000)
         await page.wait_for_timeout(3000)
         await snap("wrapped")
 

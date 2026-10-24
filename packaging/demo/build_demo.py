@@ -33,26 +33,35 @@ def safe(name: str) -> str:
     return re.sub(r'[\\/:*?"<>|]+', "_", name).strip() or "Unknown"
 
 
+def search(term: str) -> list:
+    query = urllib.parse.urlencode({"term": term, "entity": "album", "limit": 10, "media": "music"})
+    with urllib.request.urlopen(f"https://itunes.apple.com/search?{query}", timeout=20) as response:
+        return json.load(response).get("results", [])
+
+
 def fetch_cover(artist: str, album: str) -> bytes | None:
     """The album's cover from the iTunes Search API, at 600 px; None if it isn't found."""
-    query = urllib.parse.urlencode({"term": f"{artist} {album}", "entity": "album", "limit": 5, "media": "music"})
-    try:
-        with urllib.request.urlopen(f"https://itunes.apple.com/search?{query}", timeout=20) as response:
-            results = json.load(response).get("results", [])
-    except Exception as e:  # offline, rate limited: the album keeps its placeholder
-        print(f"  no cover for {artist} – {album}: {e}", file=sys.stderr)
-        return None
-    wanted = album.lower().split(" (")[0]
-    results.sort(key=lambda r: (wanted not in r.get("collectionName", "").lower(),
-                                artist.lower() not in r.get("artistName", "").lower()))
-    for result in results:
-        url = result.get("artworkUrl100")
-        if url:
-            try:
-                with urllib.request.urlopen(url.replace("100x100bb", "600x600bb"), timeout=20) as response:
-                    return response.read()
-            except Exception:
-                continue
+    # Long names ("Chrome, Smoke & BBQ: The ZZ Top Box (Box Set) [Remastered]") find nothing,
+    # so try the name up to its subtitle too.
+    short = re.split(r"\s*[:(\[]", album)[0].strip()
+    for term in dict.fromkeys([f"{artist} {album}", f"{artist} {short}"]):
+        try:
+            results = search(term)
+            time.sleep(3)  # the iTunes API allows about 20 requests a minute
+        except Exception as e:  # offline, rate limited: the album keeps its placeholder
+            print(f"  no cover for {artist} – {album}: {e}", file=sys.stderr)
+            return None
+        results = [r for r in results if artist.lower() in r.get("artistName", "").lower()]
+        results.sort(key=lambda r: short.lower() not in r.get("collectionName", "").lower())
+        for result in results:
+            url = result.get("artworkUrl100")
+            if url:
+                try:
+                    with urllib.request.urlopen(url.replace("100x100bb", "600x600bb"), timeout=20) as response:
+                        return response.read()
+                except Exception:
+                    continue
+    print(f"  no cover for {artist} – {album}", file=sys.stderr)
     return None
 
 
@@ -82,7 +91,6 @@ def main(out: Path) -> None:
             if cover:
                 (folder / "cover.jpg").write_bytes(cover)
             covers[key] = bool(cover)
-            time.sleep(0.4)  # the iTunes API allows about 20 requests a minute
         songs.append(track)
     with (out / "Library.xml").open("wb") as f:
         plistlib.dump(library, f)
