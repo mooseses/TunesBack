@@ -254,11 +254,63 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN=1 ./out/*.AppImage --version
           sudo apt-get remove -y tunesback
 
+      # One download per file (named after it), so nobody has to fetch every package at once.
       - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'macos'
         with:
-          name: TunesBack-${{ matrix.platform }}-${{ matrix.arch }}
-          path: out/*
+          name: TunesBack-macOS-v${{ env.V_PEP440 }}-${{ matrix.arch }}.dmg
+          path: out/*.dmg
           if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'windows'
+        with:
+          name: TunesBack-Windows-v${{ env.V_PEP440 }}-x64.exe
+          path: out/*.exe
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'windows'
+        with:
+          name: TunesBack-Windows-v${{ env.V_PEP440 }}-x64-portable.zip
+          path: out/*.zip
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: TunesBack-Linux-v${{ env.V_PEP440 }}-x86_64.deb
+          path: out/*.deb
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: TunesBack-Linux-v${{ env.V_PEP440 }}-x86_64.rpm
+          path: out/*.rpm
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: TunesBack-Linux-v${{ env.V_PEP440 }}-x86_64.pkg.tar.zst
+          path: out/*.pkg.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: TunesBack-Linux-v${{ env.V_PEP440 }}-x86_64.AppImage
+          path: out/*.AppImage
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: TunesBack-Linux-v${{ env.V_PEP440 }}-x86_64.tar.gz
+          path: out/*.tar.gz
+          if-no-files-found: error
+          compression-level: 0
 
   # The rpm and Arch packages, installed on the distributions they're for.
   linux-packages:
@@ -272,14 +324,17 @@ jobs:
         include:
           - name: Fedora
             image: fedora:latest
+            package: "*.rpm"
             install: dnf install -y ./TunesBack-*.rpm
           - name: Arch Linux
             image: archlinux:latest
+            package: "*.pkg.tar.zst"
             install: pacman -Syu --noconfirm && pacman -U --noconfirm ./TunesBack-*.pkg.tar.zst
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: TunesBack-linux-x86_64
+          pattern: TunesBack-Linux-${{ matrix.package }}
+          merge-multiple: true
       - uses: actions/checkout@v4
         with:
           sparse-checkout: packaging/linux/ldd-scan.sh
@@ -313,7 +368,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: TunesBack-linux-x86_64
+          pattern: TunesBack-Linux-*.tar.gz
+          merge-multiple: true
           path: linux
       - name: Prepare sources
         run: |
@@ -336,8 +392,9 @@ jobs:
           test -s /tmp/flatpak-cards.jpg
       - uses: actions/upload-artifact@v4
         with:
-          name: TunesBack-flatpak-x86_64
+          name: ${{ env.BUNDLE }}
           path: ${{ env.BUNDLE }}
+          compression-level: 0
           if-no-files-found: error
 
   # A tag like v2.0.0-beta.1 drafts a GitHub release with every build attached.
