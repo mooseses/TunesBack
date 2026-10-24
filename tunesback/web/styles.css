@@ -110,7 +110,21 @@ h1, h2, h3, p { margin: 0; }
 .main { flex: 1 1 0; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 18px 32px 14px; min-height: 72px; flex-wrap: wrap; row-gap: 12px;
+  padding: 18px 32px 14px; min-height: 72px; flex-wrap: nowrap; container-type: inline-size;
+}
+/* The top bar stays on one line: in a narrow window, buttons drop their labels (the
+   tooltips keep them), toggles tighten and the period shortens. */
+.topbar-title { flex: 0 1 auto; }
+.topbar-actions { flex: none; }
+.period-chip { min-width: 0; }
+.period-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@container (max-width: 860px) {
+  .topbar-actions { gap: 8px; }
+  .topbar-actions .btn:has(.btn-label) { padding: 0 11px; }
+  .topbar-actions .btn-label { display: none; }
+  .topbar-actions .segmented button { padding: 5px 9px; }
+  .topbar h1 { font-size: 22px; }
+  .topbar .topbar-title { gap: 10px; }
 }
 .topbar-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .topbar h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }
@@ -909,11 +923,39 @@ body[data-platform="windows"] .nav-item.active::before {
 /* Tiles on a grid of square cells (views/overview.js sets --cols and --cell); "dense" puts each
    tile in the first space it fits, so smaller tiles fill the gaps, as on Windows Phone. */
 .widgets {
-  display: grid; grid-template-columns: repeat(var(--cols, 8), minmax(0, 1fr)); grid-auto-rows: var(--cell, 112px);
-  grid-auto-flow: row dense; gap: 14px; align-items: stretch;
+  display: grid; grid-template-columns: repeat(var(--cols, 6), var(--cell, 100px)); grid-auto-rows: var(--cell, 100px);
+  grid-auto-flow: row dense; gap: 14px; justify-content: start;
 }
+/* Every tile of a size is exactly that size: content is laid out for it, lists show what fits. */
+.widgets > .w { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 18px; }
+.widgets > .w > .card-title { flex: none; margin-bottom: 10px; }
+.widgets > .w > .columns { flex: 1 1 0; height: auto; min-height: 0; padding-top: 14px; }
+.widgets > .w .hbar { padding: 4px 0; }
+.widgets > .w .mini-rows { gap: 6px; }
+.widgets > .w .mini-row .art.mini-art { width: 36px; height: 36px; }
+.widgets > .w .mini-row { grid-template-columns: 20px 36px minmax(0, 1fr) auto; }
+.widgets > .w .mini-row.no-art { grid-template-columns: 20px minmax(0, 1fr) auto; }
+.widgets > .w .legend { margin-top: 12px; gap: 6px 14px; }
+.widgets > .w .cover-wall { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+/* Numbers: the figure up top, the details under it */
+.widgets > .kpi .value { margin-top: auto; font-size: 40px; }
+.widgets > .kpi[data-size="L"] .value { font-size: 48px; }
+.widgets > .kpi .sub { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Top artist, album and song */
+.widgets > .highlight { flex-direction: row; align-items: center; gap: 16px; }
+.widgets > .highlight[data-size="M"], .widgets > .highlight[data-size="XL"] { flex-direction: column; align-items: stretch; justify-content: flex-end; gap: 12px; }
+.widgets > .highlight[data-size="M"] .art { width: 76px; height: 76px; flex: none; }
+.widgets > .highlight[data-size="XL"] .art { flex: 1 1 0; min-height: 0; width: auto; height: auto; aspect-ratio: 1; align-self: flex-start; border-radius: 14px; }
+.widgets > .highlight[data-size="XL"] .art.round { border-radius: 50%; }
+.widgets > .highlight[data-size="XL"] .title { font-size: 24px; }
+.widgets > .highlight .text { min-width: 0; }
+/* Listening age, the "add a source" invitation */
+.widgets > .w .age { gap: 14px; }
+.widgets > .w .age .big { font-size: 54px; }
+.widgets > .invite { flex-direction: column; align-items: flex-start; gap: 10px; }
+.widgets > .invite .btn { margin: auto 0 0; }
+.widgets > .invite p { font-size: 13px; }
 .widgets.editing { row-gap: 26px; } /* room for each widget's toolbar on its top edge */
-.widgets > .w { min-width: 0; min-height: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .mini-rows { display: flex; flex-direction: column; gap: 8px; }
 .mini-row { display: grid; grid-template-columns: 22px 42px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 14px; }

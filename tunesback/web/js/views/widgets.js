@@ -24,23 +24,23 @@ const amount = (v, by, unit) => (by === "time" ? `${duration(v, unit)} ${unitInf
  */
 export const WIDGETS = {
   "listening-time": {
-    title: "Listening time", description: "How long you listened.", sizes: ["M", "L", "XL"], size: "M",
+    title: "Listening time", description: "How long you listened.", sizes: ["M", "L"], size: "M",
     render: (r, { unit }) => kpi("Listening time", `${r.estimated_time ? "≈ " : ""}${duration(r.total_ms, unit)}`, unitInfo(unit).long,
       r.estimated_time ? "partly estimated from song lengths" : r.mode === "compare" ? "in this period" : "all time"),
   },
   plays: {
-    title: "Plays", description: "How many times you pressed play.", sizes: ["M", "L", "XL"], size: "M",
+    title: "Plays", description: "How many times you pressed play.", sizes: ["M", "L"], size: "M",
     render: (r) => kpi(r.mode === "compare" && !r.timeline ? "New plays" : "Plays", number(r.total_plays), null, plural(r.songs.length, "song")),
   },
   "new-finds": {
     title: "New finds", description: "Songs you played for the first time; for all-time recaps, how many artists you played.",
-    sizes: ["M", "L", "XL"], size: "M",
+    sizes: ["M", "L"], size: "M",
     render: (r) => (r.mode === "compare"
       ? kpi("New finds", number(r.new_finds.length), null, r.timeline ? "songs played for the first time" : "songs added and played")
       : kpi("Artists", number(r.artists.length), null, plural(r.albums.length, "album"))),
   },
   skips: {
-    title: "Skips", description: "Songs you skipped.", sizes: ["M", "L", "XL"], size: "M",
+    title: "Skips", description: "Songs you skipped.", sizes: ["M", "L"], size: "M",
     render: (r) => kpi("Skips", number(r.total_skips), null, r.skipped.length ? `across ${plural(r.skipped.length, "song")}` : "nothing skipped"),
   },
   "top-artist": {
@@ -56,11 +56,11 @@ export const WIDGETS = {
     render: (r, { by }) => highlight("Top song", rankedCached(r, "songs", by)[0], { fallback: "song" }),
   },
   "top-artists": {
-    title: "Top artists", description: "Your ten most played artists, as bars.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Top artists", description: "Your ten most played artists, as bars.", sizes: ["L", "XL"], size: "L",
     render: (r, { by, unit }) => topList("Top artists", "artists", r, by, unit, 10),
   },
   "top-songs": {
-    title: "Top songs", description: "Your five most played songs.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Top songs", description: "Your five most played songs.", sizes: ["L", "XL"], size: "L",
     render: (r, { by, unit }) => rows("Top songs", "songs", rankedCached(r, "songs", by).slice(0, 5), by, unit),
   },
   "top-albums": {
@@ -68,21 +68,21 @@ export const WIDGETS = {
     render: (r, { by }) => covers(r, by),
   },
   genres: {
-    title: "Genres", description: "Your listening split by genre.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Genres", description: "Your listening split by genre.", sizes: ["L", "XL"], size: "L",
     available: (r) => r.genres.length > 0, needs: "Needs genres on the songs you played.",
     render: (r, { by }) => genres(r, by),
   },
   age: {
-    title: "Listening age", description: "How old your taste is. Shown once you've worked it out.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Listening age", description: "How old your taste is. Shown once you've worked it out.", sizes: ["L", "XL"], size: "L",
     render: (r) => listeningAge(r),
   },
   decades: {
-    title: "Release decades", description: "When the music you played came out.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Release decades", description: "When the music you played came out.", sizes: ["L", "XL"], size: "L",
     available: (r) => r.years.length > 0, needs: "Needs release years on the songs you played.",
     render: (r, { by, unit }) => decades(r, by, unit),
   },
   "most-skipped": {
-    title: "Most skipped", description: "The songs you skipped most.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Most skipped", description: "The songs you skipped most.", sizes: ["L", "XL"], size: "L",
     available: (r) => r.skipped.length > 0, needs: "Shows up once you've skipped something.",
     render: (r, { by, unit }) => rows("Most skipped", "skipped", rankedCached(r, "skipped", by).slice(0, 5), by, unit),
   },
@@ -92,7 +92,7 @@ export const WIDGETS = {
     render: () => invite(),
   },
   streak: {
-    title: "Longest streak", description: "The most days in a row you listened.", sizes: ["M", "L", "XL"], size: "M",
+    title: "Longest streak", description: "The most days in a row you listened.", sizes: ["M", "L"], size: "M",
     available: timeline, needs: "Needs a source with listening dates.",
     render: (r) => {
       const s = r.timeline.longest_streak;
@@ -100,17 +100,17 @@ export const WIDGETS = {
     },
   },
   "days-active": {
-    title: "Days with music", description: "How many days you listened at all.", sizes: ["M", "L", "XL"], size: "M",
+    title: "Days with music", description: "How many days you listened at all.", sizes: ["M", "L"], size: "M",
     available: timeline, needs: "Needs a source with listening dates.",
     render: (r) => kpi("Days with music", number(r.timeline.days_active), null, `of ${plural(r.timeline.days, "day")}`),
   },
   "busiest-day": {
-    title: "Busiest day", description: "The day you played the most.", sizes: ["M", "L", "XL"], size: "M",
+    title: "Busiest day", description: "The day you played the most.", sizes: ["M", "L"], size: "M",
     available: timeline, needs: "Needs a source with listening dates.",
     render: (r) => kpi("Busiest day", dayName(r.timeline.busiest_day.date), null, plural(r.timeline.busiest_day.plays, "play")),
   },
   "new-artists": {
-    title: "New artists", description: "Artists you heard for the first time.", sizes: ["M", "L", "XL"], size: "M",
+    title: "New artists", description: "Artists you heard for the first time.", sizes: ["M", "L"], size: "M",
     available: (r) => !!r.timeline?.discoveries, needs: "Needs a long enough listening history.",
     render: (r) => {
       const found = r.timeline.discoveries;
@@ -118,17 +118,17 @@ export const WIDGETS = {
     },
   },
   "peak-time": {
-    title: "Peak time", description: "The hour and day you listen most.", sizes: ["M", "L", "XL"], size: "M",
+    title: "Peak time", description: "The hour and day you listen most.", sizes: ["M", "L"], size: "M",
     available: timeline, needs: "Needs a source with listening dates.",
     render: (r) => kpi("Peak time", hourName(r.timeline.peak_hour), null, `busiest on ${WEEKDAYS[r.timeline.peak_weekday]}s`),
   },
   discoveries: {
-    title: "Discoveries", description: "The new artists you played most.", sizes: ["M", "L", "XL"], size: "M",
+    title: "Discoveries", description: "The new artists you played most.", sizes: ["L", "XL"], size: "L",
     available: (r) => !!r.timeline?.discoveries?.top?.length, needs: "Needs a long enough listening history.",
     render: (r) => discoveries(r),
   },
   "time-of-day": {
-    title: "Time of day", description: "Your listening by hour.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Time of day", description: "Your listening by hour.", sizes: ["L", "XL"], size: "L",
     available: timeline, needs: "Needs a source with listening dates.",
     render: (r, { by, unit }) => {
       const tl = r.timeline;
@@ -140,7 +140,7 @@ export const WIDGETS = {
     },
   },
   weekdays: {
-    title: "Day of the week", description: "Your listening by weekday.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Day of the week", description: "Your listening by weekday.", sizes: ["L", "XL"], size: "L",
     available: timeline, needs: "Needs a source with listening dates.",
     render: (r, { by, unit }) => {
       const tl = r.timeline;
@@ -152,7 +152,7 @@ export const WIDGETS = {
     },
   },
   months: {
-    title: "Month by month", description: "Each month, with the artist you played most.", sizes: ["L", "XL"], size: "XL",
+    title: "Month by month", description: "Each month, with the artist you played most.", sizes: ["XL"], size: "XL",
     available: (r) => (r.timeline?.months?.length ?? 0) > 1, needs: "Needs listening dates across two months or more.",
     render: (r, { by, unit }) => {
       const months = r.timeline.months;

@@ -1,9 +1,10 @@
 // Overview: a dashboard of widgets (views/widgets.js) arranged like tiles on the
 // Windows Phone Start screen.
 //
-// The grid is made of square cells, as many columns as fit. Each widget is a tile
-// of a fixed size (Medium 2×2, Wide 4×2, Large 4×4 cells) that never stretches
-// sideways; one whose content needs more room grows by whole rows. Tiles go in
+// The grid is made of square cells of one fixed size (what they are in the
+// smallest window), as many columns as fit. Each widget is a tile of a fixed size:
+// Medium 2×2, Wide 4×2 or Large 4×4 cells, the same at any window size, with its
+// content laid out for that size (lists show the rows that fit). Tiles go in
 // order, each into the first space it fits, so a later, smaller tile fills a gap
 // left earlier. Customize turns on edit mode: drag to move, pick a size, remove,
 // add from the panel, or reset. The order and sizes are saved in settings.
@@ -32,22 +33,16 @@ function save(next) {
 
 // ---------- the tile grid ----------
 
-const CELL = 88; // the smallest a cell gets before a pair of columns is dropped (px)
+const CELL = 100; // px: a cell's size in the smallest window, kept at every size
 const GAP = 14;
 
 /**
- * Columns and cell size for a grid this wide: an even number of columns (every tile is two
- * or four cells wide, so an odd one would always be left empty), and at least four.
+ * Columns for a grid this wide: an even number (every tile is two or four cells wide,
+ * so an odd one would always be left empty), and at least four, so every tile fits.
  */
 export function gridFor(width) {
   const fit = Math.floor((width + GAP) / (CELL + GAP));
-  const cols = Math.max(4, Math.min(16, fit - (fit % 2)));
-  return { cols, cell: Math.floor((width - GAP * (cols - 1)) / cols) };
-}
-
-/** Rows a tile takes: its size's, or more (whole rows) when its content is taller. */
-export function rowsFor(size, contentHeight, cell, gap = GAP) {
-  return Math.max(TILES[size][1], Math.ceil((contentHeight + gap) / (cell + gap)));
+  return { cols: Math.max(4, Math.min(24, fit - (fit % 2))), cell: CELL };
 }
 
 // ---------- the page ----------
@@ -83,22 +78,28 @@ export function render(root) {
   });
 }
 
-/** Size every tile for the grid's width: columns from its size, rows from its size and content. */
+/** Columns for the grid's width, each tile's place, and as much of each list as fits in its tile. */
 function relayout(grid, width = grid.clientWidth) {
   const { cols, cell } = gridFor(width);
   lastWidth = width;
   grid.style.setProperty("--cols", cols);
   grid.style.setProperty("--cell", `${cell}px`);
-  const cards = [...grid.children];
-  for (const card of cards) {
+  for (const card of grid.children) {
     const [w, rows] = TILES[card.dataset.size] || TILES.M;
     card.style.gridColumn = `span ${Math.min(w, cols)}`;
     card.style.gridRow = `span ${rows}`;
   }
-  // A tile's content keeps its own height; a tile it overflows gets more rows.
-  const gap = parseFloat(getComputedStyle(grid).rowGap) || GAP;
-  const heights = cards.map(contentHeight);
-  cards.forEach((card, i) => { card.style.gridRow = `span ${rowsFor(card.dataset.size, heights[i], cell, gap)}`; });
+  for (const card of grid.children) fit(card);
+}
+
+// Rows of a list, chart legend or cover wall: the ones that don't fit their tile are left out.
+const FIT_ITEMS = ".hbar, .mini-row, .legend > div, .cover";
+
+function fit(card) {
+  const items = [...card.querySelectorAll(FIT_ITEMS)];
+  for (const item of items) item.style.display = "";
+  let shown = items.length;
+  while (shown > 1 && contentHeight(card) > card.clientHeight + 0.5) items[--shown].style.display = "none";
 }
 
 /** How tall a tile's content is (scrollHeight would leave out the padding below it). */
@@ -195,11 +196,12 @@ export function setEditing(on) {
 /** For the top bar: Customize, or the edit-mode buttons. */
 export function topbarActions() {
   if (!editing) {
-    return [h("button.btn", { onclick: () => setEditing(true), title: "Move, resize, add and remove widgets" }, icon("edit"), "Customize")];
+    return [h("button.btn", { onclick: () => setEditing(true), title: "Customize: move, resize, add and remove widgets" },
+      icon("edit"), h("span.btn-label", "Customize"))];
   }
   return [
-    h("button.btn", { onclick: openDrawer }, icon("plus"), "Add widget"),
-    h("button.btn.btn-ghost", { onclick: reset }, icon("undo"), "Reset"),
+    h("button.btn", { onclick: openDrawer, title: "Add widget" }, icon("plus"), h("span.btn-label", "Add widget")),
+    h("button.btn.btn-ghost", { onclick: reset, title: "Back to the standard layout" }, icon("undo"), h("span.btn-label", "Reset")),
     h("button.btn.btn-primary", { onclick: () => { closeDrawer(); setEditing(false); } }, "Done"),
   ];
 }

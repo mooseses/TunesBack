@@ -138,7 +138,8 @@ function renderPeriodChip() {
   const text = report.mode === "compare"
     ? `${shortDate(report.start_date)} → ${shortDate(report.end_date)}`
     : `All time up to ${shortDate(report.end_date)}`;
-  chip.replaceChildren(icon("calendar"), text);
+  chip.title = text;
+  chip.replaceChildren(icon("calendar"), h("span.period-text", text));
 }
 
 // The unit and ranking toggles persist while you stay in a view, so a change
