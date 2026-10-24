@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=TunesBack
+GenericName=Music Statistics
+Comment=Year-in-review statistics for your music library
+Exec=tunesback
+Icon=io.github.mooseses.tunesback
+Categories=AudioVideo;Audio;
+Keywords=music;wrapped;recap;itunes;last.fm;listenbrainz;spotify;statistics;
+Terminal=false
+StartupNotify=true
+StartupWMClass=tunesback

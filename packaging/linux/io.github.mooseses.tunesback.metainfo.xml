@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.mooseses.tunesback</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>TunesBack</name>
+  <summary>Year-in-review statistics for your music library</summary>
+  <developer id="io.github.mooseses">
+    <name>Peter Jin</name>
+  </developer>
+  <description>
+    <p>
+      TunesBack turns your iTunes or Apple Music library, Last.fm, ListenBrainz and Spotify
+      history into a recap of your year in music: top songs, artists and albums, when you
+      listen, how old your taste is, and shareable Wrapped cards.
+    </p>
+    <p>Everything is worked out on your computer. TunesBack collects no data.</p>
+  </description>
+  <launchable type="desktop-id">io.github.mooseses.tunesback.desktop</launchable>
+  <url type="homepage">https://github.com/mooseses/TunesBack</url>
+  <url type="bugtracker">https://github.com/mooseses/TunesBack/issues</url>
+  <content_rating type="oars-1.1"/>
+  <provides>
+    <binary>tunesback</binary>
+  </provides>
+  <releases>
+    <release version="2.0.0~beta1" date="2026-10-23" type="development">
+      <description>
+        <p>A new TunesBack: Last.fm, ListenBrainz and Spotify history, a customisable Overview, Wrapped cards, listening age and native window styles.</p>
+      </description>
+    </release>
+    <release version="1.2.0" date="2025-12-28"/>
+  </releases>
+</component>

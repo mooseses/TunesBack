@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="tunesback-token" content="__TUNESBACK_TOKEN__">
+  <title>TunesBack</title>
+  <link rel="icon" href="/assets/icon.png">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <header class="titlebar" id="titlebar" hidden></header>
+  <div class="shell">
+    <nav class="nav" id="nav" aria-label="Main">
+      <div class="nav-inner">
+        <div class="brand">
+          <img src="/assets/icon.png" alt="" width="28" height="28">
+          <span>TunesBack</span>
+          <button class="sidebar-toggle" id="hide-sidebar" aria-label="Hide sidebar" title="Hide sidebar"></button>
+        </div>
+        <div class="nav-items" id="nav-top"></div>
+        <div class="nav-spacer"></div>
+        <div class="nav-items" id="nav-bottom"></div>
+      </div>
+      <div class="nav-resizer" id="nav-resizer" role="separator" aria-orientation="vertical" aria-label="Sidebar width" tabindex="0"></div>
+    </nav>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-title">
+          <button class="sidebar-toggle" id="show-sidebar" aria-label="Show sidebar" title="Show sidebar" hidden></button>
+          <h1 id="view-title">Library</h1>
+          <button class="period-chip" id="period-chip" hidden></button>
+        </div>
+        <div class="topbar-actions" id="topbar-actions"></div>
+      </header>
+      <div class="content" id="content"></div>
+    </main>
+  </div>
+
+  <section class="onboarding" id="onboarding" aria-label="Set up TunesBack" hidden></section>
+
+  <div class="overlay" id="busy" hidden>
+    <div class="busy-card">
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="busy-text">Working…</p>
+      <button class="btn btn-ghost" id="busy-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <dialog id="settings-dialog" class="dialog" aria-labelledby="settings-title"></dialog>
+  <dialog id="message-dialog" class="dialog dialog-small" aria-labelledby="message-title"></dialog>
+  <dialog id="card-dialog" class="dialog dialog-card" aria-labelledby="card-title"></dialog>
+  <dialog id="about-dialog" class="dialog dialog-about" aria-labelledby="about-title"></dialog>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</body>
+</html>

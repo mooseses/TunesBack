@@ -1,0 +1,4 @@
+#!/bin/sh
+# Entry point of the AppImage: start the bundled app.
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/TunesBack/tunesback" "$@"

@@ -3,145 +3,441 @@ on:
   push:
     branches:
       - main
-      - v1.2.0_dev
+    # Pushing a tag like v2.0.0-beta.1 builds everything and drafts a GitHub release.
+    tags:
+      - "v*"
   pull_request:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      screenshots:
+        description: "Print smoke-test screenshots to the log"
+        type: boolean
+        default: false
+      release:
+        description: "Publish a release of this version (main only)"
+        type: boolean
+        default: false
 
 env:
-  PYTHON_VERSION: "3.11"
-  FLET_VERSION: "0.28.3"
+  PYTHON_VERSION: "3.12"
 
 jobs:
+  test:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        run: pip install -e . pytest
+
+      - name: Run tests
+        run: pytest -q
+
   build:
-    name: Build ${{ matrix.platform }}
+    name: Build ${{ matrix.name }}
+    needs: test
+    env:
+      LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          # macOS 26, so screenshots show the Liquid Glass sidebar.
+          - os: macos-26
             platform: macos
-            name: macOS
-            
+            name: macOS (Apple silicon)
+            arch: arm64
+          # Intel Macs need their own build: Python's libraries are compiled per architecture.
+          - os: macos-15-intel
+            platform: macos
+            name: macOS (Intel)
+            arch: x86_64
           - os: windows-latest
             platform: windows
             name: Windows
-    
+            arch: x64
+          # 22.04 keeps the glibc requirement low (2.35), so the build runs on most distributions.
+          - os: ubuntu-22.04
+            platform: linux
+            name: Linux
+            arch: x86_64
     runs-on: ${{ matrix.os }}
-    
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Extract version from pyproject.toml
-        id: get_version
-        shell: bash
-        run: |
-          VERSION=$(grep -m 1 'version = ' pyproject.toml | cut -d'"' -f2)
-          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Building version: $VERSION"
-      
-      - name: Setup Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      
-      - name: Install Flet
-        run: pip install flet==${{ env.FLET_VERSION }}
-      
-      - name: Build ${{ matrix.name }}
-        run: flet build ${{ matrix.platform }}
+          cache: pip
+
+      - name: Version
+        shell: bash
+        run: |
+          python -m tunesback.version | while IFS='=' read -r key value; do echo "V_$(echo "$key" | tr a-z A-Z)=$value" >> "$GITHUB_ENV"; done
+          python -m tunesback.version
+
+      - name: Install
+        if: matrix.platform != 'linux'
+        run: pip install . pyinstaller
+
+      # Linux builds bundle Qt and QtWebEngine (pip wheels) rather than relying on
+      # the system's WebKitGTK. The apt packages are what Qt needs at run time
+      # plus the virtual display used by the smoke test.
+      - name: Install (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libnss3 \
+            libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxkbfile1 libasound2 libdbus-1-3 \
+            xvfb openbox xdotool imagemagick desktop-file-utils rpm zstd libarchive-tools ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+          pip install ".[qt]" pyinstaller
+
+      # With a LASTFM_API_KEY repository secret, the app comes with a Last.fm key
+      # and set-up doesn't ask for one.
+      - name: Bundle a Last.fm API key
+        if: env.LASTFM_API_KEY != ''
+        shell: bash
+        run: printf 'LASTFM_API_KEY = "%s"\n' "$LASTFM_API_KEY" > tunesback/_build.py
+
+      - name: Build app
+        run: pyinstaller packaging/tunesback.spec --noconfirm
         env:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: 1
-      
-      # ========== macOS: Create DMG ==========
+
+      # macOS decides whether to draw an app in Liquid Glass from the SDK its executable
+      # says it was built with. PyInstaller's prebuilt launcher names an old one, so the
+      # app would run in compatibility mode; stamp it with this runner's SDK (keeping the
+      # minimum macOS) and sign the app again.
+      - name: Stamp the macOS SDK version
+        if: matrix.platform == 'macos'
+        run: |
+          export DEVELOPER_DIR="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)/Contents/Developer"
+          BIN=dist/TunesBack.app/Contents/MacOS/tunesback
+          lipo -archs "$BIN"
+          vtool -show-build "$BIN"
+          MINOS=$(vtool -show-build "$BIN" | awk '/minos/ {print $2; exit}')
+          SDK=$(xcrun --sdk macosx --show-sdk-version)
+          vtool -set-build-version macos "$MINOS" "$SDK" -replace -output "$BIN" "$BIN"
+          codesign --force --deep --sign - dist/TunesBack.app
+          vtool -show-build "$BIN"
+
+      # The packaged app draws a few cards from made-up data: proves resvg, the
+      # bundled fonts and a system font for other scripts all work once frozen.
+      - name: Draw sample cards
+        shell: bash
+        run: |
+          case "${{ matrix.platform }}" in
+            windows) EXE=dist/TunesBack/tunesback.exe ;;
+            macos) EXE=dist/TunesBack.app/Contents/MacOS/tunesback ;;
+            *) EXE=dist/TunesBack/tunesback ;;
+          esac
+          "$EXE" --selftest cards.jpg
+          test -s cards.jpg
+          cat cards.jpg.txt
+          if [ "${{ inputs.screenshots || 'false' }}" = "true" ]; then
+            python -c "import base64; d = base64.b64encode(open('cards.jpg', 'rb').read()).decode(); [print('SHOT cards', d[i:i + 4000]) for i in range(0, len(d), 4000)]; print('SHOT cards END')"
+          fi
+
+      # Launch the built app and drive its title bar with real mouse input.
+      - name: Smoke test (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: ./packaging/smoke/windows.ps1 -Exe dist\TunesBack\tunesback.exe -Fixtures tests\fixtures -Screenshots "${{ inputs.screenshots || 'false' }}"
+
+      - name: Smoke test (macOS)
+        if: matrix.platform == 'macos'
+        run: python packaging/smoke/macos.py dist/TunesBack.app/Contents/MacOS/tunesback tests/fixtures "${{ inputs.screenshots || 'false' }}"
+
+      - name: Smoke test (Linux)
+        if: matrix.platform == 'linux'
+        run: packaging/smoke/linux.sh dist/TunesBack/tunesback "${{ inputs.screenshots || 'false' }}"
+
+      # ========== macOS: DMG ==========
       - name: Create macOS DMG
         if: matrix.platform == 'macos'
         run: |
           brew install create-dmg
-          
-          if [ -d "build/macos/TunesBack.app" ]; then
-            create-dmg \
-              --volname "TunesBack" \
-              --window-pos 200 120 \
-              --window-size 800 400 \
-              --icon-size 100 \
-              --icon "TunesBack.app" 200 190 \
-              --hide-extension "TunesBack.app" \
-              --app-drop-link 600 185 \
-              "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" \
-              "build/macos/TunesBack.app" || true
-            
-            if [ ! -f "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg" ]; then
-              echo "create-dmg failed, using hdiutil..."
-              hdiutil create -volname "TunesBack" \
-                -srcfolder "build/macos/TunesBack.app" \
-                -ov -format UDZO \
-                "TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg"
-            fi
-          else
-            echo "Error: TunesBack.app not found in build/macos/"
-            exit 1
+          mkdir -p out
+          DMG="out/TunesBack-macOS-v${V_PEP440}-${{ matrix.arch }}.dmg"
+          create-dmg \
+            --volname "TunesBack" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "TunesBack.app" 200 190 \
+            --hide-extension "TunesBack.app" \
+            --app-drop-link 600 185 \
+            "$DMG" \
+            "dist/TunesBack.app" || true
+          if [ ! -f "$DMG" ]; then
+            echo "create-dmg failed, using hdiutil..."
+            hdiutil create -volname "TunesBack" -srcfolder "dist/TunesBack.app" -ov -format UDZO "$DMG"
           fi
-      
-      # ========== Windows: Create Installer ==========
-      - name: Create Windows Installer
+
+      # ========== Windows: installer ==========
+      - name: Create Windows installer
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
           choco install innosetup -y
           Start-Sleep -Seconds 5
-          
+
           $issContent = @"
           [Setup]
           AppName=TunesBack
-          AppVersion=${{ env.APP_VERSION }}
-          AppPublisher=Mooseses
+          AppVersion=$env:V_DISPLAY
+          VersionInfoVersion=$env:V_WINDOWS
+          AppPublisher=Peter Jin
+          AppPublisherURL=https://github.com/mooseses/TunesBack
+          AppUpdatesURL=https://github.com/mooseses/TunesBack/releases
           DefaultDirName={autopf}\TunesBack
           DefaultGroupName=TunesBack
           UninstallDisplayIcon={app}\tunesback.exe
+          SetupIconFile=packaging\icon.ico
           Compression=lzma2
           SolidCompression=yes
-          OutputDir=.
-          OutputBaseFilename=TunesBack-Windows-v${{ env.APP_VERSION }}-x64
+          OutputDir=out
+          OutputBaseFilename=TunesBack-Windows-v$env:V_PEP440-x64
           ArchitecturesAllowed=x64compatible
           ArchitecturesInstallIn64BitMode=x64compatible
           WizardStyle=modern
-          
+          CloseApplications=yes
+
           [Files]
-          Source: "build\windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-          
+          Source: "dist\TunesBack\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [InstallDelete]
+          Type: filesandordirs; Name: "{app}\_internal"
+
           [Icons]
           Name: "{group}\TunesBack"; Filename: "{app}\tunesback.exe"
           Name: "{autodesktop}\TunesBack"; Filename: "{app}\tunesback.exe"; Tasks: desktopicon
           Name: "{group}\Uninstall TunesBack"; Filename: "{uninstallexe}"
-          
+
           [Tasks]
           Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"
-          
+
           [Run]
           Filename: "{app}\tunesback.exe"; Description: "Launch TunesBack"; Flags: nowait postinstall skipifsilent
           "@
-          
+
           $issContent | Out-File -FilePath "installer.iss" -Encoding ASCII
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"
-      
-      # ========== Upload Artifacts ==========
-      - name: Upload macOS artifact
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path dist\TunesBack -DestinationPath "out\TunesBack-Windows-v$env:V_PEP440-x64-portable.zip"
+
+      # ========== Linux: deb, rpm, Arch package, AppImage, tarball ==========
+      - name: Create Linux packages
+        if: matrix.platform == 'linux'
+        run: packaging/linux/packages.sh out
+
+      - name: Install and run the .deb
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get install -y ./out/*.deb
+          dpkg -L tunesback | grep -E '^/usr/(bin|share/(applications|metainfo|icons/hicolor/512x512))'
+          tunesback --version
+          tunesback --selftest deb-cards.jpg && test -s deb-cards.jpg
+          APPIMAGE_EXTRACT_AND_RUN=1 ./out/*.AppImage --version
+          sudo apt-get remove -y tunesback
+
+      # One download per file (named after it), so nobody has to fetch every package at once.
+      - uses: actions/upload-artifact@v4
         if: matrix.platform == 'macos'
-        uses: actions/upload-artifact@v4
         with:
-          name: TunesBack-macOS-v${{ env.APP_VERSION }}-Universal
-          path: TunesBack-macOS-v${{ env.APP_VERSION }}-Universal.dmg
-          retention-days: 0
-      
-      - name: Upload Windows artifact
+          name: TunesBack-macOS-v${{ env.V_PEP440 }}-${{ matrix.arch }}.dmg
+          path: out/*.dmg
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
         if: matrix.platform == 'windows'
-        uses: actions/upload-artifact@v4
         with:
-          name: TunesBack-Windows-v${{ env.APP_VERSION }}-x64
-          path: TunesBack-Windows-v${{ env.APP_VERSION }}-x64.exe
-          retention-days: 0
+          name: TunesBack-Windows-v${{ env.V_PEP440 }}-x64.exe
+          path: out/*.exe
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'windows'
+        with:
+          name: TunesBack-Windows-v${{ env.V_PEP440 }}-x64-portable.zip
+          path: out/*.zip
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: TunesBack-Linux-v${{ env.V_PEP440 }}-x86_64.deb
+          path: out/*.deb
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: TunesBack-Linux-v${{ env.V_PEP440 }}-x86_64.rpm
+          path: out/*.rpm
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: TunesBack-Linux-v${{ env.V_PEP440 }}-x86_64.pkg.tar.zst
+          path: out/*.pkg.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: TunesBack-Linux-v${{ env.V_PEP440 }}-x86_64.AppImage
+          path: out/*.AppImage
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: TunesBack-Linux-v${{ env.V_PEP440 }}-x86_64.tar.gz
+          path: out/*.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+
+  # The rpm and Arch packages, installed on the distributions they're for.
+  linux-packages:
+    name: Install on ${{ matrix.name }}
+    needs: build
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Fedora
+            image: fedora:latest
+            package: "*.rpm"
+            install: dnf install -y ./TunesBack-*.rpm
+          - name: Arch Linux
+            image: archlinux:latest
+            package: "*.pkg.tar.zst"
+            install: pacman -Syu --noconfirm && pacman -U --noconfirm ./TunesBack-*.pkg.tar.zst
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: TunesBack-Linux-${{ matrix.package }}
+          merge-multiple: true
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: packaging/linux/ldd-scan.sh
+          sparse-checkout-cone-mode: false
+          path: src
+      - name: Install
+        run: |
+          cp src/packaging/linux/ldd-scan.sh .
+          ${{ matrix.install }}
+      - name: Run
+        run: |
+          tunesback --version
+          tunesback --selftest cards.jpg
+          test -s cards.jpg
+          ls /usr/share/applications/io.github.mooseses.tunesback.desktop /usr/share/metainfo/io.github.mooseses.tunesback.metainfo.xml
+      # Fails on a missing library, except PulseAudio's: only Qt Multimedia and text to
+      # speech use it, and TunesBack loads neither.
+      - name: Libraries the system doesn't have
+        run: |
+          sh ldd-scan.sh /opt/tunesback | tee missing.txt
+          if grep -v 'libpulse' missing.txt; then echo "::error::The package needs libraries it doesn't depend on"; exit 1; fi
+
+  flatpak:
+    name: Flatpak
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: TunesBack-Linux-*.tar.gz
+          merge-multiple: true
+          path: linux
+      - name: Prepare sources
+        run: |
+          cp linux/TunesBack-Linux-*.tar.gz packaging/linux/TunesBack.tar.gz
+          cp packaging/icons/linux.png packaging/linux/linux.png
+          NAME=$(basename linux/TunesBack-Linux-*.tar.gz .tar.gz)
+          echo "BUNDLE=$NAME.flatpak" >> "$GITHUB_ENV"
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: ${{ env.BUNDLE }}
+          manifest-path: packaging/linux/io.github.mooseses.tunesback.yml
+          cache: false
+          upload-artifact: false
+      - name: Install and run the Flatpak
+        run: |
+          [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
+          flatpak install --system -y --noninteractive --bundle "$BUNDLE"
+          flatpak run --command=tunesback io.github.mooseses.tunesback --version
+          flatpak run --command=tunesback --filesystem=/tmp io.github.mooseses.tunesback --selftest /tmp/flatpak-cards.jpg
+          test -s /tmp/flatpak-cards.jpg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BUNDLE }}
+          path: ${{ env.BUNDLE }}
+          compression-level: 0
+          if-no-files-found: error
+
+  # Publishes a GitHub release with every download, notes from CHANGELOG.md and checksums:
+  # run the workflow on main with "Publish a release", or push a tag like v2.0.0-beta.1.
+  # Pre-release versions (betas, release candidates) are published as pre-releases.
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v') || (inputs.release && github.ref == 'refs/heads/main')
+    needs: [build, linux-packages, flatpak]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          eval "$(python -m tunesback.version --shell)"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+            if [ "$(python -c "from tunesback.version import parse; print(parse('$TAG'))")" != "$V_PEP440" ]; then
+              echo "::error::Tag $TAG doesn't match the app's version $V_PEP440"; exit 1
+            fi
+          else
+            TAG="$V_TAG"
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "::error::$TAG is already released: bump the version first"; exit 1
+            fi
+          fi
+          python packaging/release_notes.py "$V_PEP440" > notes.md
+          (cd assets && sha256sum * > SHA256SUMS.txt)
+          FLAGS=(--title "TunesBack $V_DISPLAY" --notes-file notes.md --target "$GITHUB_SHA")
+          [ "$V_PRERELEASE" = "true" ] && FLAGS+=(--prerelease)
+          gh release create "$TAG" assets/* "${FLAGS[@]}"

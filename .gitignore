@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+*.dmg
+installer.iss
+TunesBack-*.exe
+.DS_Store
+Thumbs.db
+tunesback/_build.py
+packaging/linux/linux.png
+packaging/linux/TunesBack.tar.gz
+appimagetool

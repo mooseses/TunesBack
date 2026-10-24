@@ -1,26 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "tunesback"
-version = "1.2.0"
-description = "Analyze your iTunes listening history"
-authors = [{name = "Peter Jin"}]
-requires-python = ">=3.11"
+version = "2.0.0b1"
+description = "Year-in-review statistics for your music library"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Peter Jin" }]
+requires-python = ">=3.10"
 dependencies = [
-  "flet==0.28.3",
-  "pandas",
-  "python-dateutil",
-  "mutagen",
-  "Pillow",
-  "six>=1.11.0"
+  "pywebview>=5.0",
+  "mutagen>=1.45",
+  "Pillow>=10.1",
+  "python-dateutil>=2.8",
+  "resvg-py>=0.5",
 ]
 
-[tool.flet]
-product = "TunesBack"
-copyright = "Copyright © 2025 Peter Jin"
+[project.optional-dependencies]
+qt = ["pywebview[qt]>=5.0"]
+dev = ["pytest>=8", "pyinstaller>=6.6"]
 
-[tool.flet.app]
-assets_dir = "assets"
-icon = "icon.png"
-modules = ["libpytunes"]
+[project.scripts]
+tunesback = "tunesback.__main__:main"
 
-[tool.flet.macos]
-entitlement."com.apple.security.files.user-selected.read-only" = true
+[project.urls]
+Homepage = "https://github.com/mooseses/TunesBack"
+
+[tool.setuptools.packages.find]
+include = ["tunesback*"]
+
+[tool.setuptools.package-data]
+tunesback = ["assets/*", "assets/fonts/*", "web/*", "web/js/*", "web/js/views/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

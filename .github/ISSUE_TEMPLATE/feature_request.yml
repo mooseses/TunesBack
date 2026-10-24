@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea for TunesBack.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: What you'd like TunesBack to do, and what it would help you with.
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else?
+      description: Examples, sketches, or apps that do it well.
