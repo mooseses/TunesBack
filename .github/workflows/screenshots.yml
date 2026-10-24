@@ -1,6 +1,7 @@
 name: Screenshots
 # Retakes the README and website screenshots (docs/screenshots) from the demo library, with real
-# album covers, and commits them to the branch it runs on.
+# album covers, and the promotional images for social media (docs/promo), and commits them to
+# the branch it runs on.
 on:
   workflow_dispatch:
 
@@ -23,15 +24,19 @@ jobs:
         run: python packaging/demo/build_demo.py demo
       - name: Take the screenshots
         run: python packaging/demo/screenshots.py demo docs/screenshots
+      - name: Make the promotional images
+        run: python packaging/demo/promo.py demo docs/screenshots docs/promo
       - uses: actions/upload-artifact@v4
         with:
           name: screenshots
-          path: docs/screenshots/*.jpg
+          path: |
+            docs/screenshots/*.jpg
+            docs/promo/*.png
       - name: Commit them
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/screenshots
+          git add docs/screenshots docs/promo
           git diff --cached --quiet && { echo "No changes"; exit 0; }
-          git commit -m "Retake screenshots from the demo library"
+          git commit -m "Retake screenshots and promotional images from the demo library"
           git push
