@@ -163,3 +163,16 @@ def test_reset_all(api, service):
     assert len(api.call("library", {})["sources"]) == 1  # the library stays unless asked
     api.call("reset_all", {"forget_library": True})
     assert api.call("library", {})["sources"] == []
+
+
+def test_window_size_and_first_launch_layout(tmp_path):
+    settings = Settings(tmp_path / "settings.json")
+    assert settings["window_size"] is None and settings["sidebar_width"] == 180
+    settings.update({"window_size": [1400.6, 900]})
+    assert settings["window_size"] == [1400, 900]
+    settings.update({"window_size": [100, 100]})
+    assert settings["window_size"] == [980, 660]
+    settings.update({"window_size": "big"})
+    assert settings["window_size"] == [980, 660]
+    settings.reset()
+    assert settings["window_size"] is None

@@ -7,7 +7,7 @@ import { icon } from "./util.js";
 const MIN = 180;
 const MAX = 360;
 const HIDE_BELOW = 130; // dragging narrower than this hides the sidebar on release
-const DEFAULT = 220;
+const DEFAULT = 180; // a new installation starts with the narrowest sidebar
 
 let nav, resizer, settings, save;
 let native = false; // macOS: an AppKit sidebar replaces the page's (see app/macos.py)

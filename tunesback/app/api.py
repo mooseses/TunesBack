@@ -765,6 +765,7 @@ class Api:
             self._report = None
         if self.window is not None:
             self.window.set_theme(self.settings["theme"])
+            self.window.reset_layout()  # the size and sidebar width of a first launch
         log.info("Reset all settings%s", " and forgot the library" if forget_library else "")
         return {"ok": True}
 

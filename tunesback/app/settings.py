@@ -27,7 +27,8 @@ DEFAULTS = {
     "cards": {},  # the Wrapped deck's design: format, theme, shuffle seed and per-card choices
     "lastfm_api_key": None,  # entered during set-up when this build doesn't come with one
     "recap": {},  # the last recap chosen on the Library page: source, period preset, dates, combine
-    "sidebar_width": 220,  # pixels
+    "sidebar_width": 180,  # pixels; a new installation starts with the narrowest
+    "window_size": None,  # [width, height] when TunesBack last closed; None: the smallest size
     "sidebar_hidden": False,
     "sync_on_launch": True,  # fetch new listens from online accounts when TunesBack opens
     "dev_mode": False,  # show the Dev space
@@ -167,6 +168,11 @@ class Settings:
             if key in ("sidebar_hidden", "sync_on_launch", "dev_mode", "age_calculated", "age_cards",
                        "native_sidebar", "mica", "title_bar_menu", "update_check"):
                 value = bool(value)
+            if key == "window_size" and value is not None:
+                if (not isinstance(value, (list, tuple)) or len(value) != 2
+                        or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value)):
+                    continue
+                value = [int(min(max(value[0], 980), 20000)), int(min(max(value[1], 660), 20000))]
             if key == "update_last":
                 if not isinstance(value, (int, float)) or isinstance(value, bool):
                     continue

@@ -44,7 +44,8 @@ def _run_window(settings: Settings, debug: bool) -> bool:
     server.start_background()
     api.window = DesktopWindow(server.url, settings["title_bar"], settings["theme"],
                                native_sidebar=settings["native_sidebar"], mica=settings["mica"],
-                               sidebar_hidden=settings["sidebar_hidden"])
+                               sidebar_hidden=settings["sidebar_hidden"], size=settings["window_size"],
+                               on_resize=lambda w, h: settings.update({"window_size": [w, h]}))
     try:
         webview.start(debug=debug, gui=gui)
     except Exception as e:  # no GTK/Qt/WebView2 backend on this machine

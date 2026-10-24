@@ -52,6 +52,9 @@ def preferred_gui() -> Optional[str]:
     return None
 
 
+MIN_SIZE = (980, 660)  # the Overview's tiles are sized so this fits four across (views/overview.js)
+
+
 def prepare_qt_sandbox() -> None:
     """Let Qt WebEngine start where Chromium's sandbox can't.
 
@@ -74,7 +77,8 @@ class DesktopWindow:
     """Owns the pywebview window and everything the interface asks of it."""
 
     def __init__(self, url: str, title_bar: str, theme: str, native_sidebar: bool = True, mica: bool = True,
-                 sidebar_hidden: bool = False):
+                 sidebar_hidden: bool = False, size: Optional[tuple[int, int]] = None,
+                 on_resize: Optional[Callable[[int, int], None]] = None):
         import webview
 
         self.custom = title_bar == "custom"
@@ -85,9 +89,11 @@ class DesktopWindow:
         self._chrome = None  # macOS: the drag strip and native sidebar (see macos.py)
         self._material: Optional[str] = None  # "mica" once applied
         # macOS: whether the system draws this app in Liquid Glass (the page's controls follow)
-        self._liquid_glass = SYSTEM == "macos" and _liquid_glass()
+        # Possible on macOS 26 with an app built for it; confirmed once the window shows (below).
+        self._glass_possible = SYSTEM == "macos" and _liquid_glass()
+        self._liquid_glass = False
         if SYSTEM == "macos":
-            log.info("Liquid Glass %s", "available" if self._liquid_glass else "not available (needs macOS 26 and its SDK)")
+            log.info("Liquid Glass %s", "possible" if self._glass_possible else "not available (needs macOS 26 and its SDK)")
         self._state_seq = 0  # numbers each state sent to the page, which may arrive out of order
         self._webview = webview
         self._maximized = False
@@ -98,7 +104,8 @@ class DesktopWindow:
         native_menu = self._wants_native_menu()
         self.window = webview.create_window(
             APP_NAME, url,
-            width=1280, height=840, min_size=(980, 660),
+            # The first time, the smallest size; after that, the size it had when you left it.
+            width=(size or MIN_SIZE)[0], height=(size or MIN_SIZE)[1], min_size=MIN_SIZE,
             background_color=_BACKGROUNDS["dark" if theme == "system" else theme],
             text_select=True,
             frameless=self.custom and SYSTEM != "macos",
@@ -111,6 +118,36 @@ class DesktopWindow:
         self.window.events.shown += self._on_shown
         self.window.events.maximized += lambda *_: self._set_maximized(True)
         self.window.events.restored += lambda *_: self._set_maximized(False)
+        self._on_resize = on_resize
+        self._resize_timer: Optional[threading.Timer] = None
+        self.window.events.resized += self._on_resized
+
+    def _on_resized(self, *_args) -> None:
+        """Remember the window's size (once it settles, and not while maximized)."""
+        if self._on_resize is None:
+            return
+        if self._resize_timer is not None:
+            self._resize_timer.cancel()
+
+        def save():
+            if not self._maximized and self.window.width and self.window.height:
+                self._on_resize(int(self.window.width), int(self.window.height))
+        self._resize_timer = threading.Timer(0.6, save)
+        self._resize_timer.daemon = True
+        self._resize_timer.start()
+
+    def reset_layout(self) -> None:
+        """Start over: the window back to its smallest size, the sidebar to its narrowest."""
+        def reset():
+            if self._maximized:
+                self.window.restore()
+            self.window.resize(*MIN_SIZE)
+            if self._chrome is not None:
+                self._invoke(self._chrome.reset_sidebar_width)  # AppKit: on the main thread
+        try:
+            reset()
+        except Exception:
+            log.exception("Could not reset the window's size")
 
     # --- set-up ---
 
@@ -294,6 +331,17 @@ class DesktopWindow:
             except Exception:
                 log.exception("Could not set up the macOS window chrome")
             self._push_state()
+            if self._glass_possible:
+                AppHelper.callLater(0.4, confirm_glass)
+
+        def confirm_glass():
+            try:
+                from . import macos
+                self._liquid_glass = macos.glass_in_window(native)
+            except Exception:
+                log.exception("Could not tell whether the window is in Liquid Glass")
+            if self._liquid_glass:
+                self._push_state()
 
         AppHelper.callAfter(setup)
 

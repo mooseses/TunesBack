@@ -24,6 +24,8 @@ from Foundation import NSObject
 
 log = logging.getLogger(__name__)
 
+SIDEBAR_WIDTH = 180  # a new installation's sidebar: the narrowest the page's own sidebar goes
+
 STRIP = 28  # the title bar's height: the strip that drags the window
 SYMBOLS = {
     "overview": "square.grid.2x2", "charts": "list.number", "age": "hourglass", "wrapped": "sparkles",
@@ -278,12 +280,18 @@ class Chrome:
         self.window.setFrame_display_(frame, True)  # setting a view controller resizes the window to fit it
         split.splitView().setAutosaveName_("TunesBack Sidebar")  # remembers the width
         if not AppKit.NSUserDefaults.standardUserDefaults().objectForKey_("NSSplitView Subview Frames TunesBack Sidebar"):
-            split.splitView().setPosition_ofDividerAtIndex_(220, 0)
+            split.splitView().setPosition_ofDividerAtIndex_(SIDEBAR_WIDTH, 0)
         # Whether it's shown comes from TunesBack's own setting, not the autosave: that would also
         # remember set-up's temporary collapse if TunesBack quit during set-up.
         item.setCollapsed_(collapsed)
         self.split, self.sidebar_item, self.sidebar = split, item, sidebar
         log.info("Native sidebar installed")
+
+    def reset_sidebar_width(self) -> None:
+        """Start over: forget the remembered width and go back to the narrowest sidebar."""
+        AppKit.NSUserDefaults.standardUserDefaults().removeObjectForKey_("NSSplitView Subview Frames TunesBack Sidebar")
+        if self.split is not None:
+            self.split.splitView().setPosition_ofDividerAtIndex_(SIDEBAR_WIDTH, 0)
 
     # --- requests from the page ---
 
@@ -314,6 +322,23 @@ class Chrome:
         elif self._collapsed_before_hiding is not None:
             self.sidebar_item.setCollapsed_(self._collapsed_before_hiding)
             self._collapsed_before_hiding = None
+
+
+def glass_in_window(ns_window) -> bool:
+    """Whether AppKit drew any of this window in Liquid Glass (its glass views are in the window).
+    The SDK and macOS version say Liquid Glass is possible; this says it actually happened
+    (it doesn't with Reduce Transparency's older look, or in compatibility mode)."""
+    root = ns_window.contentView().superview() or ns_window.contentView()
+    found, stack, seen = [], [root], 0
+    while stack and seen < 4000:
+        view = stack.pop()
+        seen += 1
+        name = view.className()
+        if "Glass" in name:
+            found.append(name)
+        stack.extend(view.subviews())
+    log.info("Liquid Glass views in the window: %s", ", ".join(sorted(set(found))) or "none")
+    return bool(found)
 
 
 def set_appearance(theme: str) -> None:
