@@ -1,0 +1,53 @@
+name: Website
+# Publishes site/ to GitHub Pages (https://mooseses.github.io/TunesBack/), with the app's own
+# icon, fonts, service logos and screenshots copied in so there's one copy of each.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "site/**"
+      - "docs/screenshots/**"
+      - "tunesback/assets/**"
+      - "tunesback/web/js/brands.js"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put the site together
+        run: |
+          mkdir -p _site/assets/fonts _site/assets/screenshots
+          cp -r site/* _site/
+          cp tunesback/assets/icon.png _site/assets/
+          cp tunesback/web/js/brands.js _site/assets/
+          for weight in Regular SemiBold Bold ExtraBold; do cp "tunesback/assets/fonts/Figtree-$weight.ttf" _site/assets/fonts/; done
+          cp docs/screenshots/*.jpg _site/assets/screenshots/
+          touch _site/.nojekyll
+          find _site -type f | sort
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

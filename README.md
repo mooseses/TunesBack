@@ -12,7 +12,7 @@ worked out entirely on your computer.
 [![Build](https://github.com/mooseses/TunesBack/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/mooseses/TunesBack/actions/workflows/build.yml)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 
-**[Download](#download)** · [Features](#features) · [Sources](#sources) · [How it works](#how-the-numbers-are-worked-out) · [Privacy](PRIVACY.md)
+**[Download](#download)** · [Website](https://mooseses.github.io/TunesBack/) · [Features](#features) · [Sources](#sources) · [How it works](#how-the-numbers-are-worked-out) · [Privacy](PRIVACY.md)
 
 </div>
 
