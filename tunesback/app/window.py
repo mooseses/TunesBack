@@ -84,6 +84,10 @@ class DesktopWindow:
         self._sidebar_hidden = sidebar_hidden
         self._chrome = None  # macOS: the drag strip and native sidebar (see macos.py)
         self._material: Optional[str] = None  # "mica" once applied
+        # macOS: whether the system draws this app in Liquid Glass (the page's controls follow)
+        self._liquid_glass = SYSTEM == "macos" and _liquid_glass()
+        if SYSTEM == "macos":
+            log.info("Liquid Glass %s", "available" if self._liquid_glass else "not available (needs macOS 26 and its SDK)")
         self._state_seq = 0  # numbers each state sent to the page, which may arrive out of order
         self._webview = webview
         self._maximized = False
@@ -313,6 +317,7 @@ class DesktopWindow:
             "maximized": self._maximized,
             "sidebar": "native" if self._chrome is not None and self._chrome.native_sidebar else "html",
             "material": self._material,
+            "liquid_glass": self._liquid_glass,
             "seq": self._state_seq,
         }
 
@@ -465,6 +470,15 @@ def _dwm_set(hwnd: int, attribute: int, value: int) -> int:
     import ctypes
     data = ctypes.c_int(value)
     return ctypes.windll.dwmapi.DwmSetWindowAttribute(ctypes.c_void_p(hwnd), attribute, ctypes.byref(data), ctypes.sizeof(data))
+
+
+def _liquid_glass() -> bool:
+    from .macho import liquid_glass
+    try:
+        return liquid_glass()
+    except Exception:  # an unreadable executable: assume the older look
+        log.debug("Couldn't tell whether Liquid Glass is available", exc_info=True)
+        return False
 
 
 def _winforms_dark_frame(form, dark: bool) -> None:

@@ -138,6 +138,7 @@ class Api:
         return {
             "version": __version__,
             "version_label": version_label(),
+            "prerelease": bool(parse_version(__version__) and parse_version(__version__).prerelease),
             "platform": platform.system(),
             "desktop": self.window is not None,
             "window": self.window.info() if self.window else None,
@@ -776,7 +777,7 @@ class Api:
                           or time.time() - self.settings["update_last"] < self.UPDATE_EVERY):
             return {"checked": False}
         try:
-            result = updates.check()
+            result = updates.check(betas=self.settings["update_betas"])
         except SourceError as e:
             log.info("Update check: %s", e)
             return {"checked": False} if automatic else {"error": str(e)}

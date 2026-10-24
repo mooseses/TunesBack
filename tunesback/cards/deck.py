@@ -72,6 +72,10 @@ def plan(data: CardData, deck: Optional[dict] = None) -> list[CardChoice]:
     seed = deck["seed"]
     choices = []
     applicable = [t for t in CARD_TYPES.values() if t.layouts and t.applies(data)]
+    # Mix after a shuffle deals the themes out in a shuffled order, so cards next to
+    # each other differ and none repeats until every theme has been used.
+    dealt = list(THEME_IDS)
+    random.Random(f"{seed}:themes").shuffle(dealt)
     for position, card in enumerate(applicable):
         own = deck["cards"].get(card.id, {})
         rng = random.Random(f"{seed}:{card.id}")
@@ -84,7 +88,7 @@ def plan(data: CardData, deck: Optional[dict] = None) -> list[CardChoice]:
         elif seed == 0:
             theme = MIX_ROTATION[position % len(MIX_ROTATION)]
         else:
-            theme = rng.choice(THEME_IDS)
+            theme = dealt[position % len(dealt)]
         choices.append(CardChoice(card.id, layout, theme, bool(own.get("hidden"))))
     return choices
 

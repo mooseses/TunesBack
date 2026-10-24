@@ -48,14 +48,28 @@ export function initWindow(windowInfo, appHooks) {
   };
   info = windowInfo;
   document.addEventListener("keydown", onShortcut);
+  document.addEventListener("scroll", showScrollbar, { capture: true, passive: true });
   applyWindow();
+}
+
+/** Windows: scrollbars show while a view scrolls, then fade away again (see styles.css). */
+const scrollTimers = new WeakMap();
+function showScrollbar(event) {
+  if (document.body.dataset.platform !== "windows") return;
+  const view = event.target === document ? document.scrollingElement : event.target;
+  if (!(view instanceof Element)) return;
+  view.classList.add("is-scrolling");
+  clearTimeout(scrollTimers.get(view));
+  scrollTimers.set(view, setTimeout(() => view.classList.remove("is-scrolling"), 900));
 }
 
 function applyWindow() {
   const custom = !!(info && info.custom_title_bar);
   document.documentElement.classList.toggle("material-mica", !!info && info.material === "mica");
-  // With the native macOS sidebar, the page's controls take on Liquid Glass to match it.
-  document.documentElement.classList.toggle("material-glass", !!info && info.platform === "macos" && info.sidebar === "native");
+  // With the native macOS sidebar in Liquid Glass (macOS 26 and an app built for it), the
+  // page's controls take on the same look. Elsewhere they stay as they are.
+  document.documentElement.classList.toggle("material-glass",
+    !!info && info.platform === "macos" && info.sidebar === "native" && !!info.liquid_glass);
   document.body.classList.toggle("custom-titlebar", custom && info.platform !== "macos");
   document.body.classList.toggle("mac-inset-titlebar", custom && info.platform === "macos");
   document.body.classList.toggle("maximized", !!(info && info.maximized));

@@ -43,6 +43,7 @@ DEFAULTS = {
     "overview_tiles": None,
     "title_bar_menu": True,
     "update_check": True,  # look for a new version on GitHub once a day
+    "update_betas": None,  # offer beta versions; None: only if this is a beta
     "update_last": 0,  # when that last happened (Unix time)
     "update_skipped": "",  # a release tag you said not to be reminded about  # show the menu bar in TunesBack's title bar (Alt shows it when hidden)
 }
@@ -170,6 +171,8 @@ class Settings:
                 if not isinstance(value, (int, float)) or isinstance(value, bool):
                     continue
                 value = max(0, int(value))
+            if key == "update_betas" and value is not None:
+                value = bool(value)
             if key == "update_skipped":
                 value = str(value)[:60] if value else ""
             if key == "age_overview" and value is not None:

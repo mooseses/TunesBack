@@ -8,22 +8,39 @@ from .base import Ctx
 
 @layout("top_artists", "billboard", "Billboard")
 def artists_billboard(ctx: Ctx) -> None:
-    """Names in big type, getting smaller down the list."""
+    """Names in big type, getting smaller down the list, stacked closely and centred in the card."""
     c, t, d = ctx.c, ctx.t, ctx.d
     ctx.background()
     y = ctx.header("My top artists")
     bottom = ctx.footer()
     artists = d.artists[:5]
     sizes = [ctx.s(150, 96) * k for k in (1, 0.8, 0.68, 0.6, 0.54)]
-    row = (bottom - y - ctx.s(40, 20)) / max(1, len(artists))
-    for i, artist in enumerate(artists):
-        top = y + ctx.s(40, 20) + i * row
-        size = min(sizes[i], row * 0.55)
-        number = c.text(f"{i + 1}", ctx.m, top, t.small(ctx.s(30, 24), fill=t.accent), 80)
-        name = c.text(artist.title, ctx.m + ctx.s(64, 52), top, t.headline(size, fill=t.accent if i == 0 else t.fg, min_size=size * 0.5),
-                      ctx.inner - ctx.s(64, 52))
-        c.text(d.metric(artist), ctx.m + ctx.s(64, 52), top + name.height + name.descent + 12,
-               t.text(ctx.s(30, 22)), ctx.inner - ctx.s(64, 52))
+    indent = ctx.s(64, 52)
+    width = ctx.inner - indent
+    gap, under = ctx.s(34, 20), ctx.s(10, 6)
+    area_top = y + ctx.s(40, 20)
+    area = bottom - area_top
+
+    def measure(scale: float) -> list[tuple]:
+        rows = []
+        for i, artist in enumerate(artists):
+            size = sizes[i] * scale
+            name = fit(artist.title, t.headline(size, fill=t.accent if i == 0 else t.fg, min_size=size * 0.5), width)
+            metric = fit(d.metric(artist), t.text(ctx.s(30, 22)), width)
+            rows.append((artist, name, metric, name.height + name.descent + under + metric.height + metric.descent))
+        return rows
+
+    rows = measure(1)
+    total = sum(r[3] for r in rows) + gap * (len(rows) - 1)
+    if total > area:  # long names wrapped: shrink everything to fit
+        rows = measure(max(0.5, area / total * 0.97))
+        total = sum(r[3] for r in rows) + gap * (len(rows) - 1)
+    top = area_top + max(0, (area - total) / 2)
+    for i, (artist, name, metric, height) in enumerate(rows):
+        c.text(f"{i + 1}", ctx.m, top, t.small(ctx.s(30, 24), fill=t.accent), 80)
+        c.draw_block(name, ctx.m + indent, top)
+        c.draw_block(metric, ctx.m + indent, top + name.height + name.descent + under)
+        top += height + gap
 
 
 @layout("top_artists", "spotlight", "Spotlight")

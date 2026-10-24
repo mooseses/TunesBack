@@ -58,8 +58,8 @@ def test_automatic_checks(tmp_path, monkeypatch):
     api = Api(Settings(tmp_path / "settings.json"), thumbnail_dir=tmp_path / "t", store_path=tmp_path / "lib.sqlite")
     calls = []
 
-    def fake_check():
-        calls.append(1)
+    def fake_check(betas=None):
+        calls.append(betas)
         return {"current": "2.0.0 Beta 1", "available": True, "version": "2.0.0", "tag": "v2.0.0"}
     monkeypatch.setattr(updates, "check", fake_check)
     assert api.call("check_updates", {"automatic": True})["available"] is True
@@ -70,7 +70,11 @@ def test_automatic_checks(tmp_path, monkeypatch):
     api.call("update_settings", {"changes": {"update_last": 0, "update_check": False}})
     assert api.call("check_updates", {"automatic": True}) == {"checked": False} and len(calls) == 3
 
-    def offline():
+    api.call("update_settings", {"changes": {"update_check": True, "update_betas": True, "update_skipped": ""}})
+    api.call("check_updates", {})
+    assert calls[-1] is True  # the beta setting reaches the check
+
+    def offline(betas=None):
         raise SourceError("Couldn't reach GitHub.")
     monkeypatch.setattr(updates, "check", offline)
     assert api.call("check_updates", {}) == {"error": "Couldn't reach GitHub."}

@@ -55,7 +55,7 @@ export function render(root) {
 
   const format = segmented(options.formats.map((f) => [f.id, f.name]), deck.format,
     (value) => change({ ...deck, format: value }), "Format");
-  const shuffleButton = h("button.btn", { onclick: shuffle, title: "Give every card a new design" }, icon("shuffle"), "Shuffle");
+  const shuffleButton = h("button.btn", { onclick: shuffle, title: "Give every card its own new layout and theme" }, icon("shuffle"), "Shuffle");
 
   root.append(
     h("div.card.style-bar",
@@ -145,11 +145,12 @@ function change(deck) {
 function shuffle() {
   const before = state.deck.deck;
   const seed = 1 + Math.floor(Math.random() * 2 ** 31);
-  // A shuffle redesigns every card, so per-card layouts and themes start over (hidden cards stay hidden).
+  // A shuffle redesigns every card, each with its own layout and theme (so the deck becomes
+  // Mix); per-card choices start over and hidden cards stay hidden.
   const cards = {};
   for (const [type, choice] of Object.entries(before.cards)) if (choice.hidden) cards[type] = { hidden: true };
-  change({ ...before, seed, cards });
-  toast("Shuffled the designs", { action: { label: "Undo", run: () => change(before) } });
+  change({ ...before, seed, theme: "mix", cards });
+  toast("Shuffled: every card has its own design", { action: { label: "Undo", run: () => change(before) } });
 }
 
 function saveBar(visible) {

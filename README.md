@@ -254,7 +254,7 @@ If album art doesn't appear:
 
 Not sure which Mac you have? Apple menu → **About This Mac**: "Chip: Apple M…" is Apple silicon, "Processor: Intel…" is Intel.
 
-TunesBack checks GitHub for new versions (About TunesBack → **Check for Updates**, and once a day on its own unless you turn that off in Settings).
+TunesBack checks GitHub for new versions (About TunesBack → **Check for Updates**, and once a day on its own unless you turn that off in Settings). Turn on **Get beta versions** in Settings to be offered betas too.
 
 > **macOS:** You may need to go to **System Settings → Privacy & Security** and click "Open Anyway" the first time.
 

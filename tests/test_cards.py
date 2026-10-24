@@ -143,3 +143,12 @@ def test_timeline_cards_render(sample_data):
             for theme in THEMES:
                 for fmt in ("story", "square"):
                     draw(CardChoice(card, layout, theme), data, fmt, scale=0.2)
+
+
+def test_shuffled_mix_gives_neighbouring_cards_different_themes(sample_data):
+    from tunesback.cards.deck import THEME_IDS
+    choices = plan(sample_data, {"theme": "mix", "seed": 12345})
+    themes = [c.theme for c in choices]
+    window = min(len(themes), len(THEME_IDS))
+    assert len(set(themes[:window])) == window
+    assert themes != [c.theme for c in plan(sample_data, {"theme": "mix", "seed": 999})]
