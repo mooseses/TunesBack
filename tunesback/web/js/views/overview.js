@@ -39,12 +39,13 @@ const CELL = 70;
 const GAP = 12;
 
 /**
- * Columns for a grid this wide: an even number (every tile is two or four cells wide,
- * so an odd one would always be left empty), and at least four, so every tile fits.
+ * Columns for a grid this wide, in groups of four (like Windows Phone's tile groups): every
+ * tile is two or four cells wide, so a Wide tile, a Large tile or a pair of Medium tiles
+ * fills a group exactly and the standard layout packs without holes at any width.
  */
 export function gridFor(width) {
   const fit = Math.floor((width + GAP) / (CELL + GAP));
-  return { cols: Math.max(4, Math.min(24, fit - (fit % 2))), cell: CELL };
+  return { cols: Math.max(4, Math.min(24, fit - (fit % 4))), cell: CELL };
 }
 
 // ---------- the page ----------

@@ -171,10 +171,12 @@ export const WIDGETS = {
 
 /** Today's Overview, as tiles in order. Tiles that can't show anything for a recap are skipped. */
 export const DEFAULT_LAYOUT = [
+  // In four-cell groups: a Wide tile, a Large one or a pair of Medium ones each fill a group,
+  // so the tiles pack without holes at 8, 12 or 16 columns.
   ["listening-time", "M"], ["plays", "M"], ["top-artist", "L"],
   ["new-finds", "M"], ["skips", "M"], ["top-song", "L"],
-  ["top-artists", "XL"], ["top-album", "L"], ["age", "L"],
-  ["genres", "L"], ["decades", "L"],
+  ["top-artists", "XL"], ["top-album", "L"], ["genres", "L"],
+  ["age", "L"], ["decades", "L"],
   ["listen-invite", "L"], ["streak", "M"], ["days-active", "M"],
   ["busiest-day", "M"], ["new-artists", "M"], ["time-of-day", "L"],
   ["weekdays", "L"], ["months", "XL"],
