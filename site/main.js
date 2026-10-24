@@ -35,7 +35,7 @@ async function detect() {
     } catch { /* keep the guess */ }
     return arch === "x86"
       ? { platform: "macos", ext: "x86_64.dmg", label: "Download for Mac (Intel)" }
-      : { platform: "macos", ext: "arm64.dmg", label: "Download for Mac", other: "Intel Mac? Choose it below." };
+      : { platform: "macos", ext: "arm64.dmg", label: "Download for Mac", other: "Intel Macs: see below" };
   }
   if (/linux|x11|cros/i.test(platform + ua)) return { platform: "linux", label: "Download for Linux" };
   return null;
@@ -98,3 +98,151 @@ async function setUp() {
 }
 
 setUp();
+
+// ---------- the card browser ----------
+// A fan of cards (cards/, drawn by the app from a sample library when the site is built):
+// arrows, keys, a swipe or a click on a neighbour moves through the deck; each card keeps
+// the layout and theme you pick for it, and Shuffle deals every card its own.
+
+const deckEl = document.getElementById("deck-cards");
+
+async function setUpStudio() {
+  let manifest;
+  try {
+    const response = await fetch("cards/cards.json");
+    if (!response.ok) throw new Error(String(response.status));
+    manifest = await response.json();
+  } catch {
+    document.querySelector(".studio-body").hidden = true;
+    document.querySelector(".studio-fallback").hidden = false;
+    return;
+  }
+  const { cards, themes } = manifest;
+  const random = (n) => Math.floor(Math.random() * n);
+  // Each card starts in its first layout, with the themes dealt out so neighbours differ.
+  const dealt = themes.map((t) => t.id).sort(() => Math.random() - 0.5);
+  const choice = cards.map((card, i) => ({ layout: card.layouts[0].id, theme: dealt[i % dealt.length] }));
+  let current = 0;
+  const src = (i) => `cards/${cards[i].id}-${choice[i].layout}-${choice[i].theme}.webp`;
+
+  const figures = cards.map((card, i) => {
+    const img = new Image();
+    img.alt = card.name;
+    img.decoding = "async";
+    img.src = src(i);
+    const figure = document.createElement("figure");
+    figure.className = "deck-card";
+    figure.append(img);
+    figure.addEventListener("click", () => { if (i !== current) go(i); });
+    deckEl.append(figure);
+    return figure;
+  });
+
+  /** The fan: the current card in front, two on each side tilting away, the rest hidden. */
+  function place() {
+    const n = cards.length;
+    figures.forEach((figure, i) => {
+      let offset = i - current;
+      if (offset > n / 2) offset -= n;
+      if (offset < -n / 2) offset += n;
+      const side = Math.sign(offset);
+      const step = Math.abs(offset);
+      const visible = step <= 2;
+      figure.classList.toggle("current", offset === 0);
+      figure.style.zIndex = String(20 - step);
+      figure.style.opacity = visible ? "1" : "0";
+      figure.style.pointerEvents = visible ? "auto" : "none";
+      figure.style.filter = step ? `brightness(${1 - step * 0.2})` : "";
+      figure.style.transform = `translate(-50%, -50%) translateX(${side * (step ? 40 + (step - 1) * 26 : 0)}%)
+        scale(${1 - step * 0.13}) rotateY(${-side * step * 12}deg) rotateZ(${side * step * 2.5}deg)`;
+      figure.setAttribute("aria-hidden", String(offset !== 0));
+    });
+    // Load the neighbours' pictures ahead of time.
+    for (const d of [1, -1, 2, -2]) new Image().src = src((current + d + n) % n);
+    renderControls();
+  }
+
+  function go(i) {
+    current = (i + cards.length) % cards.length;
+    place();
+  }
+
+  /** Swap one card's picture without a flash: the new one fades in once it has loaded. */
+  function repaint(i) {
+    const figure = figures[i];
+    const next = new Image();
+    next.alt = cards[i].name;
+    next.src = src(i);
+    next.style.opacity = "0";
+    next.onload = () => {
+      figure.append(next);
+      requestAnimationFrame(() => { next.style.opacity = "1"; });
+      const old = [...figure.querySelectorAll("img")].filter((img) => img !== next);
+      setTimeout(() => old.forEach((img) => img.remove()), 280);
+    };
+  }
+
+  const chip = (label, pressed, onclick, swatch) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "chip";
+    button.setAttribute("aria-pressed", String(pressed));
+    if (swatch) {
+      const dot = document.createElement("span");
+      dot.className = "swatch";
+      dot.style.background = swatch.length > 1
+        ? `conic-gradient(${swatch.map((c, k) => `${c} ${(k / swatch.length) * 360}deg ${((k + 1) / swatch.length) * 360}deg`).join(", ")})`
+        : swatch[0];
+      button.append(dot);
+    }
+    button.append(label);
+    button.addEventListener("click", onclick);
+    return button;
+  };
+
+  function renderControls() {
+    const card = cards[current];
+    document.getElementById("studio-name").textContent = card.name;
+    document.getElementById("studio-count").textContent = `${current + 1} of ${cards.length}`;
+    document.getElementById("studio-layouts").replaceChildren(...card.layouts.map((layout) =>
+      chip(layout.name, layout.id === choice[current].layout, () => {
+        choice[current].layout = layout.id;
+        repaint(current);
+        renderControls();
+      })));
+    document.getElementById("studio-themes").replaceChildren(...themes.map((theme) =>
+      chip(theme.name, theme.id === choice[current].theme, () => {
+        choice[current].theme = theme.id;
+        repaint(current);
+        renderControls();
+      }, theme.swatch)));
+  }
+
+  document.getElementById("studio-shuffle").addEventListener("click", () => {
+    const order = themes.map((t) => t.id).sort(() => Math.random() - 0.5);
+    cards.forEach((card, i) => {
+      choice[i] = { layout: card.layouts[random(card.layouts.length)].id, theme: order[i % order.length] };
+      repaint(i);
+    });
+    renderControls();
+  });
+  document.querySelector(".deck-arrow.prev").addEventListener("click", () => go(current - 1));
+  document.querySelector(".deck-arrow.next").addEventListener("click", () => go(current + 1));
+  const deck = document.getElementById("deck");
+  deck.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft") { e.preventDefault(); go(current - 1); }
+    if (e.key === "ArrowRight") { e.preventDefault(); go(current + 1); }
+  });
+  // Swipe on touch screens (and drag with a mouse).
+  let startX = null;
+  deck.addEventListener("pointerdown", (e) => { startX = e.clientX; });
+  deck.addEventListener("pointerup", (e) => {
+    if (startX === null) return;
+    const dx = e.clientX - startX;
+    startX = null;
+    if (Math.abs(dx) > 40) go(current + (dx < 0 ? 1 : -1));
+  });
+  place();
+}
+
+setUpStudio();

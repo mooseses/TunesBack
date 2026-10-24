@@ -73,7 +73,7 @@ export const WIDGETS = {
     render: (r, { by }) => genres(r, by),
   },
   age: {
-    title: "Listening age", description: "How old your taste is. Shown once you've worked it out.", sizes: ["L", "XL"], size: "L",
+    title: "Listening age", description: "The era of music you keep coming back to. Shown once you've worked it out.", sizes: ["L", "XL"], size: "L",
     render: (r) => listeningAge(r),
   },
   decades: {
@@ -335,7 +335,7 @@ function listeningAge(report) {
       h("div.age",
         h("div.big", { "aria-hidden": "true" }, "??"),
         h("div",
-          h("div", { style: { fontWeight: 700, fontSize: "17px" } }, "How old is your taste?"),
+          h("div", { style: { fontWeight: 700, fontSize: "17px" } }, "What era is your music from?"),
           h("p.muted", { style: { fontSize: "14px", margin: "4px 0 12px" } },
             "Find the era of music you keep coming back to, on its own page."),
           h("button.btn.btn-small", { onclick: () => navigate("age") }, "Work it out", icon("arrow")))));

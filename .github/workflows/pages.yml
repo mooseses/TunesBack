@@ -1,6 +1,7 @@
 name: Website
 # Publishes site/ to GitHub Pages (https://mooseses.github.io/TunesBack/), with the app's own
-# icon, fonts, service logos and screenshots copied in so there's one copy of each.
+# icon, fonts, service logos and screenshots copied in so there's one copy of each, and every
+# Wrapped card design drawn by the app from the demo library for the card browser.
 on:
   push:
     branches:
@@ -10,6 +11,8 @@ on:
       - "docs/screenshots/**"
       - "tunesback/assets/**"
       - "tunesback/web/js/brands.js"
+      - "tunesback/cards/**"
+      - "packaging/demo/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -27,6 +30,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Draw the cards
+        run: |
+          pip install .
+          python packaging/demo/build_demo.py demo
+          python packaging/demo/render_cards.py demo _site/cards
       - name: Put the site together
         run: |
           mkdir -p _site/assets/fonts _site/assets/screenshots
