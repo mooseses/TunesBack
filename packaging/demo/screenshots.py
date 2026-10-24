@@ -73,6 +73,9 @@ async def shoot(url: str, out: Path, chromium: str | None) -> None:
         await page.click(".nav-item[data-view=wrapped]")
         await page.wait_for_selector(".card-tile img", timeout=120_000)
         await page.wait_for_load_state("networkidle")
+        await page.wait_for_function("[...document.querySelectorAll('.card-tile img')].filter((i) => i.getBoundingClientRect().top < innerHeight)"
+                                     ".every((i) => i.complete && i.naturalWidth)",
+                                     timeout=120_000)
         await page.wait_for_timeout(3000)
         await snap("wrapped")
 
@@ -97,12 +100,17 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as home:
-        os.environ.update({"HOME": home, "XDG_CONFIG_HOME": f"{home}/.config",
-                           "XDG_CACHE_HOME": f"{home}/.cache", "XDG_DATA_HOME": f"{home}/.local"})
+        # TunesBack gets the throwaway home; Playwright keeps the real one, where its browser is.
+        own = {"HOME": home, "XDG_CONFIG_HOME": f"{home}/.config",
+               "XDG_CACHE_HOME": f"{home}/.cache", "XDG_DATA_HOME": f"{home}/.local"}
+        real = dict(os.environ)
+        os.environ.update(own)
         seed(args.demo.resolve())
+        os.environ.clear()
+        os.environ.update(real)
         port = free_port()
         server = subprocess.Popen([sys.executable, "-m", "tunesback", "--browser", "--no-open", "--port", str(port)],
-                                  cwd=ROOT, env=os.environ)
+                                  cwd=ROOT, env={**real, **own})
         try:
             url = f"http://127.0.0.1:{port}/"
             for _ in range(120):
