@@ -44,15 +44,15 @@ export const WIDGETS = {
     render: (r) => kpi("Skips", number(r.total_skips), null, r.skipped.length ? `across ${plural(r.skipped.length, "song")}` : "nothing skipped"),
   },
   "top-artist": {
-    title: "Top artist", description: "Your #1 artist.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Top artist", description: "Your #1 artist.", sizes: ["L", "XL"], size: "L",
     render: (r, { by }) => highlight("Top artist", rankedCached(r, "artists", by)[0], { round: true, fallback: "artist" }),
   },
   "top-album": {
-    title: "Top album", description: "Your #1 album.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Top album", description: "Your #1 album.", sizes: ["L", "XL"], size: "L",
     render: (r, { by }) => highlight("Top album", rankedCached(r, "albums", by)[0], { fallback: "album" }),
   },
   "top-song": {
-    title: "Top song", description: "Your #1 song.", sizes: ["M", "L", "XL"], size: "L",
+    title: "Top song", description: "Your #1 song.", sizes: ["L", "XL"], size: "L",
     render: (r, { by }) => highlight("Top song", rankedCached(r, "songs", by)[0], { fallback: "song" }),
   },
   "top-artists": {

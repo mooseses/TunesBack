@@ -28,6 +28,7 @@ function append(el, children) {
 }
 
 const ICONS = {
+  chevron: '<path d="m6 9 6 6 6-6"/>',
   overview: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
   charts: '<path d="M4 6h10M4 12h16M4 18h7"/>',
   wrapped: '<path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',

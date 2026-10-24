@@ -33,8 +33,10 @@ function save(next) {
 
 // ---------- the tile grid ----------
 
-const CELL = 100; // px: a cell's size in the smallest window, kept at every size
-const GAP = 14;
+// A cell's size (px), the same at every window size: the smallest window (980 px, with a
+// sidebar up to 260 px wide and a scrollbar) fits four Medium tiles, eight cells, across.
+const CELL = 70;
+const GAP = 12;
 
 /**
  * Columns for a grid this wide: an even number (every tile is two or four cells wide,
@@ -82,6 +84,7 @@ export function render(root) {
 function relayout(grid, width = grid.clientWidth) {
   const { cols, cell } = gridFor(width);
   lastWidth = width;
+  lastCols = cols;
   grid.style.setProperty("--cols", cols);
   grid.style.setProperty("--cell", `${cell}px`);
   for (const card of grid.children) {
@@ -89,7 +92,21 @@ function relayout(grid, width = grid.clientWidth) {
     card.style.gridColumn = `span ${Math.min(w, cols)}`;
     card.style.gridRow = `span ${rows}`;
   }
-  for (const card of grid.children) fit(card);
+  for (const card of grid.children) {
+    fit(card);
+    fitFigure(card.querySelector(".kpi > .value"));
+  }
+}
+
+/** A tile's big number gets smaller until it fits on one line. */
+function fitFigure(figure) {
+  if (!figure) return;
+  figure.style.fontSize = "";
+  let size = parseFloat(getComputedStyle(figure).fontSize);
+  while (figure.scrollWidth > figure.clientWidth + 0.5 && size > 18) {
+    size -= 2;
+    figure.style.fontSize = `${size}px`;
+  }
 }
 
 // Rows of a list, chart legend or cover wall: the ones that don't fit their tile are left out.
@@ -117,11 +134,16 @@ function contentHeight(card) {
 // The grid's width changes with the window and with the sidebar (shown, hidden or resized).
 let lastWidth = 0;
 let resizeFrame = 0;
+let lastCols = 0;
 const sizeWatch = new ResizeObserver(([entry]) => {
   cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
     const grid = entry.target;
-    if (grid.isConnected && grid.clientWidth !== lastWidth) relayout(grid);
+    if (!grid.isConnected || grid.clientWidth === lastWidth) return;
+    // A change in the number of columns moves tiles: slide them to their new places.
+    const before = gridFor(grid.clientWidth).cols !== lastCols ? rects(grid) : null;
+    relayout(grid);
+    if (before) playFlip(grid, before);
   });
 });
 
@@ -141,6 +163,9 @@ function playFlip(grid, from = flipFrom) {
   flipFrom = null;
   if (!from || reducedMotion()) return;
   for (const card of grid.children) {
+    // A slide still running (the window is being resized) gives way to the new one, which
+    // starts from where the tile is on screen now.
+    for (const running of card.getAnimations()) running.cancel();
     const before = from.get(card.dataset.id);
     const after = card.getBoundingClientRect();
     if (!before) {
@@ -196,12 +221,12 @@ export function setEditing(on) {
 /** For the top bar: Customize, or the edit-mode buttons. */
 export function topbarActions() {
   if (!editing) {
-    return [h("button.btn", { onclick: () => setEditing(true), title: "Customize: move, resize, add and remove widgets" },
-      icon("edit"), h("span.btn-label", "Customize"))];
+    return [h("button.btn.btn-icon", { onclick: () => setEditing(true), title: "Customize: move, resize, add and remove widgets",
+      "aria-label": "Customize" }, icon("edit"))];
   }
   return [
-    h("button.btn", { onclick: openDrawer, title: "Add widget" }, icon("plus"), h("span.btn-label", "Add widget")),
-    h("button.btn.btn-ghost", { onclick: reset, title: "Back to the standard layout" }, icon("undo"), h("span.btn-label", "Reset")),
+    h("button.btn.btn-icon", { onclick: openDrawer, title: "Add widget", "aria-label": "Add widget" }, icon("plus")),
+    h("button.btn.btn-ghost.btn-icon", { onclick: reset, title: "Back to the standard layout", "aria-label": "Reset" }, icon("undo")),
     h("button.btn.btn-primary", { onclick: () => { closeDrawer(); setEditing(false); } }, "Done"),
   ];
 }

@@ -142,10 +142,19 @@ function renderPeriodChip() {
   chip.replaceChildren(icon("calendar"), h("span.period-text", text));
 }
 
-// The unit and ranking toggles persist while you stay in a view, so a change
-// (from a click, the menu or a shortcut) slides their indicator instead of
-// redrawing them.
-let topbar = { key: null, unit: null, rank: null };
+// The unit and ranking toggles live in the View popover and persist while you stay in a
+// view, so a change (from a click, the menu or a shortcut) slides their indicator and
+// updates the button's label instead of redrawing them. The button has a fixed width and
+// the top bar keeps one layout at every window size.
+let topbar = { key: null, unit: null, rank: null, label: null };
+
+const UNIT_NAMES = { hours: "Hours", minutes: "Minutes", days: "Days" };
+const RANK_NAMES = { plays: "By plays", time: "By time" };
+
+function viewLabel() {
+  const rank = RANK_NAMES[state.settings.rank_by] ?? RANK_NAMES.plays;
+  return topbar.unit ? `${UNIT_NAMES[state.settings.unit] ?? UNIT_NAMES.hours} · ${rank}` : rank;
+}
 
 function renderTopbarActions() {
   const actions = document.getElementById("topbar-actions");
@@ -154,9 +163,11 @@ function renderTopbarActions() {
   if (topbar.key === key) {
     topbar.unit?.setValue(state.settings.unit);
     topbar.rank?.setValue(state.settings.rank_by);
+    if (topbar.label) topbar.label.textContent = viewLabel();
     return;
   }
-  topbar = { key, unit: null, rank: null };
+  closeViewMenu();
+  topbar = { key, unit: null, rank: null, label: null };
   actions.replaceChildren();
   if (!state.report || VIEWS[state.view].group !== "recap" || state.view === "age") return;
   if (state.view === "overview") actions.append(...overview.topbarActions());
@@ -164,11 +175,48 @@ function renderTopbarActions() {
   if (state.view !== "wrapped") {
     topbar.unit = segmented([["hours", "Hours"], ["minutes", "Minutes"], ["days", "Days"]], state.settings.unit,
       (unit) => { saveSettings({ unit }); render(); }, "Time unit");
-    actions.append(topbar.unit);
   }
   topbar.rank = segmented([["plays", "By plays"], ["time", "By time"]], state.settings.rank_by,
     (rank_by) => { saveSettings({ rank_by }); render(); }, "Rank by");
-  actions.append(topbar.rank);
+  actions.append(viewMenu());
+}
+
+let viewPopover = null;
+
+/** The View button: the current unit and ranking, with both toggles in a popover. */
+function viewMenu() {
+  topbar.label = h("span.view-label", viewLabel());
+  const button = h("button.btn.view-button", { type: "button", "aria-haspopup": "true", "aria-expanded": "false", title: "Time unit and ranking" },
+    topbar.label, icon("chevron"));
+  const popover = h("div.view-popover", { role: "dialog", "aria-label": "View", hidden: true },
+    topbar.unit && h("div.view-row", h("span.label", "Show time in"), topbar.unit),
+    h("div.view-row", h("span.label", "Rank by"), topbar.rank));
+  const wrap = h("div.view-menu", button, popover);
+  button.addEventListener("click", () => (popover.hidden ? openViewMenu(wrap) : closeViewMenu()));
+  return wrap;
+}
+
+function openViewMenu(wrap) {
+  closeViewMenu();
+  const popover = wrap.querySelector(".view-popover");
+  popover.hidden = false;
+  wrap.querySelector(".view-button").setAttribute("aria-expanded", "true");
+  popover.querySelector("[aria-pressed=true]")?.focus();
+  const outside = (e) => { if (!wrap.contains(e.target)) closeViewMenu(); };
+  const escape = (e) => { if (e.key === "Escape") { closeViewMenu(); wrap.querySelector(".view-button").focus(); } };
+  document.addEventListener("pointerdown", outside, true);
+  document.addEventListener("keydown", escape, true);
+  viewPopover = { wrap, outside, escape };
+}
+
+function closeViewMenu() {
+  if (!viewPopover) return;
+  const { wrap, outside, escape } = viewPopover;
+  viewPopover = null;
+  wrap.querySelector(".view-popover").hidden = true;
+  wrap.querySelector(".view-button").setAttribute("aria-expanded", "false");
+  document.removeEventListener("pointerdown", outside, true);
+  document.removeEventListener("keydown", escape, true);
 }
 
 // ---------- settings ----------
