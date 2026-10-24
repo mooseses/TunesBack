@@ -57,6 +57,7 @@ def fetch_cover(artist: str, album: str) -> bytes | None:
 
 
 def main(out: Path) -> None:
+    out = out.resolve()  # file URIs need an absolute path
     out.mkdir(parents=True, exist_ok=True)
     music = out / "Music"
     with SOURCE.open("rb") as f:
