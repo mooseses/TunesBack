@@ -947,7 +947,8 @@ body[data-platform="windows"] .nav-item.active::before {
    with nothing in it depending on the window: content is laid out for the tile, lists show
    what fits and big numbers shrink until they fit. */
 .widgets > .w { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 16px; }
-.widgets > .w > .card-title { flex: none; margin-bottom: 8px; font-size: 14px; }
+.widgets > .w > .card-title { flex: none; margin-bottom: 8px; font-size: 14px; white-space: nowrap; }
+.widgets > .w > .card-title > .muted { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .widgets > .w > .card-title .btn-small { height: 24px; padding: 0 6px; }
 .widgets > .w > .columns { flex: 1 1 0; height: auto; min-height: 0; padding-top: 12px; gap: 4px; }
 .widgets > .w .hbar { padding: 3px 0; grid-template-columns: 18px minmax(0, 104px) 1fr auto; gap: 8px; font-size: 13px; }
