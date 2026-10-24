@@ -82,7 +82,7 @@
         <article class="option">
           <span class="option-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8M9 3v4.5a4 4 0 0 1-.8 2.4L5.5 13.5A5 5 0 0 0 9.5 21h5a5 5 0 0 0 4-7.5l-2.7-3.6A4 4 0 0 1 15 7.5V3"/></svg></span>
           <b>Listening Age</b>
-          <small>How old your taste is: the era you keep coming back to, explained step by step with your own numbers.</small>
+          <small>The era of music you keep coming back to, explained step by step with your own numbers.</small>
         </article>
         <article class="option">
           <span class="option-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h16M4 18h7"/></svg></span>
@@ -97,17 +97,36 @@
       </div>
     </section>
 
-    <section class="section split">
-      <div class="split-text">
+    <!-- The card browser: every Wrapped design, drawn from a demo library by the app itself
+         (packaging/demo/render_cards.py). Flip through the deck, pick a layout and a theme. -->
+    <section class="section studio" id="cards">
+      <div class="studio-text">
         <h2 class="heading">Cards worth posting.</h2>
-        <p class="lead">Every card has its own layouts: a list, a spotlight, a receipt, a vinyl record, a calendar. Pick a theme for the deck, or let <b>Shuffle</b> give every card its own. The <b>Cover</b> theme takes its colours from your top album.</p>
-        <p class="fine">1080 × 1920 for stories, 1080 × 1080 for posts. Titles in any language.</p>
+        <p class="lead">Every card has its own layouts and nine themes. Flip through the deck and try them: these are real cards, made by TunesBack from a sample library.</p>
       </div>
-      <img class="cards" src="assets/screenshots/cards.jpg" alt="Six Wrapped cards in different layouts and themes" loading="lazy">
+      <div class="studio-body">
+        <div class="deck" id="deck" tabindex="0" role="region" aria-roledescription="carousel" aria-label="Wrapped cards">
+          <button class="deck-arrow prev" type="button" aria-label="Previous card"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
+          <div class="deck-cards" id="deck-cards"></div>
+          <button class="deck-arrow next" type="button" aria-label="Next card"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        </div>
+        <div class="studio-controls" id="studio-controls">
+          <div class="studio-head">
+            <div><b id="studio-name">Top songs</b><span id="studio-count" class="studio-count"></span></div>
+            <button class="btn" type="button" id="studio-shuffle">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Shuffle
+            </button>
+          </div>
+          <div class="studio-row"><span class="label">Layout</span><div class="chips" id="studio-layouts" role="group" aria-label="Layout"></div></div>
+          <div class="studio-row"><span class="label">Theme</span><div class="chips" id="studio-themes" role="group" aria-label="Theme"></div></div>
+          <p class="fine">Story (1080 × 1920) or square (1080 × 1080) in the app. Titles in any language.</p>
+        </div>
+      </div>
+      <img class="cards studio-fallback" src="assets/screenshots/cards.jpg" alt="Six Wrapped cards in different layouts and themes" loading="lazy" hidden>
     </section>
 
     <section class="section" id="sources">
-      <h2 class="heading">Which music apps do you use?</h2>
+      <h2 class="heading">Works with the music apps you already use.</h2>
       <p class="lead">Use one, or several at once: TunesBack matches the same song across them, so a listen never counts twice.</p>
       <div class="tiles" id="source-tiles">
         <div class="tile" data-brand="itunes"><span class="tile-logo"></span><span class="tile-text"><b>iTunes / Apple Music</b><small>Your library, read on your computer or a network drive</small></span></div>
@@ -121,8 +140,8 @@
 
     <section class="section split reverse">
       <div class="split-text">
-        <h2 class="heading">How old is your taste?</h2>
-        <p class="lead">Your Listening Age finds the five release years you play most and works out how old you'd be if you were 18 in the middle of them. Younger than you are? You're into new music. Older? You know what you like.</p>
+        <h2 class="heading">Find out which era your music comes from.</h2>
+        <p class="lead">Your Listening Age finds the five release years you play most and works out how old you'd be if you were 18 in the middle of them. Younger than you are means you're into new music. Older means you know what you like.</p>
         <p class="fine">It's opt-in: it shows up on your Overview and in your cards only if you want it to.</p>
       </div>
       <picture class="framed">
@@ -167,7 +186,7 @@
           </div>
         </article>
       </div>
-      <p class="fine center">Every release and its checksums are on <a class="text-link" href="https://github.com/mooseses/TunesBack/releases">GitHub</a>. Prefer to build it yourself? See the <a class="text-link" href="https://github.com/mooseses/TunesBack#building-from-source">README</a>.</p>
+      <p class="fine center">Every release and its checksums are on <a class="text-link" href="https://github.com/mooseses/TunesBack/releases">GitHub</a>. To build it yourself, follow the <a class="text-link" href="https://github.com/mooseses/TunesBack#building-from-source">README</a>.</p>
     </section>
   </main>
 

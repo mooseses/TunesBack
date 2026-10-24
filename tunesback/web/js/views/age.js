@@ -1,4 +1,4 @@
-// Listening age: how old your taste is. Press Calculate and TunesBack sweeps a
+// Listening age: the era your music comes from. Press Calculate and TunesBack sweeps a
 // five-year window across the release years you played until it lands on your
 // era, counting the age as it goes.
 
@@ -39,7 +39,7 @@ export function render(root) {
 function intro(start) {
   return h("div.card.age-intro",
     h("div.age-orbit", h("span"), h("span"), h("span"), icon("age")),
-    h("h2", "How old is your taste?"),
+    h("h2", "What era is your music from?"),
     h("p.muted", "Most people love the music of their late teens for life. TunesBack finds the five years of releases you played most, then works out how old you'd be if you were 18 back then."),
     h("button.btn.btn-primary.btn-large", { "data-autofocus": true, onclick: start }, "Calculate", icon("arrow")));
 }

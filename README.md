@@ -29,8 +29,8 @@ Spotify has Wrapped and Apple Music has Replay. But if you keep your own music l
 or spread your listening over several apps, nobody tells you what your year sounded like.
 
 TunesBack does. Point it at your iTunes or Apple Music library, your Last.fm or ListenBrainz profile, or your
-Spotify history download, and it shows your top songs, artists, albums and genres, when you listen, how old
-your taste is, and turns it all into cards you can share. Use one source or combine them without counting the
+Spotify history download, and it shows your top songs, artists, albums and genres, when you listen, which era
+your music comes from, and turns it all into cards you can share. Use one source or combine them without counting the
 same listen twice.
 
 ## Download
@@ -90,7 +90,7 @@ Get the latest version from **[Releases](https://github.com/mooseses/TunesBack/r
 
 ### Listening Age
 
-How old your taste is: TunesBack finds the five release years you played most and works out how old you'd be
+The era you keep coming back to: TunesBack finds the five release years you played most and works out how old you'd be
 if you were 18 in the middle of them. It has its own page, explained step by step with your own numbers, and
 it only appears on the Overview or in Wrapped if you choose. [How it's calculated](#listening-age-1).
 

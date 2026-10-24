@@ -1,0 +1,37 @@
+name: Screenshots
+# Retakes the README and website screenshots (docs/screenshots) from the demo library, with real
+# album covers, and commits them to the branch it runs on.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install TunesBack and Playwright
+        run: |
+          pip install . playwright
+          python -m playwright install --with-deps chromium
+      - name: Build the demo library
+        run: python packaging/demo/build_demo.py demo
+      - name: Take the screenshots
+        run: python packaging/demo/screenshots.py demo docs/screenshots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: docs/screenshots/*.jpg
+      - name: Commit them
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          git diff --cached --quiet && { echo "No changes"; exit 0; }
+          git commit -m "Retake screenshots from the demo library"
+          git push
