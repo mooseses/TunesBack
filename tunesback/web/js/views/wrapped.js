@@ -82,10 +82,11 @@ function tile(card) {
         renderApp();
       },
     }, icon("check")),
-    card.hidden && h("span.tile-hidden", icon("hidden"), "Hidden"),
-    h("div.tile-meta", h("b", card.name), h("span", `${card.layout_name} · ${themeName(card.theme)}`)));
+    card.hidden && h("span.tile-hidden", icon("hidden"), "Hidden"));
   showImage(img, box, card.type, src);
-  return box;
+  // The name and design go under the card, so nothing covers the card itself.
+  return h("figure.card-item", box,
+    h("figcaption.tile-meta", h("b", card.name), h("span", `${card.layout_name} · ${themeName(card.theme)}`)));
 }
 
 /** Keep the previous image up until the new one has loaded, so changes never flash. */

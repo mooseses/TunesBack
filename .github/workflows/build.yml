@@ -15,6 +15,10 @@ on:
         description: "Print smoke-test screenshots to the log"
         type: boolean
         default: false
+      release:
+        description: "Publish a release of this version (main only)"
+        type: boolean
+        default: false
 
 env:
   PYTHON_VERSION: "3.12"
@@ -397,11 +401,12 @@ jobs:
           compression-level: 0
           if-no-files-found: error
 
-  # A tag like v2.0.0-beta.1 drafts a GitHub release with every build attached.
-  # Check the notes and publish it from the Releases page.
+  # Publishes a GitHub release with every download, notes from CHANGELOG.md and checksums:
+  # run the workflow on main with "Publish a release", or push a tag like v2.0.0-beta.1.
+  # Pre-release versions (betas, release candidates) are published as pre-releases.
   release:
-    name: Draft release
-    if: startsWith(github.ref, 'refs/tags/v')
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v') || (inputs.release && github.ref == 'refs/heads/main')
     needs: [build, linux-packages, flatpak]
     runs-on: ubuntu-latest
     permissions:
@@ -415,17 +420,24 @@ jobs:
         with:
           path: assets
           merge-multiple: true
-      - name: Draft the release
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
         run: |
           eval "$(python -m tunesback.version --shell)"
-          if [ "$(python -c "from tunesback.version import parse; print(parse('$TAG'))")" != "$V_PEP440" ]; then
-            echo "::error::Tag $TAG doesn't match the app's version $V_PEP440"; exit 1
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+            if [ "$(python -c "from tunesback.version import parse; print(parse('$TAG'))")" != "$V_PEP440" ]; then
+              echo "::error::Tag $TAG doesn't match the app's version $V_PEP440"; exit 1
+            fi
+          else
+            TAG="$V_TAG"
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "::error::$TAG is already released: bump the version first"; exit 1
+            fi
           fi
           python packaging/release_notes.py "$V_PEP440" > notes.md
           (cd assets && sha256sum * > SHA256SUMS.txt)
-          FLAGS=(--draft --title "TunesBack $V_DISPLAY" --notes-file notes.md)
+          FLAGS=(--title "TunesBack $V_DISPLAY" --notes-file notes.md --target "$GITHUB_SHA")
           [ "$V_PRERELEASE" = "true" ] && FLAGS+=(--prerelease)
           gh release create "$TAG" assets/* "${FLAGS[@]}"

@@ -415,12 +415,10 @@ h1, h2, h3, p { margin: 0; }
 .card-tile .check[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
 .card-tile .check .icon { width: 14px; height: 14px; opacity: 0; }
 .card-tile .check[aria-pressed="true"] .icon { opacity: 1; }
-.tile-meta {
-  position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 12px 10px; display: flex; flex-direction: column; gap: 1px;
-  color: #fff; background: linear-gradient(transparent, rgba(0, 0, 0, 0.65)); pointer-events: none; font-size: 12px;
-}
-.tile-meta b { font-size: 13px; }
-.tile-meta span { opacity: 0.8; }
+.card-item { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.tile-meta { display: flex; flex-direction: column; gap: 1px; padding: 0 2px; font-size: 12px; min-width: 0; }
+.tile-meta b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile-meta span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Floats over the cards at the bottom right, as a panel of its own (no band across the gallery). */
 .save-bar {
   position: sticky; bottom: 16px; z-index: 5; display: flex; align-items: center; gap: 8px; width: fit-content;
